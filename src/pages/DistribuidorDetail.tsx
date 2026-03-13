@@ -4,11 +4,8 @@ import {
   Users,
   Target,
   Award,
-  AlertTriangle,
   ArrowLeft,
-  TrendingUp,
 } from 'lucide-react'
-import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
@@ -96,9 +93,6 @@ export function DistribuidorDetail() {
   const taxaPositivacao =
     totalCarteira > 0 ? (totalPositivados / totalCarteira) * 100 : 0
   const clientesExcelencia = (clientes ?? []).filter((c) => c.plano_excelencia)
-  const itensRuptura = (estoque ?? []).filter(
-    (e) => e.status === 'critico' || e.status === 'ruptura'
-  )
 
   return (
     <div>

@@ -57,7 +57,7 @@ export function MetasPanel() {
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Distribuidor
               </label>
-              <Select value={distribuidorFilter} onValueChange={setDistribuidorFilter}>
+              <Select value={distribuidorFilter} onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}>
                 <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
                   <SelectValue />
                 </SelectTrigger>

@@ -24,7 +24,6 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ESTADOS_NORDESTE } from '@/types/distribuidor'
-import type { EstadoNordeste } from '@/types/distribuidor'
 
 export function DistribuidoresList() {
   const { data: distribuidores, isLoading } = useDistribuidores()
@@ -77,7 +76,7 @@ export function DistribuidoresList() {
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Estado
               </label>
-              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+              <Select value={estadoFilter} onValueChange={(v) => setEstadoFilter(v ?? 'todos')}>
                 <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
                   <SelectValue />
                 </SelectTrigger>
@@ -95,7 +94,7 @@ export function DistribuidoresList() {
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Status
               </label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? 'todos')}>
                 <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
                   <SelectValue />
                 </SelectTrigger>

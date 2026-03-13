@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { TrendingUp, DollarSign, Users, ShoppingCart, Package } from 'lucide-react'
+import { DollarSign, Users, ShoppingCart, Package } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
-import { StatusBadge } from '@/components/distribuidor/StatusBadge'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
-import { useAllPerformance, useVendedores } from '@/hooks/useDistribuidorPerformance'
+import { useAllPerformance } from '@/hooks/useDistribuidorPerformance'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
@@ -121,7 +120,7 @@ export function PerformanceList() {
               </label>
               <Select
                 value={distribuidorFilter}
-                onValueChange={setDistribuidorFilter}
+                onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}
               >
                 <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
                   <SelectValue />

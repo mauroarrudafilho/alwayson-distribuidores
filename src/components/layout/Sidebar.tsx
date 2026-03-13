@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface SidebarProps {
   collapsed: boolean
@@ -91,12 +90,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
           if (collapsed) {
             return (
-              <Tooltip key={item.path} delayDuration={0}>
-                <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">
-                  {item.label}
-                </TooltipContent>
-              </Tooltip>
+              <div key={item.path} title={item.label}>
+                {linkContent}
+              </div>
             )
           }
 
