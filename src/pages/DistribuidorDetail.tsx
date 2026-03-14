@@ -28,15 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
 
 export function DistribuidorDetail() {
   const { id } = useParams<{ id: string }>()
@@ -51,9 +43,9 @@ export function DistribuidorDetail() {
     return (
       <div>
         <Skeleton className="h-5 w-48 mb-4" />
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="rounded-md border border-border/50 shadow-none">
+            <Card key={i}>
               <CardContent className="p-3">
                 <Skeleton className="h-3 w-24 mb-2" />
                 <Skeleton className="h-5 w-16" />
@@ -95,8 +87,8 @@ export function DistribuidorDetail() {
   const clientesExcelencia = (clientes ?? []).filter((c) => c.plano_excelencia)
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
+    <div className="animate-fade-in">
+      <div className="flex items-center gap-2 mb-6">
         <Link to="/distribuidores">
           <Button variant="ghost" size="sm" className="h-6 px-2">
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -106,7 +98,7 @@ export function DistribuidorDetail() {
           <h1 className="text-sm font-semibold text-foreground">{dist.nome}</h1>
           <StatusBadge status={dist.status} />
         </div>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           {dist.cidade} - {dist.estado} | CNPJ: {dist.cnpj}
         </span>
       </div>
@@ -131,44 +123,34 @@ export function DistribuidorDetail() {
         />
       </KPIGrid>
 
-      <div className="mt-4">
+      <div className="mt-6">
         <Tabs defaultValue="performance">
           <TabsList className="h-8">
-            <TabsTrigger value="performance" className="text-xs h-7 px-3">
+            <TabsTrigger value="performance" className="text-sm h-8 px-3">
               Performance
             </TabsTrigger>
-            <TabsTrigger value="clientes" className="text-xs h-7 px-3">
+            <TabsTrigger value="clientes" className="text-sm h-8 px-3">
               Clientes
             </TabsTrigger>
-            <TabsTrigger value="metas" className="text-xs h-7 px-3">
+            <TabsTrigger value="metas" className="text-sm h-8 px-3">
               Metas
             </TabsTrigger>
-            <TabsTrigger value="estoque" className="text-xs h-7 px-3">
+            <TabsTrigger value="estoque" className="text-sm h-8 px-3">
               Estoque
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="performance" className="mt-3">
-            <Card className="rounded-md border border-border/50 shadow-none">
+          <TabsContent value="performance" className="mt-4">
+            <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent border-border/50">
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Vendedor
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Faturamento
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Positivados
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Itens
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Pedidos
-                      </TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Faturamento</TableHead>
+                      <TableHead className="text-right">Positivados</TableHead>
+                      <TableHead className="text-right">Itens</TableHead>
+                      <TableHead className="text-right">Pedidos</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -200,28 +182,25 @@ export function DistribuidorDetail() {
                           0
                         )
                         return (
-                          <TableRow
-                            key={v.id}
-                            className="hover:bg-muted/30 border-border/30"
-                          >
-                            <TableCell className="py-1.5">
+                          <TableRow key={v.id}>
+                            <TableCell>
                               <div>
                                 <span className="text-xs font-medium">{v.nome}</span>
-                                <span className="text-[10px] text-muted-foreground ml-1.5">
+                                <span className="text-[11px] text-muted-foreground ml-1.5">
                                   {v.tipo}
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                            <TableCell className="text-xs tabular-nums text-right">
                               {formatCurrency(fat)}
                             </TableCell>
-                            <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                            <TableCell className="text-xs tabular-nums text-right">
                               {pos}
                             </TableCell>
-                            <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                            <TableCell className="text-xs tabular-nums text-right">
                               {itens}
                             </TableCell>
-                            <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                            <TableCell className="text-xs tabular-nums text-right">
                               {pedidos}
                             </TableCell>
                           </TableRow>
@@ -234,27 +213,17 @@ export function DistribuidorDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="clientes" className="mt-3">
-            <Card className="rounded-md border border-border/50 shadow-none">
+          <TabsContent value="clientes" className="mt-4">
+            <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent border-border/50">
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Cliente
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Cidade
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Ticket Médio
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Excelência
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Status
-                      </TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Cidade</TableHead>
+                      <TableHead className="text-right">Ticket Médio</TableHead>
+                      <TableHead>Excelência</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -266,34 +235,31 @@ export function DistribuidorDetail() {
                       </TableRow>
                     ) : (
                       clientes.map((c) => (
-                        <TableRow
-                          key={c.id}
-                          className="hover:bg-muted/30 border-border/30"
-                        >
-                          <TableCell className="py-1.5">
+                        <TableRow key={c.id}>
+                          <TableCell>
                             <div>
                               <span className="text-xs font-medium">
                                 {c.nome_fantasia ?? c.razao_social}
                               </span>
-                              <span className="text-[10px] text-muted-foreground block">
+                              <span className="text-[11px] text-muted-foreground block">
                                 {c.cnpj}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs text-muted-foreground">
+                          <TableCell className="text-xs text-muted-foreground">
                             {c.cidade} - {c.estado}
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                          <TableCell className="text-xs tabular-nums text-right">
                             {c.ticket_medio
                               ? formatCurrency(c.ticket_medio)
                               : '-'}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell>
                             {c.plano_excelencia && (
                               <StatusBadge status="excelencia" />
                             )}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell>
                             <StatusBadge status={c.status} />
                           </TableCell>
                         </TableRow>
@@ -305,8 +271,8 @@ export function DistribuidorDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="metas" className="mt-3">
-            <Card className="rounded-md border border-border/50 shadow-none">
+          <TabsContent value="metas" className="mt-4">
+            <Card>
               <CardContent className="p-3">
                 <SectionTitle title="Metas do Período" icon={Target} />
                 {!metas || metas.length === 0 ? (
@@ -330,30 +296,18 @@ export function DistribuidorDetail() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="estoque" className="mt-3">
-            <Card className="rounded-md border border-border/50 shadow-none">
+          <TabsContent value="estoque" className="mt-4">
+            <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent border-border/50">
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        SKU
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Descrição
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Qtd Atual
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Dias Cobertura
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                        Sugestão
-                      </TableHead>
-                      <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                        Status
-                      </TableHead>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Qtd Atual</TableHead>
+                      <TableHead className="text-right">Dias Cobertura</TableHead>
+                      <TableHead className="text-right">Sugestão</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -365,28 +319,25 @@ export function DistribuidorDetail() {
                       </TableRow>
                     ) : (
                       estoque.map((item) => (
-                        <TableRow
-                          key={item.id}
-                          className="hover:bg-muted/30 border-border/30"
-                        >
-                          <TableCell className="py-1.5 text-xs font-medium tabular-nums">
+                        <TableRow key={item.id}>
+                          <TableCell className="text-xs font-medium tabular-nums">
                             {item.sku}
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs">
+                          <TableCell className="text-xs">
                             {item.descricao}
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                          <TableCell className="text-xs tabular-nums text-right">
                             {Number(item.quantidade_atual).toLocaleString('pt-BR')}
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                          <TableCell className="text-xs tabular-nums text-right">
                             {Number(item.dias_cobertura).toFixed(0)}d
                           </TableCell>
-                          <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                          <TableCell className="text-xs tabular-nums text-right">
                             {item.sugestao_pedido
                               ? Number(item.sugestao_pedido).toLocaleString('pt-BR')
                               : '-'}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell>
                             <StatusBadge status={item.status} />
                           </TableCell>
                         </TableRow>
