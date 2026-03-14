@@ -131,15 +131,15 @@ export function IngestaoUpload({
   return (
     <Card
       className={cn(
-        'rounded-md border border-border/50 shadow-none hover:border-border/80 transition-colors',
+        'hover:shadow-card-hover transition-shadow',
         className
       )}
     >
       <CardContent className="p-3">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Tipo de Relatório
               </label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? 'vendas')}>
@@ -157,7 +157,7 @@ export function IngestaoUpload({
             </div>
 
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Distribuidor
               </label>
               <Select value={distribuidorId} onValueChange={(v) => setDistribuidorId(v ?? '')}>
@@ -175,7 +175,7 @@ export function IngestaoUpload({
             </div>
 
             <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Período Referência
               </label>
               <Input
@@ -189,7 +189,7 @@ export function IngestaoUpload({
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
               Arquivo
             </label>
             <div className="flex items-center gap-2">
@@ -198,10 +198,10 @@ export function IngestaoUpload({
                 type="file"
                 accept={EXTENSOES_ACEITAS}
                 onChange={handleFileChange}
-                className="h-8 text-xs file:mr-2 file:rounded-sm file:border-0 file:bg-primary file:px-2 file:py-1 file:text-[10px] file:font-semibold file:text-primary-foreground file:cursor-pointer"
+                className="h-8 text-xs file:mr-2 file:rounded-sm file:border-0 file:bg-primary file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-primary-foreground file:cursor-pointer"
               />
               {file && (
-                <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
                   {file.name}
                 </span>
               )}
@@ -212,8 +212,8 @@ export function IngestaoUpload({
             <div
               className={cn(
                 'flex items-center gap-2 py-2 px-2 rounded-md text-xs',
-                uploadStatus === 'success' && 'bg-emerald-50 text-emerald-700',
-                uploadStatus === 'error' && 'bg-red-50 text-red-700'
+                uploadStatus === 'success' && 'bg-success/10 text-success',
+                uploadStatus === 'error' && 'bg-destructive/10 text-destructive'
               )}
             >
               {uploadStatus === 'success' ? (
