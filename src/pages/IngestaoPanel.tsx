@@ -31,15 +31,15 @@ export function IngestaoPanel() {
       : 'pendente'
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Ingestão de Relatórios"
         description="Envie relatórios de vendas, estoque ou clientes para processamento"
       />
 
-      <IngestaoUpload className="mb-4" />
+      <IngestaoUpload className="mb-6" />
 
-      <Card className="rounded-md border border-border/50 shadow-none">
+      <Card>
         <CardContent className="p-3">
           <SectionTitle title="Histórico de Ingestões" icon={FileText} />
           {isLoading ? (
@@ -55,59 +55,42 @@ export function IngestaoPanel() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-transparent border-border/50">
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Arquivo
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Distribuidor
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Tipo
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Período
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                    Registros
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Status
-                  </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                    Data
-                  </TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Arquivo</TableHead>
+                  <TableHead>Distribuidor</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead className="text-right">Registros</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Data</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {relatorios.map((r) => (
-                  <TableRow
-                    key={r.id}
-                    className="hover:bg-muted/30 border-border/30"
-                  >
-                    <TableCell className="py-1.5 text-xs font-medium">
+                  <TableRow key={r.id}>
+                    <TableCell className="text-xs font-medium">
                       {r.arquivo_nome}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground">
                       {getDistribuidorNome(r.distribuidor_id)}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs capitalize">
+                    <TableCell className="text-xs capitalize">
                       {r.tipo}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground">
                       {r.periodo_referencia
                         ? new Date(r.periodo_referencia).toLocaleDateString(
                             'pt-BR'
                           )
                         : '-'}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                    <TableCell className="text-xs tabular-nums text-right">
                       {r.registros_processados ?? '-'}
                     </TableCell>
-                    <TableCell className="py-1.5">
+                    <TableCell>
                       <StatusBadge status={getStatusType(r.status)} />
                     </TableCell>
-                    <TableCell className="py-1.5 text-[10px] text-muted-foreground">
+                    <TableCell className="text-[11px] text-muted-foreground">
                       {new Date(r.criado_em).toLocaleString('pt-BR', {
                         dateStyle: 'short',
                         timeStyle: 'short',
