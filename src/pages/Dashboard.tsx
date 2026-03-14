@@ -26,15 +26,7 @@ import {
   useDistribuidoresSemDadosRecentes,
 } from '@/hooks/useRelatoriosIngestao'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
 
 export function Dashboard() {
   const { data, isLoading } = useDashboardKPIs()
@@ -50,9 +42,9 @@ export function Dashboard() {
           title="Dashboard"
           description="Visão geral dos distribuidores parceiros"
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Card key={i} className="rounded-md border border-border/50 shadow-none">
+            <Card key={i}>
               <CardContent className="p-3">
                 <Skeleton className="h-3 w-24 mb-2" />
                 <Skeleton className="h-5 w-16" />
@@ -68,7 +60,7 @@ export function Dashboard() {
   const distAtivos = data?.distribuidoresAtivos ?? 0
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Dashboard"
         description="Visão geral dos distribuidores parceiros"
@@ -108,7 +100,7 @@ export function Dashboard() {
         />
       </KPIGrid>
 
-      <div className="mt-3">
+      <div className="mt-6">
         <KPIGrid columns={4}>
           <KPICard
             label="Metas Atingidas"
@@ -134,8 +126,8 @@ export function Dashboard() {
         </KPIGrid>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-4">
-        <Card className="rounded-md border border-border/50 shadow-none">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <Card>
           <CardContent className="p-3">
             <SectionTitle title="Ranking Distribuidores" icon={TrendingUp} />
             {distribuidores && distribuidores.length > 0 ? (
@@ -147,13 +139,13 @@ export function Dashboard() {
                     className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors group"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground w-4">
+                      <span className="text-[11px] font-bold text-muted-foreground w-4">
                         {idx + 1}
                       </span>
                       <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
                         {dist.nome}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground">
                         {dist.estado}
                       </span>
                     </div>
@@ -169,7 +161,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-md border border-border/50 shadow-none">
+        <Card>
           <CardContent className="p-3">
             <SectionTitle title="Alertas de Estoque" icon={Package} />
             <p className="text-xs text-muted-foreground py-4 text-center">
@@ -178,12 +170,12 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-md border border-border/50 shadow-none">
+        <Card>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-2">
               <SectionTitle title="Últimos Relatórios" icon={FileText} />
               <Link to="/ingestao">
-                <Button variant="outline" size="sm" className="h-6 px-2 text-[10px]">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]">
                   Enviar
                 </Button>
               </Link>
