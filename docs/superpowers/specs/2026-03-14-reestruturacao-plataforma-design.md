@@ -240,22 +240,283 @@ Adicionar botão de **download de template** para cada tipo de relatório.
 - Drill-down propaga filtros entre tabs sem necessidade de state management global
 - Navegação para `/clientes/:id` é saída do contexto Performance — dados do cliente carregam independentemente
 
-### Dados: hierarquia existente é suficiente
-- `alwayson_vendedores_distribuidor` já possui `tipo` (vendedor/supervisor/gerente) e `supervisor_id` (auto-referência)
-- Hierarquia se resolve via queries com joins no `supervisor_id`
-- Pode ser necessário ajustar/criar views no Supabase para queries hierárquicas eficientes
+### URL State Schema (Performance)
+O estado do drill-down é refletido na URL para permitir deep-linking e compartilhamento:
+```
+/performance?tab=supervisao&distribuidor=<id>&gerente=<id>
+/performance?tab=vendas&distribuidor=<id>&gerente=<id>&supervisor=<id>
+/performance?tab=cliente&distribuidor=<id>&vendedor=<id>
+```
+- `tab`: nível ativo (distribuidor | gerencia | supervisao | vendas | cliente)
+- Filtros de hierarquia como query params opcionais
+- Navegação browser back/forward funciona entre estados de drill-down
+- Período é query param adicional: `&periodo_inicio=2026-01&periodo_fim=2026-03`
 
-### Novas necessidades de dados
-- Histórico de NFs por cliente (pode já existir em `alwayson_performance_periodo` ou precisar de nova tabela)
-- Critérios de excelência configuráveis (já existe `alwayson_excelencia_criterios`)
-- Estoque mínimo calculado (derivado, não necessariamente nova coluna — pode ser computed)
-- Lead time por indústria (parâmetro configurável — nova tabela ou coluna em distribuidores)
+### Roteamento da Administração
+Sub-tabs da Administração são rotas aninhadas para permitir deep-linking:
+```
+/admin                  → redireciona para /admin/distribuidores
+/admin/distribuidores
+/admin/produtos
+/admin/metas
+/admin/excelencia
+/admin/usuarios
+```
+
+### Filtro de Período
+- **Formato:** range de meses (mês/ano início — mês/ano fim)
+- **Default:** mês corrente
+- **Seletor:** calendário mensal com range picker
+- **Aplicação:** afeta tanto KPIs quanto tabelas do nível ativo
+- **Interação com dados:** filtra registros de `PerformancePeriodo` onde `periodo_inicio >= filtro_inicio AND periodo_fim <= filtro_fim`
+
+## Modelo de Dados — Mudanças Necessárias
+
+### Tabelas existentes (mantidas)
+- `alwayson_distribuidores` — sem mudanças de schema
+- `alwayson_vendedores_distribuidor` — sem mudanças (hierarquia via `tipo` + `supervisor_id`)
+- `alwayson_clientes_distribuidor` — sem mudanças
+- `alwayson_performance_periodo` — sem mudanças (dados agregados por vendedor+período)
+- `alwayson_metas_distribuidor` — sem mudanças (já possui `hierarquia` e `vendedor_id`)
+- `alwayson_relatorios_ingestao` — sem mudanças
+
+### Tabelas novas
+
+#### `alwayson_produtos`
+Catálogo de SKUs do portfólio. Global (não por distribuidor).
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK | |
+| sku | text | sim | Código do produto |
+| descricao | text | sim | Nome/descrição |
+| categoria | text | não | Categoria do produto |
+| preco_referencia | numeric | não | Preço tabela referência |
+| ativo | boolean | sim | Default true |
+| criado_em | timestamptz | sim | Default now() |
+
+#### `alwayson_notas_fiscais`
+Histórico de notas fiscais por cliente. Fonte primária para detalhe transacional.
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK | |
+| distribuidor_id | uuid | FK | → alwayson_distribuidores |
+| cliente_id | uuid | FK | → alwayson_clientes_distribuidor |
+| vendedor_id | uuid | FK | → alwayson_vendedores_distribuidor |
+| numero_nf | text | sim | Número da nota fiscal |
+| data_emissao | date | sim | Data de emissão |
+| valor_total | numeric | sim | Valor total da NF |
+| criado_em | timestamptz | sim | Default now() |
+
+#### `alwayson_notas_fiscais_itens`
+Itens de cada nota fiscal. Detalhe por SKU.
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK | |
+| nota_fiscal_id | uuid | FK | → alwayson_notas_fiscais |
+| produto_id | uuid | FK, opcional | → alwayson_produtos (se catalogado) |
+| sku | text | sim | Código SKU (sempre presente, mesmo sem produto_id) |
+| descricao | text | sim | Descrição do item na NF |
+| quantidade | numeric | sim | Quantidade |
+| valor_unitario | numeric | sim | Preço unitário |
+| valor_total | numeric | sim | Quantidade × valor_unitario |
+
+#### `alwayson_excelencia_config`
+Configuração dos critérios de excelência por distribuidor. Cadastrado no Cockpit de Parâmetros.
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK | |
+| distribuidor_id | uuid | FK | → alwayson_distribuidores |
+| criterio_nome | text | sim | Nome livre do critério (ex: "Frequência", "Mix", "Volume") |
+| meta_valor | numeric | sim | Valor-alvo do critério |
+| tipo_comparacao | text | sim | 'min' (≥ meta) ou 'max' (≤ meta) |
+| ativo | boolean | sim | Default true |
+| ordem | integer | sim | Ordem de exibição na tabela |
+
+#### `alwayson_excelencia_clientes`
+Lista de clientes elegíveis ao plano de excelência por distribuidor.
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK | |
+| distribuidor_id | uuid | FK | → alwayson_distribuidores |
+| cliente_id | uuid | FK | → alwayson_clientes_distribuidor |
+| ativo | boolean | sim | Default true |
+| adicionado_em | timestamptz | sim | Default now() |
+
+### Tabelas modificadas
+
+#### `alwayson_estoque_distribuidor` — nova coluna + status atualizado
+- **`estoque_minimo_calculado`** (numeric, nullable): estoque mínimo dinâmico, calculado a partir do histórico de sell-out
+- **`status`**: migrar de `'normal' | 'baixo' | 'critico' | 'ruptura'` para `'saudavel' | 'critico' | 'overstock'`
+  - `critico`: quantidade_atual < estoque_minimo_calculado
+  - `saudavel`: estoque normal (entre mínimo e X dias cobertura)
+  - `overstock`: acima do limite de dias de cobertura
+
+#### `alwayson_distribuidores` — nova coluna
+- **`lead_time_dias`** (integer, default 7): lead time padrão de entrega da indústria até o distribuidor, usado no cálculo de sugestão S&OP
+
+### Tabela existente que será descontinuada
+- `alwayson_excelencia_criterios` — substituída por `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + dados calculados a partir de NFs
+
+### Views Supabase recomendadas
+
+#### `view_hierarquia_vendedores`
+CTE recursiva que resolve a árvore hierárquica completa:
+```sql
+-- Retorna: vendedor_id, distribuidor_id, nome, tipo, gerente_id, gerente_nome, supervisor_id, supervisor_nome
+-- Permite consultar todos os vendedores com seus superiores resolvidos em uma query flat
+```
+
+#### `view_performance_por_nivel`
+Agregação de performance por nível hierárquico:
+```sql
+-- Dado um distribuidor_id e período, retorna faturamento/positivação/itens agregados por:
+-- gerente, supervisor, vendedor ou cliente
+```
+
+#### `view_estoque_sugestao`
+Cálculo de estoque mínimo e sugestão de pedido:
+```sql
+-- Combina estoque atual + histórico de vendas (NFs) + lead_time do distribuidor
+-- Retorna: sku, qtd_atual, estoque_minimo, dias_cobertura, sugestao_pedido, status
+```
+
+## Lógica de Hierarquia — Tabs Adaptativas
+
+### Regra de skip
+A hierarquia de um distribuidor pode não ter todos os níveis. O sistema se adapta:
+
+1. **Ao carregar Performance com um distribuidor selecionado**, verificar quais `tipo` de vendedores existem para aquele distribuidor
+2. **Tabs visíveis** = apenas os níveis que possuem pelo menos um registro ativo + tab Distribuidor (sempre visível) + tab Cliente (sempre visível)
+3. **Drill-down** pula para o próximo nível **existente**:
+   - Se distribuidor não tem gerentes → clique no distribuidor vai para Supervisão (ou Vendas se não tem supervisores)
+   - Se não tem gerentes NEM supervisores → vai direto para Vendas
+4. **Breadcrumb** mostra apenas os níveis presentes no caminho percorrido
+
+### Exemplo
+- Distribuidor A tem gerentes, supervisores e vendedores → 5 tabs
+- Distribuidor B só tem supervisores e vendedores → 4 tabs (Distribuidor, Supervisão, Vendas, Cliente)
+- Distribuidor C só tem vendedores → 3 tabs (Distribuidor, Vendas, Cliente)
+
+## KPI Aggregation — Regras por Nível
+
+### Performance tab Distribuidor
+- Query: `alwayson_performance_periodo` grouped by `distribuidor_id`, sum de faturamento/positivados/itens
+- Meta: `alwayson_metas_distribuidor` where `hierarquia = 'distribuidor'`
+
+### Performance tab Gerência
+- Identificar vendedores com `tipo = 'gerente'` do distribuidor selecionado
+- Para cada gerente, somar performance de todos os vendedores subordinados (recursivo via `supervisor_id`)
+- Meta: `alwayson_metas_distribuidor` where `hierarquia = 'gerente'` e `vendedor_id = gerente_id`
+
+### Performance tab Supervisão
+- Identificar vendedores com `tipo = 'supervisor'` subordinados ao gerente selecionado (ou todos se sem filtro)
+- Para cada supervisor, somar performance dos vendedores diretos
+- Meta: idem com `hierarquia = 'supervisor'`
+
+### Performance tab Vendas
+- Vendedores (`tipo = 'vendedor'`) subordinados ao supervisor selecionado
+- Performance direta do registro individual
+- Meta: idem com `hierarquia = 'vendedor'`
+
+### Performance tab Cliente
+- Clientes do vendedor selecionado (via `cliente.vendedor_id`)
+- Faturamento por cliente: derivado de `alwayson_notas_fiscais` agrupado por `cliente_id` no período
+
+### Estratégia de computação
+- **Preferência por views Supabase** para níveis com recursão (gerência, supervisão)
+- **Client-side aggregation** aceitável para vendas e cliente (poucos registros por escopo)
+- TanStack Query com `staleTime` generoso (dados de performance não mudam em tempo real)
+
+## Excelência — Score e Thresholds
+
+### Fórmula do Score
+```
+Score = (critérios atingidos / total critérios ativos) × 100
+```
+- Ponderação simples (todos os critérios têm peso igual) — V1
+- Peso por critério pode ser adicionado futuramente via coluna `peso` na `alwayson_excelencia_config`
+
+### Thresholds de status por critério
+- 🟢 Verde: realizado ≥ meta_valor (atingido)
+- 🟡 Amarelo: realizado ≥ 70% da meta_valor (em risco)
+- 🔴 Vermelho: realizado < 70% da meta_valor (fora do padrão)
+
+### Cálculo dos valores realizados
+Derivados automaticamente a partir dos dados de NFs e do cadastro de clientes:
+- **Frequência**: count de NFs distintas no período / meses no período
+- **Mix (itens distintos)**: count distinct SKUs nas NFs do período
+- **Volume**: sum valor_total das NFs do período
+- **Itens cadastrados**: campo `itens_cadastrados` de `alwayson_clientes_distribuidor`
+
+## Estoque — S&OP Detalhamento
+
+### Estoque Mínimo
+```
+Estoque mínimo = Média diária de vendas (últimos 90 dias) × Fator de segurança (1.5)
+```
+- Recalculado periodicamente (diário ou na ingestão de dados)
+- Média diária de vendas: sum(quantidade) de `alwayson_notas_fiscais_itens` por SKU nos últimos 90 dias / 90
+
+### Sugestão de Pedido
+```
+Sugestão = (Média diária de vendas no período selecionado × Lead time em dias) + Estoque de segurança - Estoque atual
+```
+- **Período selecionado pelo usuário** — filtro na tela que define a base de cálculo
+- **Lead time**: `alwayson_distribuidores.lead_time_dias` (default: 7 dias)
+- **Estoque de segurança**: estoque_minimo_calculado
+- Se resultado ≤ 0: sem sugestão
+
+## Auth e Controle de Acesso
+
+### Fase atual (V1)
+- Sem autenticação completa — plataforma usada internamente pelo executivo
+- Administração não é protegida por role-based access nesta fase
+- Foco em funcionalidade, não em controle de acesso
+
+### Preparação para V2
+- Estrutura de Usuários no Cockpit fica como **placeholder funcional** (tela existe, CRUD básico, sem enforcement)
+- Quando ativado, usar Supabase Auth + RLS policies
+- Modelo: `executivo_alwayson` (acesso total) vs `lideranca_distribuidor` (acesso filtrado por `distribuidor_id`)
+
+## UX: Loading, Error e Empty States
+
+### Loading
+- Skeleton screens em KPIs e tabelas (padrão já existente no projeto)
+- Tabs carregam sob demanda (lazy) — só busca dados quando ativada
+
+### Empty States
+- Distribuidor sem dados de performance: mensagem contextual + CTA para ingestão
+- Busca de clientes sem resultado: "Nenhum cliente encontrado para este CNPJ/nome"
+- Tab sem dados no nível (ex: sem gerentes): tab desabilitada com tooltip explicativo
+
+### Error States
+- Erro de query: mensagem discreta com botão "Tentar novamente" (retry via TanStack Query)
+- Erro de ingestão: detalhamento no histórico de uploads
+
+## Impacto no Dashboard
+
+Dashboard não muda funcionalmente, mas pode precisar de ajustes menores:
+- Query de estoque crítico: atualizar filtro de status de `['critico', 'ruptura']` para `['critico']` (novo enum)
+- Restante dos KPIs e queries não é afetado pelas mudanças de schema
+
+## Busca de Clientes (`/clientes`)
+
+- **Mínimo 3 caracteres** antes de buscar
+- **Debounce** de 300ms no input
+- **Query**: Supabase `ilike` em `cnpj`, `razao_social` e `nome_fantasia`
+- **Paginação**: 50 resultados por página, scroll infinito ou paginação com botões
+- **Sem filtro de distribuidor**: busca global — o executivo vê clientes de todos os distribuidores
 
 ## Resumo de Impacto
 
 | Área | Tipo de mudança |
 |------|----------------|
-| Dashboard | Nenhuma |
+| Dashboard | Ajuste menor (query estoque) |
 | Performance | Reescrita total |
 | Excelência | Reescrita |
 | Clientes | Página nova |
@@ -264,3 +525,26 @@ Adicionar botão de **download de template** para cada tipo de relatório.
 | Ingestão | Ajuste menor |
 | Distribuidores (lista/detalhe) | Removidas |
 | Metas (página própria) | Removida |
+
+## Novas Tabelas Supabase
+
+| Tabela | Tipo |
+|--------|------|
+| `alwayson_produtos` | Nova |
+| `alwayson_notas_fiscais` | Nova |
+| `alwayson_notas_fiscais_itens` | Nova |
+| `alwayson_excelencia_config` | Nova |
+| `alwayson_excelencia_clientes` | Nova |
+
+## Colunas Adicionadas
+
+| Tabela | Coluna | Tipo |
+|--------|--------|------|
+| `alwayson_estoque_distribuidor` | `estoque_minimo_calculado` | numeric |
+| `alwayson_distribuidores` | `lead_time_dias` | integer (default 7) |
+
+## Tabela Descontinuada
+
+| Tabela | Substituída por |
+|--------|----------------|
+| `alwayson_excelencia_criterios` | `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + NFs |
