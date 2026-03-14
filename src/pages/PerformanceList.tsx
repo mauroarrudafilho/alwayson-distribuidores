@@ -4,9 +4,10 @@ import { DollarSign, Users, ShoppingCart, Package } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
+import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useAllPerformance } from '@/hooks/useDistribuidorPerformance'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -23,15 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
 
 export function PerformanceList() {
   const [distribuidorFilter, setDistribuidorFilter] = useState<string>('todos')
@@ -105,39 +98,32 @@ export function PerformanceList() {
   )
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Performance"
         description="Ranking e comparativo de vendedores por sell-out"
       />
 
-      <Card className="rounded-md border border-border/50 shadow-none mb-4">
-        <CardContent className="p-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-                Distribuidor
-              </label>
-              <Select
-                value={distribuidorFilter}
-                onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}
-              >
-                <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os distribuidores</SelectItem>
-                  {(distribuidores ?? []).map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <FilterBar>
+        <FilterField label="Distribuidor">
+          <Select
+            value={distribuidorFilter}
+            onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os distribuidores</SelectItem>
+              {(distribuidores ?? []).map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FilterBar>
 
       <KPIGrid columns={4}>
         <KPICard
@@ -168,39 +154,25 @@ export function PerformanceList() {
         />
       </KPIGrid>
 
-      <Card className="rounded-md border border-border/50 shadow-none mt-4">
+      <Card className="mt-6">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-border/50">
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 w-8">
-                #
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Vendedor
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Distribuidor
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                Faturamento
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                Positivados
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                Itens
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                Pedidos
-              </TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-8">#</TableHead>
+              <TableHead>Vendedor</TableHead>
+              <TableHead>Distribuidor</TableHead>
+              <TableHead className="text-right">Faturamento</TableHead>
+              <TableHead className="text-right">Positivados</TableHead>
+              <TableHead className="text-right">Itens</TableHead>
+              <TableHead className="text-right">Pedidos</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i} className="border-border/30">
+                <TableRow key={i}>
                   {Array.from({ length: 7 }).map((_, j) => (
-                    <TableCell key={j} className="py-1.5">
+                    <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
                   ))}
@@ -221,17 +193,14 @@ export function PerformanceList() {
                   (d) => d.id === r.distribuidor_id
                 )
                 return (
-                  <TableRow
-                    key={r.vendedor_id}
-                    className="hover:bg-muted/30 border-border/30"
-                  >
-                    <TableCell className="py-1.5 text-[10px] font-bold text-muted-foreground">
+                  <TableRow key={r.vendedor_id}>
+                    <TableCell className="text-[11px] font-bold text-muted-foreground">
                       {idx + 1}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs font-medium">
+                    <TableCell className="text-xs font-medium">
                       {r.vendedor_id.slice(0, 8)}...
                     </TableCell>
-                    <TableCell className="py-1.5">
+                    <TableCell>
                       {dist ? (
                         <Link
                           to={`/distribuidores/${dist.id}`}
@@ -243,16 +212,16 @@ export function PerformanceList() {
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs font-medium tabular-nums text-right">
+                    <TableCell className="text-xs font-medium tabular-nums text-right">
                       {formatCurrency(r.faturamento)}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                    <TableCell className="text-xs tabular-nums text-right">
                       {r.positivados} / {r.carteira}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                    <TableCell className="text-xs tabular-nums text-right">
                       {r.itens.toLocaleString('pt-BR')}
                     </TableCell>
-                    <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                    <TableCell className="text-xs tabular-nums text-right">
                       {r.pedidos}
                     </TableCell>
                   </TableRow>
