@@ -23,7 +23,7 @@ export function ExcelenciaList() {
   const emRisco = clientes?.filter((c) => c.status === 'em_risco').length ?? 0
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Plano de Excelência"
         description="Clientes estratégicos dos distribuidores"
@@ -53,36 +53,24 @@ export function ExcelenciaList() {
         />
       </KPIGrid>
 
-      <Card className="rounded-md border border-border/50 shadow-none mt-4">
+      <Card className="mt-6">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-border/50">
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Cliente
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                CNPJ
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Cidade
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8 text-right">
-                Itens Cadastrados
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Última Compra
-              </TableHead>
-              <TableHead className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground py-2 h-8">
-                Status
-              </TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Cliente</TableHead>
+              <TableHead>CNPJ</TableHead>
+              <TableHead>Cidade</TableHead>
+              <TableHead className="text-right">Itens Cadastrados</TableHead>
+              <TableHead>Última Compra</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i} className="border-border/30">
+                <TableRow key={i}>
                   {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j} className="py-1.5">
+                    <TableCell key={j}>
                       <Skeleton className="h-4 w-24" />
                     </TableCell>
                   ))}
@@ -99,27 +87,27 @@ export function ExcelenciaList() {
               </TableRow>
             ) : (
               clientes.map((c) => (
-                <TableRow key={c.id} className="hover:bg-muted/30 border-border/30">
-                  <TableCell className="py-1.5">
+                <TableRow key={c.id}>
+                  <TableCell>
                     <span className="text-xs font-medium">
                       {c.nome_fantasia ?? c.razao_social}
                     </span>
                   </TableCell>
-                  <TableCell className="py-1.5 text-xs text-muted-foreground tabular-nums">
+                  <TableCell className="text-xs text-muted-foreground tabular-nums">
                     {c.cnpj}
                   </TableCell>
-                  <TableCell className="py-1.5 text-xs text-muted-foreground">
+                  <TableCell className="text-xs text-muted-foreground">
                     {c.cidade} - {c.estado}
                   </TableCell>
-                  <TableCell className="py-1.5 text-xs tabular-nums text-right">
+                  <TableCell className="text-xs tabular-nums text-right">
                     {c.itens_cadastrados}
                   </TableCell>
-                  <TableCell className="py-1.5 text-xs text-muted-foreground">
+                  <TableCell className="text-xs text-muted-foreground">
                     {c.ultima_compra
                       ? new Date(c.ultima_compra).toLocaleDateString('pt-BR')
                       : '-'}
                   </TableCell>
-                  <TableCell className="py-1.5">
+                  <TableCell>
                     <StatusBadge status={c.status} />
                   </TableCell>
                 </TableRow>
