@@ -5,6 +5,7 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
+import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useMetas } from '@/hooks/useMetas'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,15 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
 
 export function MetasPanel() {
   const [distribuidorFilter, setDistribuidorFilter] = useState<string>('todos')
@@ -44,36 +37,29 @@ export function MetasPanel() {
   const abaixo = metas.filter((m) => Number(m.percentual_atingimento) < 70).length
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         title="Gestão de Metas"
         description="Acompanhamento de metas por distribuidor e hierarquia"
       />
 
-      <Card className="rounded-md border border-border/50 shadow-none mb-4">
-        <CardContent className="p-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
-                Distribuidor
-              </label>
-              <Select value={distribuidorFilter} onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}>
-                <SelectTrigger className="h-8 text-xs shadow-none border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os distribuidores</SelectItem>
-                  {(distribuidores ?? []).map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <FilterBar>
+        <FilterField label="Distribuidor">
+          <Select value={distribuidorFilter} onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os distribuidores</SelectItem>
+              {(distribuidores ?? []).map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FilterBar>
 
       <KPIGrid columns={4}>
         <KPICard label="Total de Metas" value={totalMetas} icon={Target} />
@@ -87,7 +73,7 @@ export function MetasPanel() {
         <KPICard label="Abaixo" value={abaixo} icon={XCircle} />
       </KPIGrid>
 
-      <Card className="rounded-md border border-border/50 shadow-none mt-4">
+      <Card className="mt-6">
         <CardContent className="p-3">
           <SectionTitle title="Progresso das Metas" icon={Target} />
           {isLoading ? (
