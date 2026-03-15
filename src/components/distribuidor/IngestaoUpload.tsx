@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Upload, Download, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -22,6 +22,12 @@ const TIPOS_RELATORIO = [
 
 const EXTENSOES_ACEITAS = '.xlsx,.xls,.csv'
 const TAMANHO_MAX_MB = 10
+
+const TEMPLATE_MAP: Record<string, string> = {
+  vendas: '/templates/template-vendas.xlsx',
+  estoque: '/templates/template-estoque.xlsx',
+  clientes: '/templates/template-clientes.xlsx',
+}
 
 interface IngestaoUploadProps {
   onSuccess?: () => void
@@ -225,23 +231,36 @@ export function IngestaoUpload({
             </div>
           )}
 
-          <Button
-            type="submit"
-            disabled={isUploading || !file}
-            className="h-8 text-xs shadow-none border-border/50"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
-                <Upload className="w-3.5 h-3.5" />
-                Enviar Relatório
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="submit"
+              disabled={isUploading || !file}
+              className="h-8 text-xs shadow-none border-border/50"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  Enviar Relatório
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 text-xs shadow-none border-border/50"
+              asChild
+            >
+              <a href={TEMPLATE_MAP[tipo] ?? TEMPLATE_MAP.vendas} download>
+                <Download className="w-3.5 h-3.5" />
+                Baixar Template
+              </a>
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
