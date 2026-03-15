@@ -20,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useDashboardKPIs } from '@/hooks/useDashboardKPIs'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
+import { useEstoqueAlertas } from '@/hooks/useEstoque'
 import {
   useRelatoriosIngestao,
   useRelatoriosPendentes,
@@ -34,6 +35,7 @@ export function Dashboard() {
   const { data: relatoriosPendentes = 0 } = useRelatoriosPendentes()
   const { data: semDadosRecentes = 0 } = useDistribuidoresSemDadosRecentes()
   const { data: ultimosRelatorios } = useRelatoriosIngestao()
+  const { data: estoqueAlertas } = useEstoqueAlertas()
 
   if (isLoading || loadingDist) {
     return (
@@ -58,6 +60,16 @@ export function Dashboard() {
 
   const kpis = data?.kpis
   const distAtivos = data?.distribuidoresAtivos ?? 0
+  const rankingDistribuidores = data?.rankingDistribuidores ?? []
+  const rankingMap = new Map(
+    rankingDistribuidores.map((r) => [r.distribuidor_id, r.faturamento])
+  )
+  const distribuidoresOrdenados =
+    distribuidores?.slice().sort((a, b) => {
+      const fatA = rankingMap.get(a.id) ?? 0
+      const fatB = rankingMap.get(b.id) ?? 0
+      return fatB - fatA
+    }) ?? []
 
   return (
     <div className="animate-fade-in">
@@ -108,7 +120,7 @@ export function Dashboard() {
             icon={Target}
           />
           <KPICard
-            label="Itens em Ruptura"
+            label="Estoque Crítico"
             value={kpis?.itens_estoque_critico ?? 0}
             icon={AlertTriangle}
           />
@@ -130,12 +142,12 @@ export function Dashboard() {
         <Card>
           <CardContent className="p-3">
             <SectionTitle title="Ranking Distribuidores" icon={TrendingUp} />
-            {distribuidores && distribuidores.length > 0 ? (
+            {distribuidoresOrdenados.length > 0 ? (
               <div className="space-y-1">
-                {distribuidores.slice(0, 10).map((dist, idx) => (
+                {distribuidoresOrdenados.slice(0, 10).map((dist, idx) => (
                   <Link
                     key={dist.id}
-                    to={`/distribuidores/${dist.id}`}
+                    to={`/performance?distribuidor=${dist.id}`}
                     className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors group"
                   >
                     <div className="flex items-center gap-2">
@@ -149,7 +161,12 @@ export function Dashboard() {
                         {dist.estado}
                       </span>
                     </div>
-                    <StatusBadge status={dist.status} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-medium text-foreground">
+                        {formatCurrency(rankingMap.get(dist.id) ?? 0)}
+                      </span>
+                      <StatusBadge status={dist.status} />
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -163,10 +180,38 @@ export function Dashboard() {
 
         <Card>
           <CardContent className="p-3">
-            <SectionTitle title="Alertas de Estoque" icon={Package} />
-            <p className="text-xs text-muted-foreground py-4 text-center">
-              Nenhum alerta de estoque no momento
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <SectionTitle title="Alertas de Estoque" icon={Package} />
+              <Link to="/estoque">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]">
+                  Ver tudo
+                </Button>
+              </Link>
+            </div>
+            {estoqueAlertas && estoqueAlertas.length > 0 ? (
+              <div className="space-y-1">
+                {estoqueAlertas.slice(0, 8).map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30"
+                  >
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-xs font-medium truncate">
+                        {item.sku} — {item.descricao}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground truncate">
+                        {item.distribuidor_nome} · {item.quantidade_atual} un · {item.dias_cobertura}d cobertura
+                      </span>
+                    </div>
+                    <StatusBadge status={item.status as any} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground py-4 text-center">
+                Nenhum alerta de estoque no momento
+              </p>
+            )}
           </CardContent>
         </Card>
 

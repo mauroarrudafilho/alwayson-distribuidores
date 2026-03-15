@@ -3,15 +3,15 @@ import { supabase } from '@/lib/supabase'
 import type { ExcelenciaConfig, ExcelenciaCliente } from '@/types/excelencia'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
-export function useExcelenciaConfigs(distribuidorId?: string) {
+export function useExcelenciaConfigs(distribuidorId?: string, includeInactive?: boolean) {
   return useQuery({
-    queryKey: ['excelencia-config', distribuidorId ?? 'all'],
+    queryKey: ['excelencia-config', distribuidorId ?? 'all', includeInactive],
     queryFn: async () => {
       let query = supabase
         .from('alwayson_excelencia_config')
         .select('*')
-        .eq('ativo', true)
         .order('ordem')
+      if (!includeInactive) query = query.eq('ativo', true)
       if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
       const { data, error } = await query
       if (error) throw error
@@ -20,9 +20,9 @@ export function useExcelenciaConfigs(distribuidorId?: string) {
   })
 }
 
-export function useExcelenciaClientes(distribuidorId?: string) {
+export function useExcelenciaClientes(distribuidorId?: string, includeInactive?: boolean) {
   return useQuery({
-    queryKey: ['excelencia-clientes', distribuidorId ?? 'all'],
+    queryKey: ['excelencia-clientes', distribuidorId ?? 'all', includeInactive],
     queryFn: async () => {
       let query = supabase
         .from('alwayson_excelencia_clientes')
@@ -30,7 +30,7 @@ export function useExcelenciaClientes(distribuidorId?: string) {
           *,
           cliente:alwayson_clientes_distribuidor(*)
         `)
-        .eq('ativo', true)
+      if (!includeInactive) query = query.eq('ativo', true)
       if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
       const { data, error } = await query
       if (error) throw error

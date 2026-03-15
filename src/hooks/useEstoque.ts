@@ -21,3 +21,27 @@ export function useEstoque(distribuidorId?: string) {
     },
   })
 }
+
+export type EstoqueAlerta = EstoqueItem & { distribuidor_nome: string }
+
+export function useEstoqueAlertas() {
+  return useQuery({
+    queryKey: ['estoque-alertas'],
+    queryFn: async () => {
+      const { data: items, error } = await supabase
+        .from('alwayson_estoque_distribuidor')
+        .select('*, alwayson_distribuidores(nome)')
+        .in('status', ['critico', 'overstock'])
+        .order('status', { ascending: true })
+        .order('dias_cobertura', { ascending: true })
+
+      if (error) throw error
+
+      return (items ?? []).map((item: any) => ({
+        ...item,
+        distribuidor_nome: item.alwayson_distribuidores?.nome ?? '',
+        alwayson_distribuidores: undefined,
+      })) as EstoqueAlerta[]
+    },
+  })
+}
