@@ -220,12 +220,20 @@ Centraliza toda configuração e parametrização do sistema. Separado das telas
 
 ## 7. Ingestão (Ajuste Menor)
 
-### Mudança
-Adicionar botão de **download de template** para cada tipo de relatório.
+### Mudanças
 
+#### Download de template
 - Botão "Baixar Template" ao lado do upload
-- Gera/baixa o Excel modelo para o tipo selecionado (Vendas, Estoque, Clientes)
-- Templates já existem em `docs/templates/`
+- Gera/baixa o Excel modelo para o tipo selecionado
+- Templates já existem em `docs/templates/` — servir via `public/`
+
+#### Novo tipo de upload: Notas Fiscais
+O tipo existente "Vendas" (`RelatorioIngestao.tipo = 'vendas'`) passa a ser interpretado como **upload de notas fiscais**. A ingestão de vendas já recebe dados transacionais — o parsing muda para popular `alwayson_notas_fiscais` + `alwayson_notas_fiscais_itens` ao invés de (ou além de) `alwayson_performance_periodo`.
+
+- `RelatorioIngestao.tipo` permanece `'vendas'` (sem mudança no enum)
+- O parser de vendas passa a criar registros em `alwayson_notas_fiscais` e `alwayson_notas_fiscais_itens`
+- `alwayson_performance_periodo` pode ser computado como view materializada a partir das NFs, ou continuar sendo populado em paralelo na ingestão (decisão de implementação)
+- Template de vendas atualizado para incluir campos: número NF, data emissão, CNPJ cliente, SKU, quantidade, valor unitário
 
 ## Arquitetura Técnica
 
@@ -335,6 +343,7 @@ Configuração dos critérios de excelência por distribuidor. Cadastrado no Coc
 | tipo_comparacao | text | sim | 'min' (≥ meta) ou 'max' (≤ meta) |
 | ativo | boolean | sim | Default true |
 | ordem | integer | sim | Ordem de exibição na tabela |
+| criado_em | timestamptz | sim | Default now() |
 
 #### `alwayson_excelencia_clientes`
 Lista de clientes elegíveis ao plano de excelência por distribuidor.
@@ -351,16 +360,25 @@ Lista de clientes elegíveis ao plano de excelência por distribuidor.
 
 #### `alwayson_estoque_distribuidor` — nova coluna + status atualizado
 - **`estoque_minimo_calculado`** (numeric, nullable): estoque mínimo dinâmico, calculado a partir do histórico de sell-out
+- **`quantidade_minima`** (existente): mantida como **override manual**. Se preenchida e `estoque_minimo_calculado` for null (sem histórico de vendas), usa `quantidade_minima` como fallback
+- **Prioridade**: `estoque_minimo_calculado ?? quantidade_minima` — o dinâmico prevalece quando disponível
 - **`status`**: migrar de `'normal' | 'baixo' | 'critico' | 'ruptura'` para `'saudavel' | 'critico' | 'overstock'`
-  - `critico`: quantidade_atual < estoque_minimo_calculado
-  - `saudavel`: estoque normal (entre mínimo e X dias cobertura)
-  - `overstock`: acima do limite de dias de cobertura
+  - `critico`: quantidade_atual < estoque_efetivo (onde estoque_efetivo = `estoque_minimo_calculado ?? quantidade_minima`)
+  - `saudavel`: estoque normal (entre mínimo e 60 dias de cobertura)
+  - `overstock`: acima de 60 dias de cobertura
+- **Migração de enum**: `normal → saudavel`, `baixo → critico`, `critico → critico`, `ruptura → critico`
 
 #### `alwayson_distribuidores` — nova coluna
 - **`lead_time_dias`** (integer, default 7): lead time padrão de entrega da indústria até o distribuidor, usado no cálculo de sugestão S&OP
 
+### Unique Constraints (novas tabelas)
+- `alwayson_produtos`: UNIQUE(`sku`)
+- `alwayson_notas_fiscais`: UNIQUE(`distribuidor_id`, `numero_nf`)
+- `alwayson_excelencia_clientes`: UNIQUE(`distribuidor_id`, `cliente_id`)
+
 ### Tabela existente que será descontinuada
 - `alwayson_excelencia_criterios` — substituída por `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + dados calculados a partir de NFs
+- **Migração**: dados existentes de critérios por cliente são arquivados (backup) e não migrados — o novo modelo recalcula tudo a partir de NFs e da nova configuração
 
 ### Views Supabase recomendadas
 
@@ -455,12 +473,20 @@ Derivados automaticamente a partir dos dados de NFs e do cadastro de clientes:
 
 ## Estoque — S&OP Detalhamento
 
+### Dias de Cobertura
+```
+Dias cobertura = Estoque atual / Média diária de vendas (últimos 90 dias)
+```
+- Se média diária = 0 (sem vendas), dias cobertura = ∞ (exibe "—" na UI)
+- Usado para determinar status: overstock se > 60 dias
+
 ### Estoque Mínimo
 ```
 Estoque mínimo = Média diária de vendas (últimos 90 dias) × Fator de segurança (1.5)
 ```
 - Recalculado periodicamente (diário ou na ingestão de dados)
 - Média diária de vendas: sum(quantidade) de `alwayson_notas_fiscais_itens` por SKU nos últimos 90 dias / 90
+- Fallback: se não há histórico de NFs, usa `quantidade_minima` (manual) do cadastro
 
 ### Sugestão de Pedido
 ```
@@ -468,7 +494,7 @@ Sugestão = (Média diária de vendas no período selecionado × Lead time em di
 ```
 - **Período selecionado pelo usuário** — filtro na tela que define a base de cálculo
 - **Lead time**: `alwayson_distribuidores.lead_time_dias` (default: 7 dias)
-- **Estoque de segurança**: estoque_minimo_calculado
+- **Estoque de segurança**: estoque_minimo_calculado ?? quantidade_minima
 - Se resultado ≤ 0: sem sugestão
 
 ## Auth e Controle de Acesso
