@@ -16,7 +16,7 @@ export function FilterBar({ children, columns = 3 }: FilterBarProps) {
   return (
     <Card className="mb-6">
       <CardContent>
-        <div className={`grid ${gridCols[columns]} gap-4`}>
+        <div className={`grid ${gridCols[columns]} gap-3 sm:gap-4`}>
           {children}
         </div>
       </CardContent>

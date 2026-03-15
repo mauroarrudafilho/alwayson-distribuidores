@@ -1,6 +1,13 @@
 import { useSearchParams } from 'react-router-dom'
 import { useCallback } from 'react'
 
+function getCurrentMonth(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}`
+}
+
 export type PerfTab = 'distribuidor' | 'gerencia' | 'supervisao' | 'vendas' | 'cliente'
 
 export const TAB_ORDER: PerfTab[] = ['distribuidor', 'gerencia', 'supervisao', 'vendas', 'cliente']
@@ -46,8 +53,8 @@ export function usePerfFilters() {
     gerenteId: searchParams.get('gerente') || undefined,
     supervisorId: searchParams.get('supervisor') || undefined,
     vendedorId: searchParams.get('vendedor') || undefined,
-    periodoInicio: searchParams.get('periodo_inicio') || undefined,
-    periodoFim: searchParams.get('periodo_fim') || undefined,
+    periodoInicio: searchParams.get('periodo_inicio') || getCurrentMonth(),
+    periodoFim: searchParams.get('periodo_fim') || getCurrentMonth(),
   }
 
   const setFilter = useCallback(

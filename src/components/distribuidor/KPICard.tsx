@@ -32,10 +32,10 @@ export function KPICard({
       size="sm"
     >
       <CardContent>
-        <div className="flex items-center justify-between gap-2 text-muted-foreground text-[11px] font-semibold uppercase tracking-wider mb-2">
-          <span className="flex items-center gap-2 truncate">
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{label}</span>
+        <div className="flex items-center justify-between gap-2 text-muted-foreground text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider mb-2">
+          <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="leading-tight">{label}</span>
           </span>
           {badge !== undefined && (
             <Badge
@@ -47,7 +47,7 @@ export function KPICard({
           )}
         </div>
         <div className="flex items-baseline gap-2">
-          <div className="text-lg font-bold tabular-nums text-foreground">
+          <div className="text-base sm:text-lg font-bold tabular-nums text-foreground">
             {value}
           </div>
           {trend && (
