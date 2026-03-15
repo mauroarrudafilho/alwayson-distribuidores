@@ -249,17 +249,14 @@ export function IngestaoUpload({
                 </>
               )}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-8 text-xs shadow-none border-border/50"
-              asChild
+            <a
+              href={TEMPLATE_MAP[tipo] ?? TEMPLATE_MAP.vendas}
+              download
+              className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-xs font-medium hover:bg-muted hover:text-foreground transition-all"
             >
-              <a href={TEMPLATE_MAP[tipo] ?? TEMPLATE_MAP.vendas} download>
-                <Download className="w-3.5 h-3.5" />
-                Baixar Template
-              </a>
-            </Button>
+              <Download className="w-3.5 h-3.5" />
+              Baixar Template
+            </a>
           </div>
         </form>
       </CardContent>
