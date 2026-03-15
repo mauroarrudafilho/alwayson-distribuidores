@@ -7,6 +7,7 @@ export interface Distribuidor {
   responsavel: string
   email?: string
   telefone?: string
+  lead_time_dias?: number
   status: 'ativo' | 'inativo' | 'em_analise'
   criado_em: string
   atualizado_em: string
@@ -83,8 +84,9 @@ export interface EstoqueItem {
   descricao: string
   quantidade_atual: number
   quantidade_minima: number
+  estoque_minimo_calculado?: number
   dias_cobertura: number
-  status: 'normal' | 'baixo' | 'critico' | 'ruptura'
+  status: 'saudavel' | 'critico' | 'overstock'
   ultima_atualizacao: string
   sugestao_pedido?: number
 }
