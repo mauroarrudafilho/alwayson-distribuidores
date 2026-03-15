@@ -6,16 +6,21 @@ export function useClientesBusca(search: string) {
   return useQuery({
     queryKey: ['clientes-busca', search],
     queryFn: async () => {
-      const term = `%${search}%`
-      const { data, error } = await supabase
+      let query = supabase
         .from('alwayson_clientes_distribuidor')
         .select('*')
-        .or(`cnpj.ilike.${term},razao_social.ilike.${term},nome_fantasia.ilike.${term}`)
+
+      if (search.length > 0) {
+        const term = `%${search}%`
+        query = query.or(`cnpj.ilike.${term},razao_social.ilike.${term},nome_fantasia.ilike.${term}`)
+      }
+
+      const { data, error } = await query
         .order('razao_social')
         .limit(50)
+
       if (error) throw error
       return data as ClienteDistribuidor[]
     },
-    enabled: search.length >= 3,
   })
 }
