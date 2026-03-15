@@ -10,6 +10,10 @@ import { ClienteDetalhe } from '@/pages/ClienteDetalhe'
 import { EstoquePanel } from '@/pages/EstoquePanel'
 import { Admin } from '@/pages/Admin'
 import { AdminDistribuidores } from '@/pages/admin/AdminDistribuidores'
+import { AdminProdutos } from '@/pages/admin/AdminProdutos'
+import { AdminMetas } from '@/pages/admin/AdminMetas'
+import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
+import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 
 const queryClient = new QueryClient({
@@ -37,6 +41,10 @@ function App() {
               <Route path="/admin" element={<Admin />}>
                 <Route index element={<Navigate to="/admin/distribuidores" replace />} />
                 <Route path="distribuidores" element={<AdminDistribuidores />} />
+                <Route path="produtos" element={<AdminProdutos />} />
+                <Route path="metas" element={<AdminMetas />} />
+                <Route path="excelencia" element={<AdminExcelencia />} />
+                <Route path="usuarios" element={<AdminUsuarios />} />
               </Route>
               <Route path="/ingestao" element={<IngestaoPanel />} />
             </Route>
