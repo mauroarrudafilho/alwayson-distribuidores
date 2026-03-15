@@ -2,20 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { DistribuidorKPIs } from '@/types/distribuidor'
 
-function getMonthBoundaries() {
+function getMonthPrefixes() {
   const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth()
-  const currentStart = new Date(currentYear, currentMonth, 1)
-  const currentEnd = new Date(currentYear, currentMonth + 1, 0)
-  const prevStart = new Date(currentYear, currentMonth - 1, 1)
-  const prevEnd = new Date(currentYear, currentMonth, 0)
-  return { currentStart, currentEnd, prevStart, prevEnd }
-}
-
-function isInPeriod(periodoInicio: string, start: Date, end: Date): boolean {
-  const d = new Date(periodoInicio)
-  return d >= start && d <= end
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const current = `${y}-${String(m).padStart(2, '0')}`
+  const prevMonth = m === 1 ? 12 : m - 1
+  const prevYear = m === 1 ? y - 1 : y
+  const prev = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
+  return { current, prev }
 }
 
 export function useDashboardKPIs() {
@@ -54,13 +49,13 @@ export function useDashboardKPIs() {
       const metas = metasRes.data ?? []
       const performance = performanceRes.data ?? []
 
-      const { currentStart, currentEnd, prevStart, prevEnd } = getMonthBoundaries()
+      const { current, prev } = getMonthPrefixes()
 
       const currentPeriod = performance.filter((p) =>
-        p.periodo_inicio && isInPeriod(p.periodo_inicio, currentStart, currentEnd)
+        p.periodo_inicio?.startsWith(current)
       )
       const prevPeriod = performance.filter((p) =>
-        p.periodo_inicio && isInPeriod(p.periodo_inicio, prevStart, prevEnd)
+        p.periodo_inicio?.startsWith(prev)
       )
 
       const faturamentoAtual = currentPeriod.reduce(
