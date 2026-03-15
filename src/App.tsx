@@ -1,14 +1,15 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Dashboard } from '@/pages/Dashboard'
-import { DistribuidoresList } from '@/pages/DistribuidoresList'
-import { DistribuidorDetail } from '@/pages/DistribuidorDetail'
-import { ExcelenciaList } from '@/pages/ExcelenciaList'
-import { MetasPanel } from '@/pages/MetasPanel'
+import { Performance } from '@/pages/Performance'
+import { Excelencia } from '@/pages/Excelencia'
+import { ClientesBusca } from '@/pages/ClientesBusca'
+import { ClienteDetalhe } from '@/pages/ClienteDetalhe'
 import { EstoquePanel } from '@/pages/EstoquePanel'
-import { PerformanceList } from '@/pages/PerformanceList'
+import { Admin } from '@/pages/Admin'
+import { AdminDistribuidores } from '@/pages/admin/AdminDistribuidores'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 
 const queryClient = new QueryClient({
@@ -28,12 +29,15 @@ function App() {
           <Routes>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/distribuidores" element={<DistribuidoresList />} />
-              <Route path="/distribuidores/:id" element={<DistribuidorDetail />} />
-              <Route path="/excelencia" element={<ExcelenciaList />} />
-              <Route path="/metas" element={<MetasPanel />} />
+              <Route path="/performance" element={<Performance />} />
+              <Route path="/excelencia" element={<Excelencia />} />
+              <Route path="/clientes" element={<ClientesBusca />} />
+              <Route path="/clientes/:id" element={<ClienteDetalhe />} />
               <Route path="/estoque" element={<EstoquePanel />} />
-              <Route path="/performance" element={<PerformanceList />} />
+              <Route path="/admin" element={<Admin />}>
+                <Route index element={<Navigate to="/admin/distribuidores" replace />} />
+                <Route path="distribuidores" element={<AdminDistribuidores />} />
+              </Route>
               <Route path="/ingestao" element={<IngestaoPanel />} />
             </Route>
           </Routes>
