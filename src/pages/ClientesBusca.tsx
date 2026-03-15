@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, UserSearch } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
@@ -26,9 +26,8 @@ export function ClientesBusca() {
 
   const { data: clientes, isLoading } = useClientesBusca(debouncedSearch)
 
-  const showMinCharsMessage = debouncedSearch.length < 3
-  const showEmptyState = !showMinCharsMessage && !isLoading && clientes?.length === 0
-  const showResults = !showMinCharsMessage && (isLoading || (clientes && clientes.length > 0))
+  const showEmptyState = !isLoading && clientes?.length === 0
+  const showResults = isLoading || (clientes && clientes.length > 0)
 
   return (
     <div className="animate-fade-in">
@@ -44,17 +43,6 @@ export function ClientesBusca() {
           onChange={(e) => setSearch(e.target.value)}
         />
       </InputGroup>
-
-      {showMinCharsMessage && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <UserSearch className="h-10 w-10 text-muted-foreground/50 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Digite pelo menos 3 caracteres para buscar
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {showEmptyState && (
         <Card>
