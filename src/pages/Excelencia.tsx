@@ -106,14 +106,27 @@ export function Excelencia() {
 
   const isLoading = loadingConfigs || loadingClientes
 
+  // Deduplicate configs by criterio_nome (when "todos" is selected, multiple
+  // distribuidores may each have the same criterion, causing duplicate columns)
+  const uniqueConfigs = useMemo(() => {
+    if (!configs) return []
+    const seen = new Map<string, ExcelenciaConfig>()
+    for (const cfg of configs) {
+      if (!seen.has(cfg.criterio_nome)) {
+        seen.set(cfg.criterio_nome, cfg)
+      }
+    }
+    return Array.from(seen.values())
+  }, [configs])
+
   const rows = useMemo<MonitorRow[]>(() => {
-    if (!configs || !exClientes) return []
+    if (!uniqueConfigs.length || !exClientes) return []
 
     return exClientes
       .filter((ec) => ec.cliente)
       .map((ec) => {
         const cliente = ec.cliente
-        const criterios: CriterioCell[] = configs.map((cfg) => {
+        const criterios: CriterioCell[] = uniqueConfigs.map((cfg) => {
           const realizado = resolveRealizado(cfg, cliente)
           return {
             criterio_nome: cfg.criterio_nome,
@@ -306,7 +319,7 @@ export function Excelencia() {
                       )} />
                     </button>
                   </TableHead>
-                  {(configs ?? []).map((cfg) => (
+                  {uniqueConfigs.map((cfg) => (
                     <TableHead key={cfg.id} className="text-center">
                       <button
                         className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto"
