@@ -133,7 +133,7 @@ Colunas dinâmicas baseadas nos critérios cadastrados no Cockpit de Parâmetros
 **KPIs:**
 - Faturamento total (acumulado)
 - Ticket médio
-- Frequência de compra (NFs/mês)
+- Frequência de compra (faturamentos/mês)
 - Data da última compra
 
 **Seções:**
@@ -228,11 +228,11 @@ Centraliza toda configuração e parametrização do sistema. Separado das telas
 - Templates já existem em `docs/templates/` — servir via `public/`
 
 #### Novo tipo de upload: Notas Fiscais
-O tipo existente "Vendas" (`RelatorioIngestao.tipo = 'vendas'`) passa a ser interpretado como **upload de notas fiscais**. A ingestão de vendas já recebe dados transacionais — o parsing muda para popular `alwayson_notas_fiscais` + `alwayson_notas_fiscais_itens` ao invés de (ou além de) `alwayson_performance_periodo`.
+O tipo existente "Vendas" (`RelatorioIngestao.tipo = 'vendas'`) passa a ser interpretado como **upload de faturamento**. A ingestão de vendas já recebe dados transacionais — o parsing muda para popular `alwayson_faturamento` + `alwayson_faturamento_itens` ao invés de (ou além de) `alwayson_performance_periodo`.
 
 - `RelatorioIngestao.tipo` permanece `'vendas'` (sem mudança no enum)
-- O parser de vendas passa a criar registros em `alwayson_notas_fiscais` e `alwayson_notas_fiscais_itens`
-- `alwayson_performance_periodo` pode ser computado como view materializada a partir das NFs, ou continuar sendo populado em paralelo na ingestão (decisão de implementação)
+- O parser de vendas passa a criar registros em `alwayson_faturamento` e `alwayson_faturamento_itens`
+- `alwayson_performance_periodo` pode ser computado como view materializada a partir do faturamento, ou continuar sendo populado em paralelo na ingestão (decisão de implementação)
 - Template de vendas atualizado para incluir campos: número NF, data emissão, CNPJ cliente, SKU, quantidade, valor unitário
 
 ## Arquitetura Técnica
@@ -303,8 +303,8 @@ Catálogo de SKUs do portfólio. Global (não por distribuidor).
 | ativo | boolean | sim | Default true |
 | criado_em | timestamptz | sim | Default now() |
 
-#### `alwayson_notas_fiscais`
-Histórico de notas fiscais por cliente. Fonte primária para detalhe transacional.
+#### `alwayson_faturamento`
+Histórico de faturamento por cliente. Fonte primária para detalhe transacional.
 
 | Coluna | Tipo | Obrigatório | Descrição |
 |--------|------|-------------|-----------|
@@ -317,16 +317,16 @@ Histórico de notas fiscais por cliente. Fonte primária para detalhe transacion
 | valor_total | numeric | sim | Valor total da NF |
 | criado_em | timestamptz | sim | Default now() |
 
-#### `alwayson_notas_fiscais_itens`
-Itens de cada nota fiscal. Detalhe por SKU.
+#### `alwayson_faturamento_itens`
+Itens de cada registro de faturamento. Detalhe por SKU.
 
 | Coluna | Tipo | Obrigatório | Descrição |
 |--------|------|-------------|-----------|
 | id | uuid | PK | |
-| nota_fiscal_id | uuid | FK | → alwayson_notas_fiscais |
+| faturamento_id | uuid | FK | → alwayson_faturamento |
 | produto_id | uuid | FK, opcional | → alwayson_produtos (se catalogado) |
 | sku | text | sim | Código SKU (sempre presente, mesmo sem produto_id) |
-| descricao | text | sim | Descrição do item na NF |
+| descricao | text | sim | Descrição do item |
 | quantidade | numeric | sim | Quantidade |
 | valor_unitario | numeric | sim | Preço unitário |
 | valor_total | numeric | sim | Quantidade × valor_unitario |
@@ -373,12 +373,12 @@ Lista de clientes elegíveis ao plano de excelência por distribuidor.
 
 ### Unique Constraints (novas tabelas)
 - `alwayson_produtos`: UNIQUE(`sku`)
-- `alwayson_notas_fiscais`: UNIQUE(`distribuidor_id`, `numero_nf`)
+- `alwayson_faturamento`: UNIQUE(`distribuidor_id`, `numero_nf`)
 - `alwayson_excelencia_clientes`: UNIQUE(`distribuidor_id`, `cliente_id`)
 
 ### Tabela existente que será descontinuada
-- `alwayson_excelencia_criterios` — substituída por `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + dados calculados a partir de NFs
-- **Migração**: dados existentes de critérios por cliente são arquivados (backup) e não migrados — o novo modelo recalcula tudo a partir de NFs e da nova configuração
+- `alwayson_excelencia_criterios` — substituída por `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + dados calculados a partir do faturamento
+- **Migração**: dados existentes de critérios por cliente são arquivados (backup) e não migrados — o novo modelo recalcula tudo a partir do faturamento e da nova configuração
 
 ### Views Supabase recomendadas
 
@@ -399,7 +399,7 @@ Agregação de performance por nível hierárquico:
 #### `view_estoque_sugestao`
 Cálculo de estoque mínimo e sugestão de pedido:
 ```sql
--- Combina estoque atual + histórico de vendas (NFs) + lead_time do distribuidor
+-- Combina estoque atual + histórico de vendas (faturamento) + lead_time do distribuidor
 -- Retorna: sku, qtd_atual, estoque_minimo, dias_cobertura, sugestao_pedido, status
 ```
 
@@ -443,7 +443,7 @@ A hierarquia de um distribuidor pode não ter todos os níveis. O sistema se ada
 
 ### Performance tab Cliente
 - Clientes do vendedor selecionado (via `cliente.vendedor_id`)
-- Faturamento por cliente: derivado de `alwayson_notas_fiscais` agrupado por `cliente_id` no período
+- Faturamento por cliente: derivado de `alwayson_faturamento` agrupado por `cliente_id` no período
 
 ### Estratégia de computação
 - **Preferência por views Supabase** para níveis com recursão (gerência, supervisão)
@@ -465,10 +465,10 @@ Score = (critérios atingidos / total critérios ativos) × 100
 - 🔴 Vermelho: realizado < 70% da meta_valor (fora do padrão)
 
 ### Cálculo dos valores realizados
-Derivados automaticamente a partir dos dados de NFs e do cadastro de clientes:
-- **Frequência**: count de NFs distintas no período / meses no período
-- **Mix (itens distintos)**: count distinct SKUs nas NFs do período
-- **Volume**: sum valor_total das NFs do período
+Derivados automaticamente a partir dos dados de faturamento e do cadastro de clientes:
+- **Frequência**: count de registros distintos de faturamento no período / meses no período
+- **Mix (itens distintos)**: count distinct SKUs no faturamento do período
+- **Volume**: sum valor_total do faturamento do período
 - **Itens cadastrados**: campo `itens_cadastrados` de `alwayson_clientes_distribuidor`
 
 ## Estoque — S&OP Detalhamento
@@ -485,8 +485,8 @@ Dias cobertura = Estoque atual / Média diária de vendas (últimos 90 dias)
 Estoque mínimo = Média diária de vendas (últimos 90 dias) × Fator de segurança (1.5)
 ```
 - Recalculado periodicamente (diário ou na ingestão de dados)
-- Média diária de vendas: sum(quantidade) de `alwayson_notas_fiscais_itens` por SKU nos últimos 90 dias / 90
-- Fallback: se não há histórico de NFs, usa `quantidade_minima` (manual) do cadastro
+- Média diária de vendas: sum(quantidade) de `alwayson_faturamento_itens` por SKU nos últimos 90 dias / 90
+- Fallback: se não há histórico de faturamento, usa `quantidade_minima` (manual) do cadastro
 
 ### Sugestão de Pedido
 ```
@@ -557,8 +557,8 @@ Dashboard não muda funcionalmente, mas pode precisar de ajustes menores:
 | Tabela | Tipo |
 |--------|------|
 | `alwayson_produtos` | Nova |
-| `alwayson_notas_fiscais` | Nova |
-| `alwayson_notas_fiscais_itens` | Nova |
+| `alwayson_faturamento` | Nova |
+| `alwayson_faturamento_itens` | Nova |
 | `alwayson_excelencia_config` | Nova |
 | `alwayson_excelencia_clientes` | Nova |
 
@@ -573,4 +573,4 @@ Dashboard não muda funcionalmente, mas pode precisar de ajustes menores:
 
 | Tabela | Substituída por |
 |--------|----------------|
-| `alwayson_excelencia_criterios` | `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + NFs |
+| `alwayson_excelencia_criterios` | `alwayson_excelencia_config` + `alwayson_excelencia_clientes` + faturamento |

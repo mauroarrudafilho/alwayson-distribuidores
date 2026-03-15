@@ -20,7 +20,7 @@
 |------|---------------|
 | `src/types/index.ts` | Re-exports all types (barrel) |
 | `src/types/produto.ts` | Produto interface |
-| `src/types/nota-fiscal.ts` | NotaFiscal, NotaFiscalItem interfaces |
+| `src/types/faturamento.ts` | Faturamento, FaturamentoItem interfaces |
 | `src/types/excelencia.ts` | ExcelenciaConfig, ExcelenciaCliente interfaces |
 | `src/pages/Performance.tsx` | Performance hub page with hierarchical tabs |
 | `src/pages/performance/DistribuidorTab.tsx` | Tab: distribuidor-level view |
@@ -40,7 +40,7 @@
 | `src/pages/admin/AdminExcelencia.tsx` | Sub-tab: excelência criteria + clients |
 | `src/pages/admin/AdminUsuarios.tsx` | Sub-tab: users (placeholder) |
 | `src/hooks/usePerformanceHierarchy.ts` | Hook: hierarchical performance data with recursive resolution |
-| `src/hooks/useNotasFiscais.ts` | Hook: NF data for client detail |
+| `src/hooks/useFaturamento.ts` | Hook: faturamento data for client detail |
 | `src/hooks/useExcelenciaConfig.ts` | Hook: excelência config + monitoring data |
 | `src/hooks/useClientesBusca.ts` | Hook: client search with debounce |
 | `src/hooks/useProdutos.ts` | Hook: produtos CRUD |
@@ -119,10 +119,10 @@ export interface Produto {
 }
 ```
 
-- [ ] **Step 3: Create `src/types/nota-fiscal.ts`**
+- [ ] **Step 3: Create `src/types/faturamento.ts`**
 
 ```typescript
-export interface NotaFiscal {
+export interface Faturamento {
   id: string
   distribuidor_id: string
   cliente_id: string
@@ -133,9 +133,9 @@ export interface NotaFiscal {
   criado_em: string
 }
 
-export interface NotaFiscalItem {
+export interface FaturamentoItem {
   id: string
-  nota_fiscal_id: string
+  faturamento_id: string
   produto_id?: string
   sku: string
   descricao: string
@@ -841,49 +841,49 @@ git commit -m "feat: add client search page with debounced CNPJ/name lookup"
 ### Task 10: Client Detail Page
 
 **Files:**
-- Create: `src/hooks/useNotasFiscais.ts`
+- Create: `src/hooks/useFaturamento.ts`
 - Modify: `src/pages/ClienteDetalhe.tsx` (replace placeholder)
 
-- [ ] **Step 1: Create NF hooks**
+- [ ] **Step 1: Create faturamento hooks**
 
-`src/hooks/useNotasFiscais.ts`:
+`src/hooks/useFaturamento.ts`:
 
 ```typescript
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { NotaFiscal, NotaFiscalItem } from '@/types/nota-fiscal'
+import type { Faturamento, FaturamentoItem } from '@/types/faturamento'
 
-export function useNotasFiscais(clienteId: string | undefined) {
+export function useFaturamento(clienteId: string | undefined) {
   return useQuery({
-    queryKey: ['notas-fiscais', clienteId],
+    queryKey: ['faturamento', clienteId],
     queryFn: async () => {
       if (!clienteId) throw new Error('clienteId required')
       const { data, error } = await supabase
-        .from('alwayson_notas_fiscais')
+        .from('alwayson_faturamento')
         .select('*')
         .eq('cliente_id', clienteId)
         .order('data_emissao', { ascending: false })
       if (error) throw error
-      return data as NotaFiscal[]
+      return data as Faturamento[]
     },
     enabled: !!clienteId,
   })
 }
 
-export function useNotaFiscalItens(notaFiscalId: string | undefined) {
+export function useFaturamentoItens(faturamentoId: string | undefined) {
   return useQuery({
-    queryKey: ['nf-itens', notaFiscalId],
+    queryKey: ['faturamento-itens', faturamentoId],
     queryFn: async () => {
-      if (!notaFiscalId) throw new Error('notaFiscalId required')
+      if (!faturamentoId) throw new Error('faturamentoId required')
       const { data, error } = await supabase
-        .from('alwayson_notas_fiscais_itens')
+        .from('alwayson_faturamento_itens')
         .select('*')
-        .eq('nota_fiscal_id', notaFiscalId)
+        .eq('faturamento_id', faturamentoId)
         .order('sku')
       if (error) throw error
-      return data as NotaFiscalItem[]
+      return data as FaturamentoItem[]
     },
-    enabled: !!notaFiscalId,
+    enabled: !!faturamentoId,
   })
 }
 
@@ -893,7 +893,7 @@ export function useClienteFaturamentoMensal(clienteId: string | undefined) {
     queryFn: async () => {
       if (!clienteId) throw new Error('clienteId required')
       const { data, error } = await supabase
-        .from('alwayson_notas_fiscais')
+        .from('alwayson_faturamento')
         .select('data_emissao, valor_total')
         .eq('cliente_id', clienteId)
         .order('data_emissao')
@@ -901,9 +901,9 @@ export function useClienteFaturamentoMensal(clienteId: string | undefined) {
 
       // Aggregate by month client-side
       const monthly = new Map<string, number>()
-      for (const nf of data ?? []) {
-        const month = nf.data_emissao.substring(0, 7) // YYYY-MM
-        monthly.set(month, (monthly.get(month) ?? 0) + Number(nf.valor_total))
+      for (const row of data ?? []) {
+        const month = row.data_emissao.substring(0, 7) // YYYY-MM
+        monthly.set(month, (monthly.get(month) ?? 0) + Number(row.valor_total))
       }
 
       return Array.from(monthly.entries())
@@ -921,20 +921,20 @@ Replace `src/pages/ClienteDetalhe.tsx`:
 - Back button (← Voltar)
 - Header: nome, CNPJ, cidade-UF, vendedor, distribuidor
 - KPI grid: Faturamento total, Ticket médio, Frequência de compra (NFs/mês), Última compra
-- Evolução de Faturamento: line chart (use a simple CSS bar chart or Recharts if available — check `package.json`)
-- Histórico de NFs: table (Data, Nº NF, Itens, Valor), expandable rows showing items
-- Produtos Mais Comprados: ranking table from NF items aggregation
+- Evolução de Faturamento: line chart (use a simple CSS bar chart or Recharts if available)
+- Histórico de Faturamento: table (Data, Nº NF, Itens, Valor), expandable rows showing items
+- Produtos Mais Comprados: ranking table from faturamento items aggregation
 
 - [ ] **Step 3: Verify detail page renders with client data**
 
 Run: `npm run dev`
-Navigate to `/clientes/:id` — shows client info, KPIs, NF history.
+Navigate to `/clientes/:id` — shows client info, KPIs, faturamento history.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/hooks/useNotasFiscais.ts src/pages/ClienteDetalhe.tsx
-git commit -m "feat: add client detail page with NF history, KPIs, and product ranking"
+git add src/hooks/useFaturamento.ts src/pages/ClienteDetalhe.tsx
+git commit -m "feat: add client detail page with faturamento history, KPIs, and product ranking"
 ```
 
 ---
