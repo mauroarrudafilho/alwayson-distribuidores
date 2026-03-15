@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  Building2,
   TrendingUp,
   Award,
-  Target,
+  UserSearch,
   Package,
+  Settings,
   Upload,
   ChevronLeft,
   ChevronRight,
@@ -19,13 +19,13 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/distribuidores', label: 'Distribuidores', icon: Building2 },
-  { path: '/performance', label: 'Performance', icon: TrendingUp },
-  { path: '/excelencia', label: 'Excelência', icon: Award },
-  { path: '/metas', label: 'Metas', icon: Target },
-  { path: '/estoque', label: 'Estoque', icon: Package },
-  { path: '/ingestao', label: 'Ingestão', icon: Upload },
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'operacional' },
+  { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'operacional' },
+  { path: '/excelencia', label: 'Excelência', icon: Award, group: 'operacional' },
+  { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacional' },
+  { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacional' },
+  { path: '/admin', label: 'Administração', icon: Settings, group: 'admin' },
+  { path: '/ingestao', label: 'Ingestão', icon: Upload, group: 'admin' },
 ]
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -62,7 +62,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className="flex-1 px-2 py-2 space-y-0.5">
-        {menuItems.map((item) => {
+        {menuItems.map((item, idx) => {
+          const prevGroup = idx > 0 ? menuItems[idx - 1].group : item.group
+          const showSeparator = item.group !== prevGroup
+
           const isActive =
             item.path === '/'
               ? location.pathname === '/'
@@ -88,15 +91,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           )
 
-          if (collapsed) {
-            return (
-              <div key={item.path} title={item.label}>
-                {linkContent}
-              </div>
-            )
-          }
-
-          return <div key={item.path}>{linkContent}</div>
+          return (
+            <div key={item.path} title={collapsed ? item.label : undefined}>
+              {showSeparator && (
+                <div className="my-2 mx-2 border-t border-border/50" />
+              )}
+              {linkContent}
+            </div>
+          )
         })}
       </nav>
 
