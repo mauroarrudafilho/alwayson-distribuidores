@@ -135,16 +135,16 @@ export function DistribuidorTab() {
               <TableHead>Distribuidor</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Faturamento</TableHead>
-              <TableHead className="text-right">Positivados</TableHead>
-              <TableHead className="text-right">Itens</TableHead>
-              <TableHead className="text-right">Pedidos</TableHead>
+              <TableHead className="text-right hidden sm:table-cell">Positivados</TableHead>
+              <TableHead className="text-right hidden md:table-cell">Itens</TableHead>
+              <TableHead className="text-right hidden md:table-cell">Pedidos</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 3 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -166,7 +166,7 @@ export function DistribuidorTab() {
                   className="cursor-pointer"
                   onClick={() => handleRowClick(row.id)}
                 >
-                  <TableCell className="text-xs font-medium">
+                  <TableCell className="text-xs font-medium max-w-[150px] sm:max-w-none truncate">
                     {row.nome}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
@@ -175,13 +175,13 @@ export function DistribuidorTab() {
                   <TableCell className="text-xs tabular-nums text-right">
                     {formatCurrency(row.faturamento)}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-right">
+                  <TableCell className="text-xs tabular-nums text-right hidden sm:table-cell">
                     {row.positivados.toLocaleString('pt-BR')}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-right">
+                  <TableCell className="text-xs tabular-nums text-right hidden md:table-cell">
                     {row.itens.toLocaleString('pt-BR')}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-right">
+                  <TableCell className="text-xs tabular-nums text-right hidden md:table-cell">
                     {row.pedidos.toLocaleString('pt-BR')}
                   </TableCell>
                 </TableRow>

@@ -87,7 +87,11 @@ function PerformanceContent() {
             }
           >
             <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="Selecione...">
+                {filters.distribuidorId
+                  ? distribuidores?.find((d) => d.id === filters.distribuidorId)?.nome ?? 'Carregando...'
+                  : 'Todos'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
@@ -125,9 +129,9 @@ function PerformanceContent() {
         value={currentTab}
         onValueChange={(v) => setFilter('tab', v as PerfTab)}
       >
-        <TabsList variant="line" className="mb-2">
+        <TabsList variant="line" className="mb-2 overflow-x-auto">
           {availableTabs.map((tab) => (
-            <TabsTrigger key={tab} value={tab} className="text-sm px-3">
+            <TabsTrigger key={tab} value={tab} className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
               {TAB_LABELS[tab]}
             </TabsTrigger>
           ))}
