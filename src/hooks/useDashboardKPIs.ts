@@ -23,7 +23,7 @@ export function useDashboardKPIs() {
         supabase
           .from('alwayson_estoque_distribuidor')
           .select('id, status')
-          .in('status', ['critico', 'ruptura']),
+          .in('status', ['critico']),
         supabase
           .from('alwayson_metas_distribuidor')
           .select('id, valor_meta, valor_realizado, percentual_atingimento'),
