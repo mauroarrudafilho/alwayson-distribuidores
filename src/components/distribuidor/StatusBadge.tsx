@@ -9,6 +9,8 @@ type StatusType =
   | 'ruptura'
   | 'baixo'
   | 'normal'
+  | 'saudavel'
+  | 'overstock'
   | 'excelencia'
   | 'pendente'
   | 'processando'
@@ -19,14 +21,16 @@ type BadgeVariant = 'success' | 'warning' | 'destructive' | 'info' | 'secondary'
 
 const statusConfig: Record<StatusType, { label: string; variant: BadgeVariant }> = {
   ativo:        { label: 'Ativo',        variant: 'success' },
+  saudavel:     { label: 'Saudável',     variant: 'success' },
   normal:       { label: 'Normal',       variant: 'success' },
   concluido:    { label: 'Concluido',    variant: 'success' },
   em_analise:   { label: 'Em Analise',   variant: 'info' },
   processando:  { label: 'Processando',  variant: 'info' },
   em_risco:     { label: 'Em Risco',     variant: 'warning' },
+  overstock:    { label: 'Overstock',    variant: 'warning' },
   baixo:        { label: 'Baixo',        variant: 'warning' },
   pendente:     { label: 'Pendente',     variant: 'warning' },
-  critico:      { label: 'Critico',      variant: 'destructive' },
+  critico:      { label: 'Crítico',      variant: 'destructive' },
   ruptura:      { label: 'Ruptura',      variant: 'destructive' },
   erro:         { label: 'Erro',         variant: 'destructive' },
   inativo:      { label: 'Inativo',      variant: 'secondary' },

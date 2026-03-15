@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Package, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { Package, AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
@@ -8,6 +8,7 @@ import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useEstoque } from '@/hooks/useEstoque'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -27,6 +28,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function EstoquePanel() {
   const [distribuidorFilter, setDistribuidorFilter] = useState<string>('todos')
+  const [periodoInicio, setPeriodoInicio] = useState<string>('')
+  const [periodoFim, setPeriodoFim] = useState<string>('')
   const { data: distribuidores } = useDistribuidores()
   const { data: estoque, isLoading } = useEstoque(
     distribuidorFilter === 'todos' ? undefined : distribuidorFilter
@@ -34,11 +37,9 @@ export function EstoquePanel() {
 
   const items = estoque ?? []
   const total = items.length
-  const normais = items.filter((e) => e.status === 'normal').length
-  const baixos = items.filter((e) => e.status === 'baixo').length
-  const criticos = items.filter(
-    (e) => e.status === 'critico' || e.status === 'ruptura'
-  ).length
+  const saudaveis = items.filter((e) => e.status === 'saudavel').length
+  const criticos = items.filter((e) => e.status === 'critico').length
+  const overstock = items.filter((e) => e.status === 'overstock').length
 
   return (
     <div className="animate-fade-in">
@@ -63,13 +64,29 @@ export function EstoquePanel() {
             </SelectContent>
           </Select>
         </FilterField>
+        <FilterField label="Período Início">
+          <Input
+            type="month"
+            value={periodoInicio}
+            onChange={(e) => setPeriodoInicio(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </FilterField>
+        <FilterField label="Período Fim">
+          <Input
+            type="month"
+            value={periodoFim}
+            onChange={(e) => setPeriodoFim(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </FilterField>
       </FilterBar>
 
       <KPIGrid columns={4}>
-        <KPICard label="Total Itens" value={total} icon={Package} />
-        <KPICard label="Normal" value={normais} icon={CheckCircle2} />
-        <KPICard label="Baixo" value={baixos} icon={AlertTriangle} />
-        <KPICard label="Crítico / Ruptura" value={criticos} icon={XCircle} />
+        <KPICard label="Total SKUs" value={total} icon={Package} />
+        <KPICard label="Saudável" value={saudaveis} icon={CheckCircle2} />
+        <KPICard label="Crítico" value={criticos} icon={AlertTriangle} />
+        <KPICard label="Overstock" value={overstock} icon={TrendingUp} />
       </KPIGrid>
 
       <Card className="mt-6">
@@ -79,6 +96,7 @@ export function EstoquePanel() {
               <TableHead>SKU</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead className="text-right">Quantidade</TableHead>
+              <TableHead className="text-right">Est. Mínimo</TableHead>
               <TableHead className="text-right">Dias Cobertura</TableHead>
               <TableHead className="text-right">Sugestão Pedido</TableHead>
               <TableHead>Status</TableHead>
@@ -88,7 +106,7 @@ export function EstoquePanel() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -97,7 +115,7 @@ export function EstoquePanel() {
               ))
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center">
+                <TableCell colSpan={7} className="py-8 text-center">
                   <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum item de estoque
@@ -115,12 +133,15 @@ export function EstoquePanel() {
                     {Number(item.quantidade_atual).toLocaleString('pt-BR')}
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-right">
+                    {Number(item.estoque_minimo_calculado ?? item.quantidade_minima).toLocaleString('pt-BR')}
+                  </TableCell>
+                  <TableCell className="text-xs tabular-nums text-right">
                     {Number(item.dias_cobertura).toFixed(0)}d
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-right">
                     {item.sugestao_pedido
                       ? Number(item.sugestao_pedido).toLocaleString('pt-BR')
-                      : '-'}
+                      : '—'}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={item.status} />
