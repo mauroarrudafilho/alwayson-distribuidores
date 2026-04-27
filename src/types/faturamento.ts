@@ -16,6 +16,7 @@ export interface FaturamentoItem {
   sku: string
   descricao: string
   quantidade: number
+  unidade?: string
   valor_unitario: number
   valor_total: number
 }

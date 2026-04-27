@@ -822,17 +822,22 @@ No MVP, o fluxo de ingestão é via **upload de arquivo padronizado**. O distrib
 
 | Coluna | Tipo | Obrigatório | Descrição |
 |--------|------|-------------|-----------|
-| `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda |
+| `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda / emissão |
+| `numero_nf` | TEXT | ✅ | Número da nota (repetido em cada linha de item da mesma NF) |
 | `cnpj_cliente` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
 | `nome_cliente` | TEXT | ✅ | Nome fantasia ou razão social |
 | `codigo_vendedor` | TEXT | ✅ | Código interno do vendedor no distribuidor |
 | `nome_vendedor` | TEXT | ✅ | Nome do vendedor |
+| `codigo_supervisor` | TEXT | ❌ | Código do supervisor |
+| `nome_supervisor` | TEXT | ❌ | Nome do supervisor |
+| `codigo_gerente` | TEXT | ❌ | Código do gerente |
+| `nome_gerente` | TEXT | ❌ | Nome do gerente |
 | `sku` | TEXT | ✅ | Código do produto Campestre |
 | `descricao_produto` | TEXT | ✅ | Descrição |
-| `quantidade` | DECIMAL | ✅ | Quantidade vendida |
+| `quantidade` | DECIMAL | ✅ | Quantidade (na unidade de `unidade`) |
+| `unidade` | TEXT | ✅ | UN, CX, KG, etc. |
 | `valor_unitario` | DECIMAL | ✅ | Preço unitário de venda |
-| `valor_total` | DECIMAL | ✅ | Valor total do item |
-| `codigo_supervisor` | TEXT | ❌ | Código do supervisor (se disponível) |
+| `valor_total` | DECIMAL | ✅ | Valor total da linha (item) |
 
 ### Layout do Relatório de Estoque (template)
 

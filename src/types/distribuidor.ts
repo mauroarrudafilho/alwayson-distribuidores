@@ -16,6 +16,8 @@ export interface Distribuidor {
 export interface Vendedor {
   id: string
   distribuidor_id: string
+  /** Código no ERP do distribuidor; corresponde a `codigo_externo` no Supabase após migration 005. */
+  codigo_externo?: string
   nome: string
   supervisor_id?: string
   tipo: 'vendedor' | 'supervisor' | 'gerente'
@@ -45,6 +47,16 @@ export interface ClienteDistribuidor {
   nome_fantasia?: string
   cidade: string
   estado: string
+  /** Endereço fiscal enriquecido via BrasilAPI (migration 006). */
+  endereco_logradouro?: string
+  endereco_numero?: string
+  endereco_bairro?: string
+  endereco_cep?: string
+  /** Coordenadas WGS-84 geocodificadas via Nominatim/OSM (migration 006). */
+  lat?: number
+  lng?: number
+  /** Timestamp do último enriquecimento geográfico; null = pendente. */
+  geo_enriquecido_em?: string
   vendedor_id?: string
   plano_excelencia: boolean
   itens_cadastrados: number

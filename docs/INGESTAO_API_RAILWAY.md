@@ -88,17 +88,30 @@ curl -X POST "https://seu-servico.railway.app/api/ingest" \
 
 | Coluna | Tipo | Obrigatório | Descrição |
 |--------|------|-------------|-----------|
-| `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda |
+| `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda / emissão (mapeia para `data_emissao` em `alwayson_faturamento`) |
+| `numero_nf` | TEXT | ✅ | Número da nota fiscal; **mesmo valor em várias linhas** = vários itens da mesma NF |
 | `cnpj_cliente` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
 | `nome_cliente` | TEXT | ✅ | Nome fantasia ou razão social |
 | `codigo_vendedor` | TEXT | ✅ | Código interno do vendedor no distribuidor |
 | `nome_vendedor` | TEXT | ✅ | Nome do vendedor |
+| `codigo_supervisor` | TEXT | ❌ | Código do supervisor (hierarquia) |
+| `nome_supervisor` | TEXT | ❌ | Nome do supervisor |
+| `codigo_gerente` | TEXT | ❌ | Código do gerente (hierarquia) |
+| `nome_gerente` | TEXT | ❌ | Nome do gerente |
 | `sku` | TEXT | ✅ | Código do produto Campestre |
 | `descricao_produto` | TEXT | ✅ | Descrição |
-| `quantidade` | DECIMAL | ✅ | Quantidade vendida |
-| `valor_unitario` | DECIMAL | ✅ | Preço unitário de venda |
-| `valor_total` | DECIMAL | ✅ | Valor total do item |
-| `codigo_supervisor` | TEXT | ❌ | Código do supervisor (se disponível) |
+| `quantidade` | DECIMAL | ✅ | Quantidade na unidade informada em `unidade` |
+| `unidade` | TEXT | ✅ | UN, CX, KG, etc. (gravado em `alwayson_faturamento_itens.unidade`) |
+| `valor_unitario` | DECIMAL | ✅ | Preço unitário de venda (coerente com a unidade do item) |
+| `valor_total` | DECIMAL | ✅ | Valor total **da linha** (item) |
+
+**Cabeçalho lógico da NF:** para um mesmo par `(distribuidor_id, numero_nf)`, todas as linhas devem repetir os mesmos valores de `data_venda`, `cnpj_cliente`, `nome_cliente` e campos de hierarquia (`codigo_*` / `nome_*`). Se houver divergência → rejeitar o arquivo (ou a NF) com erro de validação.
+
+**`valor_total` do documento (`alwayson_faturamento.valor_total`):** não copiar de coluna “de cabeçalho” no Excel; **calcular** como soma dos `valor_total` das linhas-itens agrupadas na mesma NF (após validar consistência).
+
+O serviço deve agrupar linhas por `(distribuidor_id, numero_nf)` para montar um registro em `alwayson_faturamento` e linhas em `alwayson_faturamento_itens`; códigos/nomes de hierarquia alimentam resolução ou upsert em `alwayson_vendedores_distribuidor` (ver [dívida / normatização](ingestao-normatizacao-divida-tecnica.md)).
+
+Dados de upload são sempre escopados ao `distribuidor_id` informado no `POST` (incluindo unicidade de `numero_nf` e resolução de códigos).
 
 ### 3.2 Relatório de Estoque (`tipo: estoque`)
 
@@ -118,7 +131,7 @@ O projeto usa prefixo `alwayson_*`. O serviço Railway deve gravar em:
 
 | Tipo | Tabelas afetadas |
 |------|------------------|
-| `vendas` | `alwayson_clientes_distribuidor`, `alwayson_vendedores_distribuidor`, `alwayson_performance_periodo` |
+| `vendas` | `alwayson_faturamento`, `alwayson_faturamento_itens`, `alwayson_clientes_distribuidor`, `alwayson_vendedores_distribuidor` (e, se aplicável, `alwayson_performance_periodo` ou agregados) |
 | `estoque` | `alwayson_estoque_distribuidor` |
 | `clientes` | `alwayson_clientes_distribuidor` |
 

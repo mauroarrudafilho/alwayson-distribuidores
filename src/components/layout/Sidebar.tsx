@@ -7,6 +7,7 @@ import {
   Package,
   Settings,
   Upload,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
@@ -24,6 +25,7 @@ const menuItems = [
   { path: '/excelencia', label: 'Excelência', icon: Award, group: 'operacional' },
   { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacional' },
   { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacional' },
+  { path: '/insights', label: 'Insights', icon: BarChart3, group: 'operacional' },
   { path: '/admin', label: 'Administração', icon: Settings, group: 'admin' },
   { path: '/ingestao', label: 'Ingestão', icon: Upload, group: 'admin' },
 ]

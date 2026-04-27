@@ -23,10 +23,13 @@ const TIPOS_RELATORIO = [
 const EXTENSOES_ACEITAS = '.xlsx,.xls,.csv'
 const TAMANHO_MAX_MB = 10
 
+const templateHref = (file: string) =>
+  `${import.meta.env.BASE_URL}templates/${file}`.replace(/\/+/g, '/')
+
 const TEMPLATE_MAP: Record<string, string> = {
-  vendas: '/templates/template-vendas.xlsx',
-  estoque: '/templates/template-estoque.xlsx',
-  clientes: '/templates/template-clientes.xlsx',
+  vendas: templateHref('template-vendas.xlsx'),
+  estoque: templateHref('template-estoque.xlsx'),
+  clientes: templateHref('template-clientes.xlsx'),
 }
 
 interface IngestaoUploadProps {

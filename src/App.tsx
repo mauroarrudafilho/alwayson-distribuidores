@@ -15,6 +15,7 @@ import { AdminMetas } from '@/pages/admin/AdminMetas'
 import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
+import { InsightsPanel } from '@/pages/InsightsPanel'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ function App() {
                 <Route path="usuarios" element={<AdminUsuarios />} />
               </Route>
               <Route path="/ingestao" element={<IngestaoPanel />} />
+              <Route path="/insights" element={<InsightsPanel />} />
             </Route>
           </Routes>
         </BrowserRouter>
