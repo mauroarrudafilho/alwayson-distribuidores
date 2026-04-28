@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   BarChart3,
   DollarSign,
@@ -42,6 +43,7 @@ import {
 } from '@/hooks/useMockInsights'
 import type { InsightsTopCliente } from '@/types/insights'
 import { cn } from '@/lib/utils'
+import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
 
@@ -330,10 +332,28 @@ export function InsightsPanel() {
   const [busca, setBusca] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
   const [clienteDetalhe, setClienteDetalhe] = useState<InsightsTopCliente | null>(null)
-  const [insightsTab, setInsightsTab] = useState<'territorio' | 'clientes'>('territorio')
-  const [tabBeforeDetail, setTabBeforeDetail] = useState<'territorio' | 'clientes'>('territorio')
+  const [insightsTab, setInsightsTab] = useState<'territorio' | 'clientes' | 'produtos'>('territorio')
+  const [tabBeforeDetail, setTabBeforeDetail] = useState<'territorio' | 'clientes' | 'produtos'>('territorio')
   const [buscaCliente, setBuscaCliente] = useState('')
   const [estadoCliente, setEstadoCliente] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Deep-link: /insights?cnpj=... abre o cliente direto na aba Clientes.
+  useEffect(() => {
+    const cnpjParam = searchParams.get('cnpj')
+    if (!cnpjParam) return
+    const target = cnpjParam.replace(/\D/g, '')
+    const cliente = MOCK_TODOS_CLIENTES.find(
+      (c) => c.cnpj_cliente.replace(/\D/g, '') === target
+    )
+    if (cliente) {
+      setTabBeforeDetail('clientes')
+      setClienteDetalhe(cliente)
+    }
+    // Limpa o param para não reabrir ao voltar
+    searchParams.delete('cnpj')
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const openClienteDetalhe = (c: InsightsTopCliente) => {
     setTabBeforeDetail(insightsTab)
@@ -404,7 +424,7 @@ export function InsightsPanel() {
         description={`Base histórica ${MOCK_PERIODO.inicio} – ${MOCK_PERIODO.fim} · ${MOCK_KPI_GERAL.total_cidades} cidades`}
       />
 
-      <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes')}>
+      <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
         <TabsList
           variant="line"
           className="mb-5 w-fit max-w-full h-auto gap-8 border-0 border-b border-border/40 bg-transparent p-0"
@@ -420,6 +440,12 @@ export function InsightsPanel() {
             className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
           >
             Clientes
+          </TabsTrigger>
+          <TabsTrigger
+            value="produtos"
+            className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+          >
+            Produtos
           </TabsTrigger>
         </TabsList>
 
@@ -630,6 +656,10 @@ export function InsightsPanel() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="produtos" className="mt-0">
+          <InsightsAbaProdutos />
         </TabsContent>
       </Tabs>
     </div>

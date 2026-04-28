@@ -24,6 +24,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { InsightsBadge } from '@/components/insights/InsightsBadge'
 
 export function ClienteTab() {
   const navigate = useNavigate()
@@ -229,7 +230,13 @@ export function ClienteTab() {
                   onClick={() => navigate(`/clientes/${row.id}`)}
                 >
                   <TableCell className="text-xs font-medium">
-                    {row.nome_fantasia || row.razao_social}
+                    <span className="inline-flex items-center gap-1.5">
+                      {row.nome_fantasia || row.razao_social}
+                      <InsightsBadge
+                        cnpj={row.cnpj}
+                        faturamentoLocal={row.ticket_medio ? Number(row.ticket_medio) : null}
+                      />
+                    </span>
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">
                     {row.cnpj}

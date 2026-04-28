@@ -100,3 +100,37 @@ export interface InsightsClienteMixRow {
   primeira_compra: string
   ultima_compra: string
 }
+
+/** Visão por SKU — aba Produtos do Insights. */
+export interface InsightsProdutoRow {
+  sku: string
+  descricao: string
+  categoria: string
+  faturamento_total: number
+  quantidade_total: number
+  unidade: string
+  total_nfs: number
+  total_clientes: number
+  total_cidades: number
+  primeira_venda: string
+  ultima_venda: string
+}
+
+/** Drill-down de um SKU: top clientes e top cidades. */
+export interface InsightsProdutoDetalhe {
+  topClientes: Array<{
+    cnpj_cliente: string
+    nome_cliente: string
+    cidade: string
+    estado: string
+    quantidade_total: number
+    faturamento_total: number
+  }>
+  topCidades: Array<{
+    cidade: string
+    estado: string
+    quantidade_total: number
+    faturamento_total: number
+    total_clientes: number
+  }>
+}

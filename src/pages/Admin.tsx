@@ -7,6 +7,7 @@ const adminTabs = [
   { path: '/admin/metas', label: 'Metas' },
   { path: '/admin/excelencia', label: 'Excelência' },
   { path: '/admin/usuarios', label: 'Usuários' },
+  { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro' },
 ]
 
 export function Admin() {

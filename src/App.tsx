@@ -14,6 +14,7 @@ import { AdminProdutos } from '@/pages/admin/AdminProdutos'
 import { AdminMetas } from '@/pages/admin/AdminMetas'
 import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
+import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 import { InsightsPanel } from '@/pages/InsightsPanel'
 
@@ -46,6 +47,7 @@ function App() {
                 <Route path="metas" element={<AdminMetas />} />
                 <Route path="excelencia" element={<AdminExcelencia />} />
                 <Route path="usuarios" element={<AdminUsuarios />} />
+                <Route path="ajustes-cadastro" element={<AdminAjustesCadastro />} />
               </Route>
               <Route path="/ingestao" element={<IngestaoPanel />} />
               <Route path="/insights" element={<InsightsPanel />} />

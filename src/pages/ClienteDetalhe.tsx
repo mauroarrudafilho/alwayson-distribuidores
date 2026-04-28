@@ -29,6 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { HistoricoAjustesCard } from '@/components/cliente/HistoricoAjustesCard'
+import { InsightsBadge } from '@/components/insights/InsightsBadge'
 
 function useCliente(id: string | undefined) {
   return useQuery({
@@ -297,8 +299,13 @@ export function ClienteDetalhe() {
       </Link>
 
       <div>
-        <h1 className="text-lg font-semibold text-foreground">
+        <h1 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
           {cliente.nome_fantasia || cliente.razao_social}
+          <InsightsBadge
+            cnpj={cliente.cnpj}
+            faturamentoLocal={kpis?.total ?? null}
+            nfsLocais={faturamentos?.length ?? null}
+          />
         </h1>
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
           <span className="font-mono text-xs">{cliente.cnpj}</span>
@@ -306,6 +313,25 @@ export function ClienteDetalhe() {
           {vendedorNome && <span>Vendedor: {vendedorNome}</span>}
         </div>
       </div>
+
+      <HistoricoAjustesCard
+        cliente={{
+          id: cliente.id,
+          nome: cliente.nome_fantasia || cliente.razao_social,
+          cnpj: cliente.cnpj,
+          razao_social: cliente.razao_social,
+          nome_fantasia: cliente.nome_fantasia,
+          endereco: [
+            cliente.endereco_logradouro,
+            cliente.endereco_numero,
+            cliente.endereco_bairro,
+            `${cliente.cidade}/${cliente.estado}`,
+          ]
+            .filter(Boolean)
+            .join(', ') || undefined,
+          vendedor_nome: vendedorNome,
+        }}
+      />
 
       <KPIGrid columns={4}>
         <KPICard

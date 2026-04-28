@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useClientesBusca } from '@/hooks/useClientesBusca'
+import { InsightsBadge } from '@/components/insights/InsightsBadge'
 
 export function ClientesBusca() {
   const [search, setSearch] = useState('')
@@ -81,12 +82,15 @@ export function ClientesBusca() {
                   clientes?.map((c) => (
                     <TableRow key={c.id} className="cursor-pointer">
                       <TableCell>
-                        <Link
-                          to={`/clientes/${c.id}`}
-                          className="block text-foreground hover:text-primary transition-colors"
-                        >
-                          {c.nome_fantasia || '—'}
-                        </Link>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Link
+                            to={`/clientes/${c.id}`}
+                            className="text-foreground hover:text-primary transition-colors"
+                          >
+                            {c.nome_fantasia || '—'}
+                          </Link>
+                          <InsightsBadge cnpj={c.cnpj} />
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Link to={`/clientes/${c.id}`} className="block">
