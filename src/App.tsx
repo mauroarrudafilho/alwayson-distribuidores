@@ -8,6 +8,7 @@ import { Login } from '@/pages/Login'
 import { RecuperarPassword } from '@/pages/RecuperarPassword'
 import { RedefinirPassword } from '@/pages/RedefinirPassword'
 import { AceitarConvite } from '@/pages/AceitarConvite'
+import { Conta } from '@/pages/Conta'
 import { Dashboard } from '@/pages/Dashboard'
 import { Performance } from '@/pages/Performance'
 import { Excelencia } from '@/pages/Excelencia'
@@ -51,6 +52,7 @@ function App() {
               <Route element={<RequireAuth />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/conta" element={<Conta />} />
                   <Route path="/performance" element={<Performance />} />
                   <Route path="/excelencia" element={<Excelencia />} />
                   <Route path="/clientes" element={<ClientesBusca />} />

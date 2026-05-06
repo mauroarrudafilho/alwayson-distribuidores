@@ -1,4 +1,5 @@
-import { Building2, Check, ChevronDown, LogOut, ShieldCheck, Users } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Building2, Check, ChevronDown, KeyRound, LogOut, ShieldCheck, Users } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ const tipoIcon: Record<TenantTipo, typeof Building2> = {
 
 export function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
   const { profile, memberships, currentTenant, setCurrentTenantById, signOut } = useAuth()
+  const navigate = useNavigate()
 
   if (!currentTenant) return null
 
@@ -92,6 +94,10 @@ export function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
             </DropdownMenuItem>
           )
         })}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate('/conta')} className="gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" /> Minha conta
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={() => void signOut()} className="gap-2">
           <LogOut className="h-4 w-4" /> Sair
