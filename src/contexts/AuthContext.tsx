@@ -101,9 +101,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(safety)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       try {
         setSession(newSession)
+
+        // Eventos que NÃO mudam profile/tenants — só atualizam tokens/metadata.
+        // Recarregar profile aqui só geraria trabalho redundante e, em conjunto
+        // com o lock do gotrue, podia parecer "loop" ao salvar senha.
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') {
+          return
+        }
+
         if (newSession?.user) {
           await loadProfileAndTenants(newSession.user.id)
         } else {
