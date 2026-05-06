@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { TenantSwitcher } from '@/components/auth/TenantSwitcher'
 
 interface SidebarProps {
   collapsed: boolean
@@ -104,9 +105,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      <div className="px-3 py-2 border-t border-border/50">
+      <div className="border-t border-border/50 p-2 space-y-1">
+        <TenantSwitcher collapsed={collapsed} />
         {!collapsed && (
-          <p className="text-[11px] text-muted-foreground">AlwaysOn v1.0</p>
+          <p className="px-2 text-[10px] text-muted-foreground/70">AlwaysOn v1.0</p>
         )}
       </div>
     </aside>
