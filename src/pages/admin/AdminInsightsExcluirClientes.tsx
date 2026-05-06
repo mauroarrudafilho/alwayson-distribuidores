@@ -42,7 +42,7 @@ export function AdminInsightsExcluirClientes() {
   const qc = useQueryClient()
   const [busca, setBusca] = useState('')
   const [openCnpj, setOpenCnpj] = useState<string | null>(null)
-  const [purgeSecret, setPurgeSecret] = useState('')
+  const [confirmacao, setConfirmacao] = useState('')
 
   const list = useQuery({
     queryKey: ['admin', 'insights-clientes-purge', 'lista'],
@@ -57,17 +57,19 @@ export function AdminInsightsExcluirClientes() {
   })
 
   const purge = useMutation({
-    mutationFn: async ({ cnpjNorm, secret }: { cnpjNorm: string; secret: string }) => {
+    mutationFn: async ({ cnpjNorm, confirmacao }: { cnpjNorm: string; confirmacao: string }) => {
       const { data, error } = await supabase.rpc('insights_delete_cliente_e_nfs', {
         p_cnpj_14: cnpjNorm,
-        p_secret: secret.trim(),
+        // A RPC aceita o próprio CNPJ digitado como confirmação (type-to-confirm).
+        // Mantemos o nome `p_secret` na assinatura por retrocompatibilidade.
+        p_secret: confirmacao.trim(),
       })
       if (error) throw error
       const payload = data as { ok?: boolean; error?: string; cnpj_14?: string }
       if (!payload?.ok) {
         const code = payload?.error
         let msg = 'Falha na exclusão'
-        if (code === 'forbidden') msg = 'Segredo incorreto ou não configurado.'
+        if (code === 'forbidden') msg = 'CNPJ digitado não confere com o cliente alvo.'
         else if (code === 'nao_encontrado') msg = 'Cliente não encontrado.'
         else if (code === 'cnpj_invalido') msg = 'CNPJ inválido.'
         else if (typeof code === 'string') msg = code
@@ -77,11 +79,18 @@ export function AdminInsightsExcluirClientes() {
     },
     onSuccess: async () => {
       setOpenCnpj(null)
-      setPurgeSecret('')
+      setConfirmacao('')
       await qc.invalidateQueries({ queryKey: ['admin', 'insights-clientes-purge'] })
       await qc.invalidateQueries({ queryKey: ['insights'] })
     },
   })
+
+  // Compara digitos do que o admin digita com os 14 dígitos do CNPJ alvo.
+  function confirmacaoBateCnpj(input: string, cnpj14: string) {
+    const digits = input.replace(/\D/g, '')
+    if (digits.length < 14) return false
+    return digits.slice(-14) === cnpj14
+  }
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -115,20 +124,14 @@ export function AdminInsightsExcluirClientes() {
             <div>
               <p className="font-medium">Irreversível</p>
               <p className="text-muted-foreground dark:text-amber-100/85">
-                Os totais <code className="text-xs font-mono">total_nfs</code> e{' '}
-                <code className="text-xs font-mono">total_itens</code> de cada lote de upload afetado são
-                recalculados com base nas NFs e itens que permanecerem na base.
+                Para confirmar a exclusão, basta digitar o CNPJ exato do cliente no diálogo —
+                aceita qualquer formatação. Os totais{' '}
+                <code className="text-xs font-mono">total_nfs</code> e{' '}
+                <code className="text-xs font-mono">total_itens</code> dos lotes de upload
+                afetados são recalculados automaticamente após o purge.
               </p>
               <p className="mt-2 text-muted-foreground dark:text-amber-100/85">
-                Defina primeiro o segredo no Supabase SQL Editor:
-                <code className="ml-1 text-xs font-mono">
-                  UPDATE alwayson_insights_purge_config SET secret =
-                  {' '}
-                  &apos;senha-longa-arruda&apos; WHERE id = 1;
-                </code>
-              </p>
-              <p className="mt-2 text-muted-foreground dark:text-amber-100/85">
-                Alternativa pela máquina de quem tem service role:{` `}
+                Alternativa via service role (CLI):{' '}
                 <code className="text-xs font-mono whitespace-nowrap">
                   npm run insights:delete-cliente -- --cnpj … --yes
                 </code>
@@ -196,7 +199,7 @@ export function AdminInsightsExcluirClientes() {
                           onOpenChange={(o) => {
                             if (!o) {
                               setOpenCnpj(null)
-                              setPurgeSecret('')
+                              setConfirmacao('')
                               purge.reset()
                               return
                             }
@@ -220,23 +223,40 @@ export function AdminInsightsExcluirClientes() {
                               <DialogTitle>Excluir cliente e todas as NFs?</DialogTitle>
                             </DialogHeader>
                             <p className="text-sm text-muted-foreground">
+                              {r.nome_cliente ? (
+                                <>
+                                  <span className="font-medium text-foreground">
+                                    {r.nome_cliente}
+                                  </span>
+                                  {' — '}
+                                </>
+                              ) : null}
                               CNPJ{' '}
-                              <span className="font-mono text-foreground">{r.cnpj_14}</span>.
-                              Todas as notas de sell-out territorial desse cliente e os respetivos
-                              itens serão apagadas.
+                              <span className="font-mono text-foreground">
+                                {formatCnpjDisplay(r.cnpj_14)}
+                              </span>
+                              . Todas as notas de sell-out territorial desse cliente e os
+                              respetivos itens serão apagadas.
                             </p>
                             <div className="space-y-1.5">
-                              <label htmlFor="purge-secret" className="text-sm font-medium">
-                                Segredo configurado na base
+                              <label htmlFor="purge-confirm" className="text-sm font-medium">
+                                Para confirmar, digite o CNPJ deste cliente
                               </label>
                               <Input
-                                id="purge-secret"
-                                type="password"
+                                id="purge-confirm"
+                                type="text"
+                                inputMode="numeric"
                                 autoComplete="off"
-                                placeholder="Valor de alwayson_insights_purge_config.secret"
-                                value={purgeSecret}
-                                onChange={(e) => setPurgeSecret(e.target.value)}
+                                placeholder={formatCnpjDisplay(r.cnpj_14)}
+                                value={confirmacao}
+                                onChange={(e) => setConfirmacao(e.target.value)}
+                                className="font-mono"
                               />
+                              <p className="text-xs text-muted-foreground">
+                                Aceita com ou sem máscara (ex.{' '}
+                                <code>{formatCnpjDisplay(r.cnpj_14)}</code> ou{' '}
+                                <code>{r.cnpj_14}</code>).
+                              </p>
                             </div>
                             {erroRpc ? (
                               <p className="text-sm text-red-600 dark:text-red-400">{erroRpc}</p>
@@ -246,7 +266,7 @@ export function AdminInsightsExcluirClientes() {
                                 variant="outline"
                                 onClick={() => {
                                   setOpenCnpj(null)
-                                  setPurgeSecret('')
+                                  setConfirmacao('')
                                   purge.reset()
                                 }}
                               >
@@ -255,14 +275,14 @@ export function AdminInsightsExcluirClientes() {
                               <Button
                                 variant="destructive"
                                 disabled={
-                                  purgeSecret.trim().length === 0 || purge.isPending
+                                  !confirmacaoBateCnpj(confirmacao, r.cnpj_14) || purge.isPending
                                 }
                                 onClick={() => {
                                   const p = parseInsightsCnpj(r.cnpj_14)
                                   const norm = p.ok ? p.cnpj14 : insightsCnpjKey(r.cnpj_14)
                                   purge.mutate({
                                     cnpjNorm: norm,
-                                    secret: purgeSecret,
+                                    confirmacao,
                                   })
                                 }}
                               >
