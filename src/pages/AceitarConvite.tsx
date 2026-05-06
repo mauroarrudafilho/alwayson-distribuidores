@@ -55,7 +55,16 @@ export function AceitarConvite() {
     }
   }, [loading, session, token, refresh, navigate])
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <Shell eyebrow="Aceitar convite" title="Verificando" italic="seu convite…">
+        <p className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border border-foreground/30 border-t-navy" />
+          Carregando sessão
+        </p>
+      </Shell>
+    )
+  }
 
   if (!session) {
     return (

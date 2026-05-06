@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
+import { consumeAuthError, humanizeAuthError } from '@/lib/auth-error-bootstrap'
 
 const TICKER_ROWS = [
   { label: 'Sell-out hoje', value: 'R$ 4,82M', delta: '+6,3%', tone: 'up' as const },
@@ -23,15 +24,25 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [authNotice, setAuthNotice] = useState<{ code: string; message: string } | null>(null)
 
   const search = new URLSearchParams(location.search)
   const next = search.get('next') || '/'
 
   useEffect(() => {
+    const found = consumeAuthError()
+    if (found) {
+      setAuthNotice({
+        code: found.code,
+        message: humanizeAuthError(found.code, found.description),
+      })
+    }
+  }, [])
+
+  useEffect(() => {
     if (!loading && session) navigate(next, { replace: true })
   }, [loading, session, next, navigate])
 
-  if (loading) return null
   if (session) return <Navigate to={next} replace />
 
   async function handleSubmit(e: FormEvent) {
@@ -91,6 +102,32 @@ export function Login() {
               volta.
             </em>
           </h1>
+
+          {authNotice && (
+            <div
+              role="alert"
+              className="mt-8 flex items-start gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm leading-relaxed"
+            >
+              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" strokeWidth={1.75} />
+              <div className="flex-1">
+                <p className="font-medium text-foreground">Não foi possível usar o link</p>
+                <p className="mt-1 text-xs text-muted-foreground">{authNotice.message}</p>
+                <Link
+                  to="/recuperar-password"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-navy hover:underline"
+                >
+                  Solicitar novo link <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <p className="mt-8 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border border-foreground/30 border-t-navy" />
+              Verificando sessão
+            </p>
+          )}
 
           {/* form */}
           <form onSubmit={handleSubmit} className="mt-12 space-y-5">
