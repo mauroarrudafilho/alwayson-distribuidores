@@ -1,0 +1,155 @@
+// Módulo Insights — sell-out territorial.
+// Dados carregados pelo time Arruda (admin, carga única).
+// Mesmo template de vendas dos distribuidores → comparativo maçã com maçã.
+
+/** De-para global: código da base Insights (ex. codprod_fornecedor) → SKU alwayson_produtos. */
+export interface InsightsProdutoDePara {
+  id: string
+  codigo_origem: string
+  sku_fornecedor: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
+export interface InsightsUpload {
+  id: string
+  nome: string
+  periodo_inicio: string
+  periodo_fim: string
+  arquivo_nome: string
+  status: 'processando' | 'concluido' | 'erro'
+  total_nfs?: number
+  total_itens?: number
+  erros?: unknown
+  criado_por?: string
+  criado_em: string
+}
+
+export interface InsightsNf {
+  id: string
+  upload_id: string
+  numero_nf: string
+  data_emissao: string
+  cnpj_cliente: string
+  razao_social?: string
+  nome_cliente?: string
+  /** Cidade enriquecida via BrasilAPI; null = pendente. */
+  cidade?: string
+  estado?: string
+  lat?: number
+  lng?: number
+  geo_enriquecido_em?: string
+  codigo_vendedor?: string
+  nome_vendedor?: string
+  codigo_supervisor?: string
+  nome_supervisor?: string
+  codigo_gerente?: string
+  nome_gerente?: string
+  /** Origem emitente no ERP (export GA); destaque comercial futuro, não chave territorial. */
+  cod_emp?: string
+  nome_emp?: string
+  /** Soma de InsightsNfItem.valor_total. */
+  valor_total: number
+  criado_em: string
+}
+
+export interface InsightsNfItem {
+  id: string
+  nf_id: string
+  sku: string
+  descricao?: string
+  quantidade: number
+  unidade?: string
+  valor_unitario?: number
+  valor_total: number
+  /** Código produto na base de origem; manter bruto (ver de-para em doc). */
+  codprod_fornecedor?: string
+  /** Canal / classificação normatizada pela origem (texto). */
+  perfil?: string
+}
+
+// ─── Analytics shapes (resultados de queries agregadas) ───────────────────
+
+/** Visão por cidade — usada na rota /insights com filtro de cidade. */
+export interface InsightsCidadeRow {
+  cidade: string
+  estado: string
+  faturamento_total: number
+  total_nfs: number
+  total_clientes: number
+  ticket_medio_cliente: number
+  total_skus: number
+  /** Itens agregados na unidade predominante (volume). */
+  quantidade_total: number
+  unidade_predominante?: string
+}
+
+/** Top cliente dentro de uma cidade ou geral. */
+export interface InsightsTopCliente {
+  cnpj_cliente: string
+  razao_social?: string
+  nome_cliente?: string
+  cidade?: string
+  estado?: string
+  faturamento_total: number
+  total_nfs: number
+  ultima_compra: string
+  total_skus: number
+}
+
+/** Histórico mensal de um cliente — evolução ao longo do tempo. */
+export interface InsightsClienteMes {
+  ano_mes: string           // "2026-03"
+  faturamento: number
+  total_nfs: number
+  total_skus: number
+  quantidade_total: number
+}
+
+/** Mix de um cliente — SKUs e volumes ao longo do tempo. */
+export interface InsightsClienteMixRow {
+  sku: string
+  descricao?: string
+  /** Meses em que o SKU apareceu. */
+  meses_ativos: number
+  quantidade_total: number
+  unidade?: string
+  faturamento_total: number
+  primeira_compra: string
+  ultima_compra: string
+}
+
+/** Visão por SKU — aba Produtos do Insights. */
+export interface InsightsProdutoRow {
+  sku: string
+  descricao: string
+  categoria: string
+  faturamento_total: number
+  quantidade_total: number
+  unidade: string
+  total_nfs: number
+  total_clientes: number
+  total_cidades: number
+  primeira_venda: string
+  ultima_venda: string
+}
+
+/** Drill-down de um SKU: top clientes e top cidades. */
+export interface InsightsProdutoDetalhe {
+  topClientes: Array<{
+    cnpj_cliente: string
+    nome_cliente: string
+    cidade: string
+    estado: string
+    quantidade_total: number
+    faturamento_total: number
+  }>
+  topCidades: Array<{
+    cidade: string
+    estado: string
+    quantidade_total: number
+    faturamento_total: number
+    total_clientes: number
+  }>
+}
