@@ -3,12 +3,13 @@ import { Building2, Check, ChevronDown, KeyRound, LogOut, ShieldCheck, Users } f
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAuth, type MembershipRole, type TenantTipo } from '@/contexts/AuthContext'
+import { useAuth, type MembershipRole, type TenantTipo } from '@/contexts/auth'
 import { cn } from '@/lib/utils'
 
 const roleLabel: Record<MembershipRole, string> = {
@@ -67,33 +68,39 @@ export function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
           </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={6} className="min-w-56">
-        <DropdownMenuLabel>
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-foreground">{profile?.nome || profile?.email}</span>
-            <span className="text-[11px] text-muted-foreground">{profile?.email}</span>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="pt-1">Organizações</DropdownMenuLabel>
-        {memberships.map((m) => {
-          const ItemIcon = tipoIcon[m.tipo] ?? Building2
-          const active = m.tenant_id === currentTenant.tenant_id
-          return (
-            <DropdownMenuItem
-              key={`${m.tenant_id}-${m.role}`}
-              onClick={() => setCurrentTenantById(m.tenant_id)}
-              className="gap-2"
-            >
-              <ItemIcon className="h-4 w-4 text-muted-foreground" />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm">{m.nome}</span>
-                <span className="text-[11px] text-muted-foreground">{roleLabel[m.role]}</span>
+      <DropdownMenuContent align="start" side="top" sideOffset={8} className="min-w-56">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-foreground">
+                {profile?.nome || profile?.email}
               </span>
-              {active && <Check className="h-3.5 w-3.5 text-primary" />}
-            </DropdownMenuItem>
-          )
-        })}
+              <span className="text-[11px] text-muted-foreground">{profile?.email}</span>
+            </div>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="pt-1">Organizações</DropdownMenuLabel>
+          {memberships.map((m) => {
+            const ItemIcon = tipoIcon[m.tipo] ?? Building2
+            const active = m.tenant_id === currentTenant.tenant_id
+            return (
+              <DropdownMenuItem
+                key={`${m.tenant_id}-${m.role}`}
+                onClick={() => setCurrentTenantById(m.tenant_id)}
+                className="gap-2"
+              >
+                <ItemIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{m.nome}</span>
+                  <span className="text-[11px] text-muted-foreground">{roleLabel[m.role]}</span>
+                </span>
+                {active && <Check className="h-3.5 w-3.5 text-primary" />}
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate('/conta')} className="gap-2">
           <KeyRound className="h-4 w-4 text-muted-foreground" /> Minha conta

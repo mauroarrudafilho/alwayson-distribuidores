@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { supabase } from '@/lib/supabase'
-import { useAuth, type MembershipRole, type TenantTipo } from '@/contexts/AuthContext'
+import { useAuth, type MembershipRole, type TenantTipo } from '@/contexts/auth'
 
 type ProfileRow = {
   user_id: string

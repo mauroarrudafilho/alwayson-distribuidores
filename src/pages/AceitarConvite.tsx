@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/auth'
 
 type AceiteResult = { ok: true; tenant_id: string; role: string } | { ok: false; error: string }
 
