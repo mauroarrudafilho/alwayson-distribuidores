@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(
@@ -18,6 +19,7 @@ function useIsMobile() {
 export function AppLayout() {
   const isMobile = useIsMobile()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const location = useLocation()
 
   useEffect(() => {
     if (isMobile) setSidebarCollapsed(true)
@@ -31,7 +33,9 @@ export function AppLayout() {
       />
       <main className="flex-1 overflow-auto min-w-0">
         <div className="p-3 sm:p-6 max-w-[1400px] mx-auto">
-          <Outlet />
+          <RouteErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </RouteErrorBoundary>
         </div>
       </main>
     </div>
