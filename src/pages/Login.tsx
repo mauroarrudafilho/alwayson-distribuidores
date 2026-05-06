@@ -91,13 +91,9 @@ export function Login() {
               volta.
             </em>
           </h1>
-          <p className="mt-4 max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
-            Inteligência comercial dos distribuidores Arruda — performance, insights
-            territoriais e excelência operacional num só cockpit.
-          </p>
 
           {/* form */}
-          <form onSubmit={handleSubmit} className="mt-10 space-y-5">
+          <form onSubmit={handleSubmit} className="mt-12 space-y-5">
             <Field
               id="email"
               label="E-mail corporativo"
@@ -277,32 +273,27 @@ export function Login() {
 
           {/* middle: claim */}
           <div className="max-w-xl space-y-7">
-            <p className="text-[11px] font-medium uppercase tracking-[0.4em] text-white/55 editorial-rule">
-              Edição 01 · Cockpit Comercial
-            </p>
-
             <h2
-              className="text-[58px] leading-[0.98] tracking-[-0.025em] xl:text-[68px]"
+              className="text-[68px] leading-[0.96] tracking-[-0.03em] xl:text-[84px]"
               style={{
                 fontFamily: 'var(--font-display)',
                 fontWeight: 320,
                 fontVariationSettings: '"opsz" 144, "SOFT" 30',
               }}
             >
-              Veja o desempenho real do seu{' '}
+              Do sell-out
+              <br />
+              <span className="text-white/85">à </span>
               <em
                 className="italic text-teal"
                 style={{ fontVariationSettings: '"opsz" 144, "SOFT" 80' }}
               >
-                sell-out
+                decisão.
               </em>
-              <span className="text-white/85"> — decida com</span> dados conectados.
             </h2>
 
-            <p className="max-w-[46ch] text-[15px] leading-relaxed text-white/70">
-              Performance por distribuidor, excelência operacional, insights territoriais e
-              cadastro unificado de clientes — tudo num único cockpit, com governança
-              multi-tenant.
+            <p className="max-w-[40ch] text-[15px] leading-relaxed text-white/70">
+              Performance, insights e excelência — num só cockpit, com governança multi-tenant.
             </p>
 
             <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
