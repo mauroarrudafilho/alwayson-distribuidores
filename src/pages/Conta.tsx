@@ -1,4 +1,27 @@
 import { useState, type FormEvent } from 'react'
+
+/**
+ * Wrapper de timeout: rejeita após `ms` ms se a promise não resolver.
+ * Necessário porque, em casos extremos (lock do gotrue pendurado, perda de
+ * conexão), supabase-js pode ficar pendente indefinidamente e travar o spinner.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(
+      () => reject(new Error(`${label} demorou demais (>${ms / 1000}s). Tente novamente.`)),
+      ms
+    )
+    promise
+      .then((v) => {
+        window.clearTimeout(t)
+        resolve(v)
+      })
+      .catch((e) => {
+        window.clearTimeout(t)
+        reject(e)
+      })
+  })
+}
 import { useNavigate } from 'react-router-dom'
 import {
   AtSign,
@@ -64,10 +87,15 @@ function IdentidadeCard({
     if (!user?.id) return
     setSavingNome(true)
     try {
-      const { error } = await supabase
-        .from('alwayson_user_profiles')
-        .update({ nome: novoNome, atualizado_em: new Date().toISOString() })
-        .eq('user_id', user.id)
+      const { error } = await withTimeout(
+        (async () =>
+          supabase
+            .from('alwayson_user_profiles')
+            .update({ nome: novoNome, atualizado_em: new Date().toISOString() })
+            .eq('user_id', user.id))(),
+        10_000,
+        'Atualização de nome'
+      )
       if (error) throw error
       await supabase.auth.updateUser({ data: { nome: novoNome } })
       await onSaved()
@@ -89,7 +117,11 @@ function IdentidadeCard({
     }
     setSavingEmail(true)
     try {
-      const { error } = await supabase.auth.updateUser({ email: novoEmail.trim() })
+      const { error } = await withTimeout(
+        supabase.auth.updateUser({ email: novoEmail.trim() }),
+        12_000,
+        'Solicitação de troca de e-mail'
+      )
       if (error) throw error
       setOkMsg(
         `Enviamos um link de confirmação para ${novoEmail}. Confirme por lá para concluir a troca.`
@@ -192,7 +224,11 @@ function SenhaCard() {
     }
     setSalvando(true)
     try {
-      const { error } = await supabase.auth.updateUser({ password: senha })
+      const { error } = await withTimeout(
+        supabase.auth.updateUser({ password: senha }),
+        12_000,
+        'Atualização de senha'
+      )
       if (error) throw error
       setOkMsg('Senha atualizada. Use o novo acesso na próxima entrada.')
       setSenha('')
