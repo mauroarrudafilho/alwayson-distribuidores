@@ -825,7 +825,8 @@ No MVP, o fluxo de ingestão é via **upload de arquivo padronizado**. O distrib
 | `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda / emissão |
 | `numero_nf` | TEXT | ✅ | Número da nota (repetido em cada linha de item da mesma NF) |
 | `cnpj_cliente` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
-| `nome_cliente` | TEXT | ✅ | Nome fantasia ou razão social |
+| `razao_social` | TEXT | ✅ | Razão social registrada/legal |
+| `nome_cliente` | TEXT | ✅ | Nome fantasia (exibição); planilhas antigas só com um nome devem repetir até enriquecer |
 | `codigo_vendedor` | TEXT | ✅ | Código interno do vendedor no distribuidor |
 | `nome_vendedor` | TEXT | ✅ | Nome do vendedor |
 | `codigo_supervisor` | TEXT | ❌ | Código do supervisor |
@@ -848,6 +849,18 @@ No MVP, o fluxo de ingestão é via **upload de arquivo padronizado**. O distrib
 | `descricao` | TEXT | ✅ | Descrição do produto |
 | `quantidade_estoque` | DECIMAL | ✅ | Quantidade em estoque |
 | `unidade` | TEXT | ✅ | UN, CX, KG, etc. |
+
+### Layout do Relatório de Cadastro de Clientes (`tipo: clientes`)
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| `cnpj` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
+| `razao_social` | TEXT | ✅ | Razão social |
+| `nome_fantasia` | TEXT | ✅ | Nome fantasia |
+| `cidade` | TEXT | ✅ | |
+| `estado` | TEXT | ✅ | UF |
+| `codigo_vendedor` | TEXT | ❌ | |
+| `nome_vendedor` | TEXT | ❌ | |
 
 ---
 

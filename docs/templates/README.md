@@ -9,6 +9,7 @@ Templates XLSX para upload de relatórios no módulo de ingestão.
 | `template_relatorio_vendas.xlsx` | Apenas aba de vendas (sell-out) |
 | `template_relatorio_estoque.xlsx` | Apenas aba de estoque |
 | `template_relatorios_completo.xlsx` | Ambas as abas em um único arquivo |
+| `template-clientes.xlsx` (em `public/templates/`) | Cadastro/atualização de clientes |
 
 ## Colunas — Relatório de Vendas
 
@@ -17,7 +18,8 @@ Templates XLSX para upload de relatórios no módulo de ingestão.
 | `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda |
 | `numero_nf` | TEXT | ✅ | Número da NF (repetir em cada linha de item da mesma nota) |
 | `cnpj_cliente` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
-| `nome_cliente` | TEXT | ✅ | Nome fantasia ou razão social |
+| `razao_social` | TEXT | ✅ | Razão social (gravada em `alwayson_clientes_distribuidor.razao_social`; planilhas legadas só com nome podem repetir até o backend resolver) |
+| `nome_cliente` | TEXT | ✅ | Nome fantasia ou rótulo de exibição (mapeia para `nome_fantasia`; se não souber fantasia, repita texto útil igual à razão ou deixe alinhado ao ERP) |
 | `codigo_vendedor` | TEXT | ✅ | Código interno do vendedor |
 | `nome_vendedor` | TEXT | ✅ | Nome do vendedor |
 | `codigo_supervisor` | TEXT | ❌ | Código do supervisor |
@@ -30,6 +32,18 @@ Templates XLSX para upload de relatórios no módulo de ingestão.
 | `unidade` | TEXT | ✅ | UN, CX, KG, etc. |
 | `valor_unitario` | DECIMAL | ✅ | Preço unitário |
 | `valor_total` | DECIMAL | ✅ | Valor total da linha (item) |
+
+## Colunas — Cadastro de Clientes (`tipo: clientes`)
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| `cnpj` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
+| `razao_social` | TEXT | ✅ | Razão social |
+| `nome_fantasia` | TEXT | ✅ | Nome fantasia |
+| `cidade` | TEXT | ✅ | |
+| `estado` | TEXT | ✅ | UF |
+| `codigo_vendedor` | TEXT | ❌ | Código interno do vendedor |
+| `nome_vendedor` | TEXT | ❌ | Nome do vendedor |
 
 ## Colunas — Relatório de Estoque
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Building2, Search, MapPin, Phone, Mail } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
@@ -94,6 +95,7 @@ export function AdminDistribuidores() {
               <TableHead>Responsável</TableHead>
               <TableHead>Contato</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right w-[90px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -106,11 +108,12 @@ export function AdminDistribuidores() {
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center">
+                <TableCell colSpan={7} className="py-8 text-center">
                   <Building2 className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum distribuidor encontrado
@@ -147,6 +150,14 @@ export function AdminDistribuidores() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={dist.status} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      to={`/admin/de-para-produtos?distribuidor=${dist.id}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      De-para
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))

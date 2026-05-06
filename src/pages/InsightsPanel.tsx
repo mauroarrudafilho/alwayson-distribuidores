@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   TrendingUp,
   ShoppingCart,
+  Loader2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
@@ -32,18 +33,21 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/format'
-import {
-  MOCK_CIDADES,
-  MOCK_TOP_CLIENTES,
-  MOCK_CLIENTE_HISTORICO,
-  MOCK_CLIENTE_MIX,
-  MOCK_PERIODO,
-  MOCK_KPI_GERAL,
-  MOCK_TODOS_CLIENTES,
-} from '@/hooks/useMockInsights'
-import type { InsightsTopCliente } from '@/types/insights'
+import type { InsightsCidadeRow, InsightsTopCliente } from '@/types/insights'
 import { cn } from '@/lib/utils'
 import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
+import {
+  useInsightsBootstrap,
+  useInsightsClienteHistorico,
+  useInsightsClienteMix,
+  insightsCnpjKey,
+} from '@/hooks/useInsightsQueries'
+
+function cidadeTerritorioKey(cidade: string | undefined | null, estado: string | undefined | null) {
+  const c = (cidade ?? '').trim() || '— sem cidade —'
+  const e = (estado ?? '').trim() || '—'
+  return `${c}\t${e}`
+}
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
 
@@ -92,8 +96,8 @@ function ClienteDetalheDrawer({
   cliente: InsightsTopCliente
   onClose: () => void
 }) {
-  const historico = MOCK_CLIENTE_HISTORICO[cliente.cnpj_cliente] ?? []
-  const mix = MOCK_CLIENTE_MIX[cliente.cnpj_cliente] ?? []
+  const { data: historico = [], isPending: loadHist } = useInsightsClienteHistorico(cliente.cnpj_cliente)
+  const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
   const maxFat = Math.max(...(mix.map((m) => m.faturamento_total)), 1)
   const maxBar = Math.max(...(historico.map((h) => h.faturamento)), 1)
 
@@ -103,8 +107,8 @@ function ClienteDetalheDrawer({
     return `${months[Number(month) - 1]}/${year.slice(2)}`
   }
 
-  const totalFaturamento = historico.reduce((s, h) => s + h.faturamento, 0)
-  const totalNfs = historico.reduce((s, h) => s + h.total_nfs, 0)
+  const totalNfsCliente = cliente.total_nfs
+  const totalFaturamento = cliente.faturamento_total
   const maxSkus = Math.max(...historico.map((h) => h.total_skus))
 
   return (
@@ -117,8 +121,35 @@ function ClienteDetalheDrawer({
         Voltar ao Insights
       </button>
 
+      {(loadHist || loadMix) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Carregando histórico e mix…
+        </div>
+      )}
+
       <div className="mb-4">
-        <h2 className="text-base font-semibold">{cliente.nome_cliente}</h2>
+        <h2 className="text-base font-semibold text-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span>
+            {(() => {
+              const fantasia =
+                cliente.nome_cliente && cliente.nome_cliente !== '—'
+                  ? cliente.nome_cliente
+                  : null
+              const razao = cliente.razao_social?.trim()
+              if (fantasia) return fantasia
+              return razao ?? '—'
+            })()}
+          </span>
+          {cliente.razao_social?.trim() &&
+            cliente.nome_cliente &&
+            cliente.nome_cliente !== '—' &&
+            cliente.razao_social.trim() !== cliente.nome_cliente.trim() && (
+              <span className="text-sm font-normal text-muted-foreground">
+                · {cliente.razao_social.trim()}
+              </span>
+            )}
+        </h2>
         <p className="text-xs text-muted-foreground font-mono mt-0.5">
           {cliente.cnpj_cliente} · {cliente.cidade}/{cliente.estado}
         </p>
@@ -126,9 +157,17 @@ function ClienteDetalheDrawer({
 
       <KPIGrid columns={4}>
         <KPICard label="Faturamento Total"  value={formatCurrency(totalFaturamento)} icon={DollarSign} />
-        <KPICard label="NFs Emitidas"       value={totalNfs}                         icon={Receipt} />
+        <KPICard label="NFs Emitidas"       value={totalNfsCliente}                         icon={Receipt} />
         <KPICard label="SKUs no Mix"         value={mix.length}                       icon={Package} badge={`${maxSkus} máx/mês`} />
-        <KPICard label="Última Compra"       value={new Date(cliente.ultima_compra + 'T12:00:00').toLocaleDateString('pt-BR')} icon={ShoppingCart} />
+        <KPICard
+          label="Última Compra"
+          value={
+            cliente.ultima_compra
+              ? new Date(`${cliente.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
+              : '—'
+          }
+          icon={ShoppingCart}
+        />
       </KPIGrid>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -222,13 +261,14 @@ function CidadeRow({
   row,
   maxFat,
   onSelectCliente,
+  topClientes,
 }: {
-  row: (typeof MOCK_CIDADES)[number]
+  row: InsightsCidadeRow
   maxFat: number
   onSelectCliente: (c: InsightsTopCliente) => void
+  topClientes: InsightsTopCliente[]
 }) {
   const [open, setOpen] = useState(false)
-  const topClientes = MOCK_TOP_CLIENTES[row.cidade] ?? []
 
   return (
     <>
@@ -302,7 +342,9 @@ function CidadeRow({
                       <TableCell className="hidden md:table-cell text-right tabular-nums">{c.total_nfs}</TableCell>
                       <TableCell className="hidden md:table-cell text-right tabular-nums">{c.total_skus}</TableCell>
                       <TableCell className="hidden lg:table-cell text-right text-xs text-muted-foreground">
-                        {new Date(c.ultima_compra + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        {c.ultima_compra
+                          ? new Date(`${c.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
+                          : '—'}
                       </TableCell>
                       <TableCell>
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -329,6 +371,18 @@ function CidadeRow({
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export function InsightsPanel() {
+  const boot = useInsightsBootstrap()
+  const cidades = boot.data?.cidades ?? []
+  const clientes = boot.data?.clientes ?? []
+  const kpi = boot.data?.kpiGeral ?? {
+    faturamento_total: 0,
+    total_cidades: 0,
+    total_clientes: 0,
+    total_nfs: 0,
+    total_skus: 0,
+  }
+  const periodo = boot.data?.periodo ?? { inicio: '—', fim: '—' }
+
   const [busca, setBusca] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('')
   const [clienteDetalhe, setClienteDetalhe] = useState<InsightsTopCliente | null>(null)
@@ -338,22 +392,41 @@ export function InsightsPanel() {
   const [estadoCliente, setEstadoCliente] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
 
+  const topPorCidade = useMemo(() => {
+    const m = new Map<string, InsightsTopCliente[]>()
+    for (const c of clientes) {
+      const k = cidadeTerritorioKey(c.cidade, c.estado)
+      const arr = m.get(k) ?? []
+      arr.push(c)
+      m.set(k, arr)
+    }
+    for (const [, arr] of m) {
+      arr.sort((a, b) => b.faturamento_total - a.faturamento_total)
+    }
+    return m
+  }, [clientes])
+
   // Deep-link: /insights?cnpj=... abre o cliente direto na aba Clientes.
   useEffect(() => {
     const cnpjParam = searchParams.get('cnpj')
-    if (!cnpjParam) return
-    const target = cnpjParam.replace(/\D/g, '')
-    const cliente = MOCK_TODOS_CLIENTES.find(
-      (c) => c.cnpj_cliente.replace(/\D/g, '') === target
-    )
+    if (!cnpjParam || !boot.data) return
+
+    const target = insightsCnpjKey(cnpjParam)
+    if (target.length !== 14) {
+      searchParams.delete('cnpj')
+      setSearchParams(searchParams, { replace: true })
+      return
+    }
+
+    const cliente = boot.data.clientes.find((c) => insightsCnpjKey(c.cnpj_cliente) === target)
     if (cliente) {
       setTabBeforeDetail('clientes')
       setClienteDetalhe(cliente)
     }
-    // Limpa o param para não reabrir ao voltar
+
     searchParams.delete('cnpj')
     setSearchParams(searchParams, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, boot.data])
 
   const openClienteDetalhe = (c: InsightsTopCliente) => {
     setTabBeforeDetail(insightsTab)
@@ -361,41 +434,39 @@ export function InsightsPanel() {
   }
 
   const cidadesFiltradas = useMemo(() => {
-    return MOCK_CIDADES.filter((c) => {
-      const matchBusca = busca === '' ||
+    return cidades.filter((c) => {
+      const matchBusca =
+        busca === '' ||
         c.cidade.toLowerCase().includes(busca.toLowerCase()) ||
         c.estado.toLowerCase().includes(busca.toLowerCase())
       const matchEstado = estadoFilter === '' || c.estado === estadoFilter
       return matchBusca && matchEstado
     })
-  }, [busca, estadoFilter])
+  }, [busca, estadoFilter, cidades])
 
-  const maxFat = Math.max(...MOCK_CIDADES.map((c) => c.faturamento_total), 1)
+  const maxFat = Math.max(...cidades.map((c) => c.faturamento_total), 1)
 
-  const estados = useMemo(
-    () => [...new Set(MOCK_CIDADES.map((c) => c.estado))].sort(),
-    []
-  )
+  const estados = useMemo(() => [...new Set(cidades.map((c) => c.estado))].sort(), [cidades])
 
   const faturamentoFiltrado = cidadesFiltradas.reduce((s, c) => s + c.faturamento_total, 0)
-  const clientesFiltrados  = cidadesFiltradas.reduce((s, c) => s + c.total_clientes, 0)
-  const nfsFiltradas        = cidadesFiltradas.reduce((s, c) => s + c.total_nfs, 0)
+  const clientesFiltrados = cidadesFiltradas.reduce((s, c) => s + c.total_clientes, 0)
+  const nfsFiltradas = cidadesFiltradas.reduce((s, c) => s + c.total_nfs, 0)
 
   const clientesListaFiltrada = useMemo(() => {
     const raw = buscaCliente.trim()
     const q = raw.replace(/\D/g, '')
     const nameQ = raw.toLowerCase()
-    return MOCK_TODOS_CLIENTES.filter((c) => {
+    return clientes.filter((c) => {
       const matchUf = estadoCliente === '' || c.estado === estadoCliente
       if (raw === '') return matchUf
-      const cnpjDigits = c.cnpj_cliente.replace(/\D/g, '')
+      const cnpjDigits = insightsCnpjKey(c.cnpj_cliente)
       const matchCnpj = q.length >= 2 && cnpjDigits.includes(q)
       const matchNome = c.nome_cliente?.toLowerCase().includes(nameQ) ?? false
       const matchCidade = c.cidade?.toLowerCase().includes(nameQ) ?? false
       const matchUfText = c.estado?.toLowerCase() === nameQ
       return matchUf && (matchCnpj || matchNome || matchCidade || matchUfText)
     })
-  }, [buscaCliente, estadoCliente])
+  }, [buscaCliente, estadoCliente, clientes])
 
   // ─── Detalhe de cliente ───────────────────────────────────────────────────
   if (clienteDetalhe) {
@@ -403,7 +474,7 @@ export function InsightsPanel() {
       <div className="animate-fade-in">
         <PageHeader
           title="Insights"
-          description={`Base histórica ${MOCK_PERIODO.inicio} – ${MOCK_PERIODO.fim}`}
+          description={`Base histórica ${periodo.inicio} – ${periodo.fim}`}
         />
         <ClienteDetalheDrawer
           cliente={clienteDetalhe}
@@ -417,11 +488,29 @@ export function InsightsPanel() {
   }
 
   // ─── Visão principal (abas) ───────────────────────────────────────────────
+  if (boot.isPending) {
+    return (
+      <div className="animate-fade-in flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-sm">Carregando dados de Insights…</p>
+      </div>
+    )
+  }
+
+  if (boot.isError) {
+    const msg = boot.error instanceof Error ? boot.error.message : String(boot.error)
+    return (
+      <div className="animate-fade-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+        {msg}
+      </div>
+    )
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Insights"
-        description={`Base histórica ${MOCK_PERIODO.inicio} – ${MOCK_PERIODO.fim} · ${MOCK_KPI_GERAL.total_cidades} cidades`}
+        description={`Base histórica ${periodo.inicio} – ${periodo.fim} · ${kpi.total_cidades} cidades`}
       />
 
       <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
@@ -452,14 +541,14 @@ export function InsightsPanel() {
         <KPIGrid columns={5} className="mb-6">
           <KPICard
             label="Faturamento Total"
-            value={formatCurrency(MOCK_KPI_GERAL.faturamento_total)}
+            value={formatCurrency(kpi.faturamento_total)}
             icon={DollarSign}
             variant="primary"
           />
-          <KPICard label="Cidades"         value={MOCK_KPI_GERAL.total_cidades}   icon={MapPin} />
-          <KPICard label="Clientes Únicos" value={MOCK_KPI_GERAL.total_clientes}  icon={Users} />
-          <KPICard label="NFs Emitidas"    value={MOCK_KPI_GERAL.total_nfs.toLocaleString('pt-BR')} icon={Receipt} />
-          <KPICard label="SKUs Ativos"     value={MOCK_KPI_GERAL.total_skus}      icon={Package} />
+          <KPICard label="Cidades" value={kpi.total_cidades} icon={MapPin} />
+          <KPICard label="Clientes Únicos" value={kpi.total_clientes} icon={Users} />
+          <KPICard label="NFs Emitidas" value={kpi.total_nfs.toLocaleString('pt-BR')} icon={Receipt} />
+          <KPICard label="SKUs Ativos" value={kpi.total_skus} icon={Package} />
         </KPIGrid>
 
         <TabsContent value="territorio" className="mt-0">
@@ -500,8 +589,8 @@ export function InsightsPanel() {
           {(busca !== '' || estadoFilter !== '') && (
             <KPIGrid columns={3} className="mb-6">
               <KPICard label="Faturamento (filtro)" value={formatCurrency(faturamentoFiltrado)} icon={DollarSign} />
-              <KPICard label="Clientes (filtro)"    value={clientesFiltrados}                   icon={Users} />
-              <KPICard label="NFs (filtro)"          value={nfsFiltradas}                        icon={Receipt} />
+              <KPICard label="Clientes (filtro)" value={clientesFiltrados} icon={Users} />
+              <KPICard label="NFs (filtro)" value={nfsFiltradas} icon={Receipt} />
             </KPIGrid>
           )}
 
@@ -527,14 +616,19 @@ export function InsightsPanel() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {cidadesFiltradas.map((row) => (
-                    <CidadeRow
-                      key={row.cidade}
-                      row={row}
-                      maxFat={maxFat}
-                      onSelectCliente={openClienteDetalhe}
-                    />
-                  ))}
+                  {cidadesFiltradas.map((row) => {
+                    const k = cidadeTerritorioKey(row.cidade, row.estado)
+                    const topClientes = topPorCidade.get(k) ?? []
+                    return (
+                      <CidadeRow
+                        key={k}
+                        row={row}
+                        maxFat={maxFat}
+                        topClientes={topClientes}
+                        onSelectCliente={openClienteDetalhe}
+                      />
+                    )
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

@@ -1,35 +1,92 @@
 import { useMemo } from 'react'
-import { MOCK_TODOS_CLIENTES, MOCK_CLIENTE_HISTORICO } from '@/hooks/useMockInsights'
-import type { InsightsTopCliente } from '@/types/insights'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import type { InsightsClienteMes, InsightsTopCliente } from '@/types/insights'
+import {
+  insightsCnpjKey,
+  isoDateOnly,
+  useInsightsClienteHistorico,
+} from '@/hooks/useInsightsQueries'
 
-function digits(cnpj: string | null | undefined) {
-  return (cnpj ?? '').replace(/\D/g, '')
+function n(x: unknown): number {
+  const v = Number(x)
+  return Number.isFinite(v) ? v : 0
+}
+
+function mapClienteRow(row: Record<string, unknown>): InsightsTopCliente {
+  const rs = row.razao_social
+  const razaoSocial =
+    rs == null ? undefined : (() => {
+      const t = String(rs).trim()
+      return t || undefined
+    })()
+  return {
+    cnpj_cliente: String(row.cnpj_cliente ?? ''),
+    nome_cliente: String(row.nome_cliente ?? '—').trim() || '—',
+    razao_social: razaoSocial,
+    cidade: row.cidade != null ? String(row.cidade) : undefined,
+    estado: row.estado != null ? String(row.estado) : undefined,
+    faturamento_total: n(row.faturamento_total),
+    total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
+    ultima_compra: isoDateOnly(row.ultima_compra),
+    total_skus: Math.trunc(Number(row.total_skus)) || 0,
+  }
 }
 
 /**
- * Verifica se um cliente (pelo CNPJ) tem dados no módulo Insights.
- * Mock-only: compara pelos dígitos, retorna o registro Insights se existir
- * + métricas resumidas (faturamento, NFs) para uso no popover comparativo.
+ * Verifica se há sell-out territorial no Insights para este CNPJ.
+ * Comparativo Sell-in vs Sell-out (popover InsightsBadge).
  */
 export function useClienteEmInsights(cnpj: string | null | undefined) {
+  const key = insightsCnpjKey(cnpj ?? '')
+  const enabled = key.length === 14
+
+  const summary = useQuery({
+    queryKey: ['insights', 'cliente-resumo', key],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('alwayson_insights_v_clientes')
+        .select('*')
+        .eq('cnpj_cliente', key)
+        .maybeSingle()
+      if (error) throw error
+      return data as Record<string, unknown> | null
+    },
+  })
+
+  const hasCliente = enabled && summary.isSuccess && !!summary.data
+  const hist = useInsightsClienteHistorico(hasCliente ? key : undefined)
+
   return useMemo(() => {
-    const target = digits(cnpj)
-    if (target.length === 0) {
+    if (!enabled)
       return { existe: false as const }
-    }
-    const cliente = MOCK_TODOS_CLIENTES.find(
-      (c) => digits(c.cnpj_cliente) === target
-    )
-    if (!cliente) {
+
+    if (summary.isPending)
       return { existe: false as const }
-    }
-    const historico = MOCK_CLIENTE_HISTORICO[cliente.cnpj_cliente] ?? []
+
+    if (summary.error)
+      return { existe: false as const }
+
+    const row = summary.data
+    if (!row)
+      return { existe: false as const }
+
+    const cliente = mapClienteRow(row)
+    const historico: InsightsClienteMes[] = hist.data ?? []
     const ultimoMes = historico[historico.length - 1]
+
     return {
       existe: true as const,
-      cliente: cliente as InsightsTopCliente,
+      cliente,
       historico,
       ultimoMes,
     }
-  }, [cnpj])
+  }, [
+    enabled,
+    summary.isPending,
+    summary.error,
+    summary.data,
+    hist.data,
+  ])
 }

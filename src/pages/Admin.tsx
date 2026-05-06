@@ -3,6 +3,9 @@ import { PageHeader } from '@/components/distribuidor/PageHeader'
 
 const adminTabs = [
   { path: '/admin/distribuidores', label: 'Distribuidores' },
+  { path: '/admin/de-para-produtos', label: 'De-para produtos' },
+  { path: '/admin/de-para-insights-produtos', label: 'De-para Insights' },
+  { path: '/admin/excluir-insights-clientes', label: 'Excluir cliente Insights' },
   { path: '/admin/produtos', label: 'Produtos' },
   { path: '/admin/metas', label: 'Metas' },
   { path: '/admin/excelencia', label: 'Excelência' },

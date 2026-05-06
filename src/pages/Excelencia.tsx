@@ -25,19 +25,18 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useExcelenciaConfigs, useExcelenciaClientes } from '@/hooks/useExcelenciaConfig'
 import type { ExcelenciaConfig } from '@/types/excelencia'
-import type { ClienteDistribuidor } from '@/types/distribuidor'
+import {
+  buildCriteriosForCliente,
+  dedupeExcelenciaConfigs,
+  deriveScoreLabel,
+  STATUS_CELL_CLASSES,
+  type CriterioCell,
+} from '@/lib/excelencia-monitor'
 import { cn } from '@/lib/utils'
 
 type StatusFilter = 'todos' | 'aderentes' | 'em_risco' | 'fora_do_padrao'
 type SortField = 'cliente' | 'score' | string
 type SortDir = 'asc' | 'desc'
-
-interface CriterioCell {
-  criterio_nome: string
-  meta: number
-  realizado: number | null
-  status: 'verde' | 'amarelo' | 'vermelho' | 'sem_dados'
-}
 
 interface MonitorRow {
   cliente_id: string
@@ -45,53 +44,6 @@ interface MonitorRow {
   criterios: CriterioCell[]
   score: number
   scoreLabel: 'aderente' | 'em_risco' | 'fora_do_padrao'
-}
-
-function resolveRealizado(
-  config: ExcelenciaConfig,
-  cliente: ClienteDistribuidor
-): number | null {
-  const nome = config.criterio_nome.toLowerCase()
-  if (nome.includes('iten') || nome.includes('cadastr')) {
-    return cliente.itens_cadastrados ?? null
-  }
-  if (nome.includes('frequ') || nome.includes('recorr')) {
-    return cliente.frequencia_compra_dias ?? null
-  }
-  return null
-}
-
-function resolveStatus(
-  realizado: number | null,
-  meta: number,
-  tipo: 'min' | 'max'
-): 'verde' | 'amarelo' | 'vermelho' | 'sem_dados' {
-  if (realizado === null) return 'sem_dados'
-  if (tipo === 'min') {
-    if (realizado >= meta) return 'verde'
-    if (realizado >= meta * 0.7) return 'amarelo'
-    return 'vermelho'
-  }
-  if (realizado <= meta) return 'verde'
-  if (realizado <= meta * 1.3) return 'amarelo'
-  return 'vermelho'
-}
-
-function deriveScoreLabel(criterios: CriterioCell[]): 'aderente' | 'em_risco' | 'fora_do_padrao' {
-  const valid = criterios.filter((c) => c.status !== 'sem_dados')
-  if (valid.length === 0) return 'fora_do_padrao'
-  const allGreen = valid.every((c) => c.status === 'verde')
-  if (allGreen) return 'aderente'
-  const redCount = valid.filter((c) => c.status === 'vermelho').length
-  if (redCount > valid.length / 2) return 'fora_do_padrao'
-  return 'em_risco'
-}
-
-const STATUS_CELL_CLASSES: Record<string, string> = {
-  verde: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
-  amarelo: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
-  vermelho: 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400',
-  sem_dados: 'text-muted-foreground',
 }
 
 export function Excelencia() {
@@ -108,16 +60,7 @@ export function Excelencia() {
 
   // Deduplicate configs by criterio_nome (when "todos" is selected, multiple
   // distribuidores may each have the same criterion, causing duplicate columns)
-  const uniqueConfigs = useMemo(() => {
-    if (!configs) return []
-    const seen = new Map<string, ExcelenciaConfig>()
-    for (const cfg of configs) {
-      if (!seen.has(cfg.criterio_nome)) {
-        seen.set(cfg.criterio_nome, cfg)
-      }
-    }
-    return Array.from(seen.values())
-  }, [configs])
+  const uniqueConfigs = useMemo(() => dedupeExcelenciaConfigs(configs ?? []), [configs])
 
   const rows = useMemo<MonitorRow[]>(() => {
     if (!uniqueConfigs.length || !exClientes) return []
@@ -125,19 +68,11 @@ export function Excelencia() {
     return exClientes
       .filter((ec) => ec.cliente)
       .map((ec) => {
-        const cliente = ec.cliente
-        const criterios: CriterioCell[] = uniqueConfigs.map((cfg) => {
-          const realizado = resolveRealizado(cfg, cliente)
-          return {
-            criterio_nome: cfg.criterio_nome,
-            meta: cfg.meta_valor,
-            realizado,
-            status: resolveStatus(realizado, cfg.meta_valor, cfg.tipo_comparacao),
-          }
-        })
+        const cliente = ec.cliente!
+        const criterios = buildCriteriosForCliente(uniqueConfigs, cliente)
 
-        const valid = criterios.filter((c) => c.status !== 'sem_dados')
-        const met = valid.filter((c) => c.status === 'verde').length
+        const valid = criterios.filter((cr) => cr.status !== 'sem_dados')
+        const met = valid.filter((cr) => cr.status === 'verde').length
         const score = valid.length > 0 ? Math.round((met / valid.length) * 100) : 0
 
         return {
@@ -148,7 +83,7 @@ export function Excelencia() {
           scoreLabel: deriveScoreLabel(criterios),
         }
       })
-  }, [configs, exClientes])
+  }, [uniqueConfigs, exClientes])
 
   const filteredRows = useMemo(() => {
     let result = rows
@@ -166,8 +101,8 @@ export function Excelencia() {
       } else if (sortField === 'score') {
         cmp = a.score - b.score
       } else {
-        const aCell = a.criterios.find((c) => c.criterio_nome === sortField)
-        const bCell = b.criterios.find((c) => c.criterio_nome === sortField)
+        const aCell = a.criterios.find((cr) => cr.criterio_nome === sortField)
+        const bCell = b.criterios.find((cr) => cr.criterio_nome === sortField)
         cmp = (aCell?.realizado ?? -1) - (bCell?.realizado ?? -1)
       }
       return sortDir === 'asc' ? cmp : -cmp
@@ -319,7 +254,7 @@ export function Excelencia() {
                       )} />
                     </button>
                   </TableHead>
-                  {uniqueConfigs.map((cfg) => (
+                  {uniqueConfigs.map((cfg: ExcelenciaConfig) => (
                     <TableHead key={cfg.id} className="text-center">
                       <button
                         className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto"

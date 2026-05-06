@@ -5,7 +5,11 @@
       "name": "alwayson-distribuidores",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5173
+      "port": 5173,
+      "env": {
+        "ALWAYSON_SUPABASE_PROJECT_REF": "osukbalwykbqvoumddxz",
+        "ALWAYSON_SUPABASE_URL": "https://osukbalwykbqvoumddxz.supabase.co"
+      }
     }
   ]
 }

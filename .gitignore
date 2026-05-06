@@ -26,3 +26,9 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Chunks gerados por scripts/split-faturamento-por-cod-emp.mjs (arquivos grandes)
+docs/faturamento-chunks-por-cod-emp/
+
+# Extracto de faturamento bruto (excede limite 100 MB do GitHub; manter local apenas)
+docs/GA_VGF_FATURAMENTOGLOBAL*.xlsx

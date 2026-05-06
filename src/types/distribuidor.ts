@@ -115,6 +115,17 @@ export interface RelatorioIngestao {
   criado_em: string
 }
 
+/** Mapeamento código interno do distribuidor → SKU oficial (alwayson_produtos.sku). */
+export interface DistribuidorProdutoDePara {
+  id: string
+  distribuidor_id: string
+  codigo_cliente: string
+  sku_fornecedor: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
 export interface DistribuidorKPIs {
   faturamento_periodo: number
   faturamento_periodo_anterior: number

@@ -3,7 +3,11 @@ import { supabase } from '@/lib/supabase'
 import type { ExcelenciaConfig, ExcelenciaCliente } from '@/types/excelencia'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
-export function useExcelenciaConfigs(distribuidorId?: string, includeInactive?: boolean) {
+export function useExcelenciaConfigs(
+  distribuidorId?: string,
+  includeInactive?: boolean,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: ['excelencia-config', distribuidorId ?? 'all', includeInactive],
     queryFn: async () => {
@@ -17,6 +21,7 @@ export function useExcelenciaConfigs(distribuidorId?: string, includeInactive?: 
       if (error) throw error
       return data as ExcelenciaConfig[]
     },
+    enabled: options?.enabled !== false && (options?.enabled === true || distribuidorId !== undefined || true),
   })
 }
 

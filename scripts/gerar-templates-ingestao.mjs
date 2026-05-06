@@ -20,8 +20,9 @@ const publicTemplatesDir = join(__dirname, '..', 'public', 'templates')
 const COLUNAS_VENDAS = [
   'data_venda',          // DATE dd/mm/aaaa — vira data_emissao do faturamento
   'numero_nf',           // TEXT — número da NF (chave lógica com distribuidor; mesma NF em várias linhas = itens)
-  'cnpj_cliente',          // TEXT 14 dígitos
-  'nome_cliente',        // TEXT
+  'cnpj_cliente',        // TEXT 14 dígitos
+  'razao_social',       // TEXT — obrigatório no modelo; arquivos legados sem coluna podem repetir valor em nome_cliente (backend)
+  'nome_cliente',        // TEXT — nome fantasia (exibição); planilhas sem razão podem repetir o texto neste campo até o backend enriquecer
   'codigo_vendedor',     // TEXT
   'nome_vendedor',       // TEXT
   'codigo_supervisor',   // TEXT (opcional)
@@ -62,6 +63,7 @@ const EXEMPLO_VENDAS = [
     '12/03/2026',
     '123456',
     '12345678000199',
+    'Mercado Exemplo LTDA',
     'Mercado Exemplo',
     'V001',
     'João Silva',
@@ -80,6 +82,7 @@ const EXEMPLO_VENDAS = [
     '12/03/2026',
     '123456',
     '12345678000199',
+    'Mercado Exemplo LTDA',
     'Mercado Exemplo',
     'V001',
     'João Silva',
@@ -99,6 +102,7 @@ const EXEMPLO_VENDAS = [
     '12/03/2026',
     '123457',
     '98765432000188',
+    'Supermercado Teste SA',
     'Supermercado Teste',
     'V001',
     'João Silva',
@@ -171,6 +175,49 @@ XLSX.utils.book_append_sheet(wbClientes, wsClientes, 'Clientes')
 XLSX.writeFile(wbClientes, join(publicTemplatesDir, 'template-clientes.xlsx'))
 console.log('✓ Gerado: public/templates/template-clientes.xlsx')
 
+// Template De-para produtos (código do cliente → SKU oficial)
+const COLUNAS_DE_PARA = ['codigo_cliente', 'sku_fornecedor']
+const EXEMPLO_DE_PARA = [
+  ['CAMP-717', '11.5066'],
+  ['CX-992', '11.5084'],
+]
+
+const wsDePara = XLSX.utils.aoa_to_sheet([COLUNAS_DE_PARA, ...EXEMPLO_DE_PARA])
+wsDePara['!cols'] = [
+  { wch: 22 },
+  { wch: 14 },
+]
+
+const wbDePara = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(wbDePara, wsDePara, 'De_Para')
+XLSX.writeFile(wbDePara, join(publicTemplatesDir, 'template-de-para-produtos.xlsx'))
+console.log('✓ Gerado: public/templates/template-de-para-produtos.xlsx')
+
+// De-para Insights (codprod_fornecedor / código origem territorial → SKU fábrica)
+const COLUNAS_DE_PARA_INSIGHTS = ['codigo_origem', 'sku_fornecedor']
+const EXEMPLO_DE_PARA_INSIGHTS = [
+  ['11.7002', '11.5066'],
+  ['717', '11.7002'],
+]
+
+const wsDeParaInsights = XLSX.utils.aoa_to_sheet([
+  COLUNAS_DE_PARA_INSIGHTS,
+  ...EXEMPLO_DE_PARA_INSIGHTS,
+])
+wsDeParaInsights['!cols'] = [{ wch: 22 }, { wch: 14 }]
+
+const wbDeParaInsights = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(wbDeParaInsights, wsDeParaInsights, 'De_Para')
+XLSX.writeFile(
+  wbDeParaInsights,
+  join(publicTemplatesDir, 'template-de-para-insights-produtos.xlsx')
+)
+console.log(
+  '✓ Gerado: public/templates/template-de-para-insights-produtos.xlsx'
+)
+
 console.log('\nColunas Vendas:', COLUNAS_VENDAS.join(', '))
 console.log('Colunas Estoque:', COLUNAS_ESTOQUE.join(', '))
 console.log('Colunas Clientes:', COLUNAS_CLIENTES.join(', '))
+console.log('Colunas De-para produtos:', COLUNAS_DE_PARA.join(', '))
+console.log('Colunas De-para Insights:', COLUNAS_DE_PARA_INSIGHTS.join(', '))

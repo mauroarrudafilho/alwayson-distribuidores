@@ -15,6 +15,9 @@ import { AdminMetas } from '@/pages/admin/AdminMetas'
 import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
+import { AdminDeParaProdutos } from '@/pages/admin/AdminDeParaProdutos'
+import { AdminInsightsDeParaProdutos } from '@/pages/admin/AdminInsightsDeParaProdutos'
+import { AdminInsightsExcluirClientes } from '@/pages/admin/AdminInsightsExcluirClientes'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 import { InsightsPanel } from '@/pages/InsightsPanel'
 
@@ -48,6 +51,15 @@ function App() {
                 <Route path="excelencia" element={<AdminExcelencia />} />
                 <Route path="usuarios" element={<AdminUsuarios />} />
                 <Route path="ajustes-cadastro" element={<AdminAjustesCadastro />} />
+                <Route path="de-para-produtos" element={<AdminDeParaProdutos />} />
+                <Route
+                  path="de-para-insights-produtos"
+                  element={<AdminInsightsDeParaProdutos />}
+                />
+                <Route
+                  path="excluir-insights-clientes"
+                  element={<AdminInsightsExcluirClientes />}
+                />
               </Route>
               <Route path="/ingestao" element={<IngestaoPanel />} />
               <Route path="/insights" element={<InsightsPanel />} />

@@ -2,6 +2,16 @@
 // Dados carregados pelo time Arruda (admin, carga única).
 // Mesmo template de vendas dos distribuidores → comparativo maçã com maçã.
 
+/** De-para global: código da base Insights (ex. codprod_fornecedor) → SKU alwayson_produtos. */
+export interface InsightsProdutoDePara {
+  id: string
+  codigo_origem: string
+  sku_fornecedor: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
 export interface InsightsUpload {
   id: string
   nome: string
@@ -22,6 +32,7 @@ export interface InsightsNf {
   numero_nf: string
   data_emissao: string
   cnpj_cliente: string
+  razao_social?: string
   nome_cliente?: string
   /** Cidade enriquecida via BrasilAPI; null = pendente. */
   cidade?: string
@@ -35,6 +46,9 @@ export interface InsightsNf {
   nome_supervisor?: string
   codigo_gerente?: string
   nome_gerente?: string
+  /** Origem emitente no ERP (export GA); destaque comercial futuro, não chave territorial. */
+  cod_emp?: string
+  nome_emp?: string
   /** Soma de InsightsNfItem.valor_total. */
   valor_total: number
   criado_em: string
@@ -49,6 +63,10 @@ export interface InsightsNfItem {
   unidade?: string
   valor_unitario?: number
   valor_total: number
+  /** Código produto na base de origem; manter bruto (ver de-para em doc). */
+  codprod_fornecedor?: string
+  /** Canal / classificação normatizada pela origem (texto). */
+  perfil?: string
 }
 
 // ─── Analytics shapes (resultados de queries agregadas) ───────────────────
@@ -70,6 +88,7 @@ export interface InsightsCidadeRow {
 /** Top cliente dentro de uma cidade ou geral. */
 export interface InsightsTopCliente {
   cnpj_cliente: string
+  razao_social?: string
   nome_cliente?: string
   cidade?: string
   estado?: string

@@ -59,7 +59,23 @@ export function InsightsBadge({ cnpj, faturamentoLocal, nfsLocais }: Props) {
               Dados de Insights disponíveis
             </DialogTitle>
             <DialogDescription>
-              {cliente.nome_cliente} · <span className="font-mono text-xs">{cliente.cnpj_cliente}</span>
+              <span className="text-foreground">
+                {(() => {
+                  const f = cliente.nome_cliente?.trim()
+                  const r = cliente.razao_social?.trim()
+                  if (f && f !== '—') {
+                    return r && r !== f ? (
+                      <>
+                        {f} <span className="text-muted-foreground">· {r}</span>
+                      </>
+                    ) : (
+                      f
+                    )
+                  }
+                  return r ?? '—'
+                })()}
+              </span>{' '}
+              · <span className="font-mono text-xs">{cliente.cnpj_cliente}</span>
               <br />
               {cliente.cidade}/{cliente.estado}
             </DialogDescription>
@@ -113,7 +129,9 @@ export function InsightsBadge({ cnpj, faturamentoLocal, nfsLocais }: Props) {
                 Última compra (Insights)
               </p>
               <p className="text-sm font-semibold tabular-nums">
-                {new Date(cliente.ultima_compra + 'T12:00:00').toLocaleDateString('pt-BR')}
+                {cliente.ultima_compra
+                  ? new Date(`${cliente.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
+                  : '—'}
               </p>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {historico.length} {historico.length === 1 ? 'mês' : 'meses'} de histórico · {cliente.total_skus} SKUs

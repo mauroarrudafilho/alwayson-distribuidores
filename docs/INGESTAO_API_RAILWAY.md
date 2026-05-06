@@ -91,7 +91,8 @@ curl -X POST "https://seu-servico.railway.app/api/ingest" \
 | `data_venda` | DATE (dd/mm/aaaa) | ✅ | Data da venda / emissão (mapeia para `data_emissao` em `alwayson_faturamento`) |
 | `numero_nf` | TEXT | ✅ | Número da nota fiscal; **mesmo valor em várias linhas** = vários itens da mesma NF |
 | `cnpj_cliente` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
-| `nome_cliente` | TEXT | ✅ | Nome fantasia ou razão social |
+| `razao_social` | TEXT | ✅ | Razão social (upsert em `alwayson_clientes_distribuidor.razao_social`) |
+| `nome_cliente` | TEXT | ✅ | Nome fantasia / exibição (`nome_fantasia`); se o arquivo antigo só tiver um nome, repetir também em razão até enriquecer por BrasilAPI |
 | `codigo_vendedor` | TEXT | ✅ | Código interno do vendedor no distribuidor |
 | `nome_vendedor` | TEXT | ✅ | Nome do vendedor |
 | `codigo_supervisor` | TEXT | ❌ | Código do supervisor (hierarquia) |
@@ -105,7 +106,9 @@ curl -X POST "https://seu-servico.railway.app/api/ingest" \
 | `valor_unitario` | DECIMAL | ✅ | Preço unitário de venda (coerente com a unidade do item) |
 | `valor_total` | DECIMAL | ✅ | Valor total **da linha** (item) |
 
-**Cabeçalho lógico da NF:** para um mesmo par `(distribuidor_id, numero_nf)`, todas as linhas devem repetir os mesmos valores de `data_venda`, `cnpj_cliente`, `nome_cliente` e campos de hierarquia (`codigo_*` / `nome_*`). Se houver divergência → rejeitar o arquivo (ou a NF) com erro de validação.
+**Cabeçalho lógico da NF:** para um mesmo par `(distribuidor_id, numero_nf)`, todas as linhas devem repetir os mesmos valores de `data_venda`, `cnpj_cliente`, `razao_social`, `nome_cliente` e campos de hierarquia (`codigo_*` / `nome_*`). Se houver divergência → rejeitar o arquivo (ou a NF) com erro de validação.
+
+**Compatibilidade:** arquivos legados só com `nome_cliente`: tratar esse valor como fallback para `razao_social` e `nome_fantasia` no upsert até haver arquivo completo ou enriquecimento por CNPJ.
 
 **`valor_total` do documento (`alwayson_faturamento.valor_total`):** não copiar de coluna “de cabeçalho” no Excel; **calcular** como soma dos `valor_total` das linhas-itens agrupadas na mesma NF (após validar consistência).
 
@@ -122,6 +125,20 @@ Dados de upload são sempre escopados ao `distribuidor_id` informado no `POST` (
 | `descricao` | TEXT | ✅ | Descrição do produto |
 | `quantidade_estoque` | DECIMAL | ✅ | Quantidade em estoque |
 | `unidade` | TEXT | ✅ | UN, CX, KG, etc. |
+
+### 3.3 Relatório de Clientes (`tipo: clientes`)
+
+Mesmas colunas do `template-clientes.xlsx`:
+
+| Coluna | Tipo | Obrigatório | Descrição |
+|--------|------|-------------|-----------|
+| `cnpj` | TEXT (14 dígitos) | ✅ | CNPJ sem formatação |
+| `razao_social` | TEXT | ✅ | Razão social |
+| `nome_fantasia` | TEXT | ✅ | Nome fantasia |
+| `cidade` | TEXT | ✅ | |
+| `estado` | TEXT | ✅ | UF |
+| `codigo_vendedor` | TEXT | ❌ | |
+| `nome_vendedor` | TEXT | ❌ | |
 
 ---
 
@@ -183,14 +200,18 @@ Retorna o status de um processamento.
 Adicione ao `.env`:
 ```
 VITE_INGEST_API_URL=https://seu-servico.railway.app
+VITE_SUPABASE_URL=https://osukbalwykbqvoumddxz.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon do projeto osukbalwykbqvoumddxz>
 ```
+
+Projeto Supabase deste repo: ref **`osukbalwykbqvoumddxz`** — ver [`docs/SUPABASE_PROJECT.md`](SUPABASE_PROJECT.md). Não usar outro projeto Supabase para este codebase.
 
 ### Railway (backend)
 
 | Variável | Descrição |
 |----------|-----------|
-| `SUPABASE_URL` | URL do projeto Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (para inserir dados) |
+| `SUPABASE_URL` | URL do projeto Supabase (`https://osukbalwykbqvoumddxz.supabase.co` neste produto) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key **do mesmo** projeto `osukbalwykbqvoumddxz` |
 
 ---
 
