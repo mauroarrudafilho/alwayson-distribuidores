@@ -32,3 +32,8 @@ docs/faturamento-chunks-por-cod-emp/
 
 # Extracto de faturamento bruto (excede limite 100 MB do GitHub; manter local apenas)
 docs/GA_VGF_FATURAMENTOGLOBAL*.xlsx
+
+# Planilhas Excel: geradas em build (npm run templates:ingestao) ou dados locais — não versionar binários
+docs/*.xlsx
+docs/templates/*.xlsx
+public/templates/*.xlsx

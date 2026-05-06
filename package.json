@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run templates:ingestao && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "templates:ingestao": "node scripts/gerar-templates-ingestao.mjs",
