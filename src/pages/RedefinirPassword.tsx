@@ -45,7 +45,16 @@ export function RedefinirPassword() {
     }
   }
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <Shell eyebrow="Redefinir senha" title="Verificando" italic="seu acesso…">
+        <p className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border border-foreground/30 border-t-navy" />
+          Carregando sessão
+        </p>
+      </Shell>
+    )
+  }
 
   if (!session) {
     return (
