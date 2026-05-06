@@ -37,3 +37,7 @@ docs/GA_VGF_FATURAMENTOGLOBAL*.xlsx
 docs/*.xlsx
 docs/templates/*.xlsx
 public/templates/*.xlsx
+
+# SQL scratch / inspeção ad-hoc (não versionar — usar docs/migrations/NNN_*.sql para mudanças oficiais)
+_*.sql
+docs/migrations/_*.sql
