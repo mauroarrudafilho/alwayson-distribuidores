@@ -1,60 +1,20 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-
-export type TenantTipo = 'admin_global' | 'fornecedor' | 'distribuidor'
-
-export type MembershipRole =
-  | 'admin'
-  | 'gestor'
-  | 'gestor_cliente'
-  | 'gestor_fornecedor'
-  | 'vendedor'
-  | 'supervisor'
-  | 'gerente'
-
-export interface UserProfile {
-  user_id: string
-  email: string | null
-  nome: string | null
-  status: 'active' | 'pending_invite' | 'suspended'
-}
-
-export interface TenantMembership {
-  tenant_id: string
-  tipo: TenantTipo
-  nome: string
-  slug: string
-  role: MembershipRole
-  escopo: Record<string, unknown>
-}
-
-interface AuthState {
-  loading: boolean
-  session: Session | null
-  user: User | null
-  profile: UserProfile | null
-  memberships: TenantMembership[]
-  currentTenant: TenantMembership | null
-  isAdmin: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signOut: () => Promise<void>
-  setCurrentTenantById: (tenantId: string) => void
-  refresh: () => Promise<void>
-}
-
-const STORAGE_KEY_TENANT = 'alwayson-current-tenant'
-
-const AuthContext = createContext<AuthState | null>(null)
+import {
+  AuthContext,
+  STORAGE_KEY_TENANT,
+  type AuthState,
+  type TenantMembership,
+  type UserProfile,
+} from '@/contexts/auth'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -109,11 +69,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    setSession(data.session)
-    if (data.session?.user) {
-      await loadProfileAndTenants(data.session.user.id)
-    } else {
+    try {
+      const { data } = await supabase.auth.getSession()
+      setSession(data.session)
+      if (data.session?.user) {
+        await loadProfileAndTenants(data.session.user.id)
+      } else {
+        setProfile(null)
+        setMemberships([])
+        setCurrentTenantId(null)
+      }
+    } catch (err) {
+      console.error('Auth refresh:', err instanceof Error ? err.message : err)
+      setSession(null)
       setProfile(null)
       setMemberships([])
       setCurrentTenantId(null)
@@ -123,25 +91,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
     setLoading(true)
+
+    const safety = window.setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 8000)
+
     refresh().finally(() => {
       if (mounted) setLoading(false)
+      window.clearTimeout(safety)
     })
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession)
-      if (newSession?.user) {
-        await loadProfileAndTenants(newSession.user.id)
-      } else {
-        setProfile(null)
-        setMemberships([])
-        setCurrentTenantId(null)
-        if (typeof window !== 'undefined')
-          window.localStorage.removeItem(STORAGE_KEY_TENANT)
+      try {
+        setSession(newSession)
+        if (newSession?.user) {
+          await loadProfileAndTenants(newSession.user.id)
+        } else {
+          setProfile(null)
+          setMemberships([])
+          setCurrentTenantId(null)
+          if (typeof window !== 'undefined')
+            window.localStorage.removeItem(STORAGE_KEY_TENANT)
+        }
+      } catch (err) {
+        console.error('Auth state change:', err instanceof Error ? err.message : err)
       }
     })
 
     return () => {
       mounted = false
+      window.clearTimeout(safety)
       sub.subscription.unsubscribe()
     }
   }, [loadProfileAndTenants, refresh])
@@ -200,10 +179,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth deve ser usado dentro de <AuthProvider>')
-  return ctx
 }

@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/auth'
 
 export function RedefinirPassword() {
   const { session, loading } = useAuth()
