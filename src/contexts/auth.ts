@@ -30,6 +30,8 @@ export interface TenantMembership {
 
 export interface AuthState {
   loading: boolean
+  /** True enquanto perfil/tenants são buscados após mudança de sessão (ex.: login) — evita flash "Acesso pendente". */
+  resolvingTenants: boolean
   session: Session | null
   user: User | null
   profile: UserProfile | null

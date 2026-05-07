@@ -2,15 +2,17 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth'
 
 export function RequireAuth() {
-  const { loading, session, memberships } = useAuth()
+  const { loading, resolvingTenants, session, memberships } = useAuth()
   const location = useLocation()
 
-  if (loading) {
+  if (loading || (session && resolvingTenants)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-foreground/20 border-t-primary" />
-          <p className="text-xs">Carregando sessão…</p>
+          <p className="text-xs">
+            {loading ? 'Carregando sessão…' : 'Carregando permissões…'}
+          </p>
         </div>
       </div>
     )
