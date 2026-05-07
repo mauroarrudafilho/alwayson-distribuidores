@@ -16,8 +16,17 @@
  *   --periodo-inicio YYYY-MM-DD  (default: menor data_venda do arquivo válido)
  *   --periodo-fim YYYY-MM-DD      (default: maior data_venda)
  *   --batch-nfs 80                NF inseridas por request (PostgREST)
- *   --no-geo                      Não chama BrasilAPI na importação (mais rápido)
+ *   --no-geo                      Não grava cidade/UF/lat da BrasilAPI na dimensão cliente. Se a política
+ *                                 padrão (só CNPJ ATIVO) estiver ativa, a BrasilAPI ainda é consultada
+ *                                 para filtrar. Import sem rede: --no-geo --permitir-cnpj-inativo
  *   --geo-nominatim               Além de cidade/UF, busca lat/lng (bem mais lento)
+ *
+ * Política de CNPJ (Receita Federal via BrasilAPI):
+ *   Por padrão, apenas CNPJs com situação cadastral ATIVA entram no lote.
+ *   CNPJs com outra situação (ex.: BAIXADA) são excluídos antes de criar o upload.
+ *   Para importar também inativos/baixados: --permitir-cnpj-inativo
+ *
+ *   --cnpj-list caminho.txt       Restringe o import aos CNPJs listados (14 dígitos, um por linha; # comenta).
  *
  * Linhas com CNPJ inválido / 0 / consumidor final (14 zeros) são descartadas
  * — mesma política que src/lib/insightsCnpj.ts
@@ -32,7 +41,7 @@ import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
 import { createClient } from '@supabase/supabase-js'
 
-import { enrichInsightsCnpjBatch } from './lib/insights-cnpj-geo.mjs'
+import { enrichInsightsCnpjBatch, normalizeCnpjDigits } from './lib/insights-cnpj-geo.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -108,18 +117,29 @@ function normalizeHeader(h) {
     .replace(/\s+/g, '_')
 }
 
-/** Excel serial 1900 (Windows, planilhas GA típicas) → YYYY-MM-DD */
+/** Excel serial 1900 (Windows, planilhas GA típicas) → YYYY-MM-DD (calendário UTC do serial, sem deslocar mês). */
 function excelSerialToIso(serial) {
   const epochUtc = Date.UTC(1899, 11, 31)
   const ms = epochUtc + Math.round(serial) * 86400000
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return null
-  return d.toISOString().slice(0, 10)
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Data “de planilha” (cellDates / fuso local) → ISO civil local — evita trocar mês que `toISOString()` UTC causa. */
+function dateObjToIsoLocal(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 /** @returns {string | null} YYYY-MM-DD */
 function parseDataVenda(raw) {
-  if (raw instanceof Date && !Number.isNaN(+raw)) return raw.toISOString().slice(0, 10)
+  if (raw instanceof Date && !Number.isNaN(+raw)) return dateObjToIsoLocal(raw)
   if (typeof raw === 'number' && Number.isFinite(raw) && raw > 20000 && raw < 100000)
     return excelSerialToIso(raw)
   const s = raw != null ? String(raw).trim() : ''
@@ -162,6 +182,8 @@ function parseArgs(argv) {
   let batchNfs = 80
   let geoImport = true
   let geoNominatim = false
+  let cnpjListFile = ''
+  let somenteCnpjAtivos = true
 
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -191,6 +213,12 @@ function parseArgs(argv) {
       case '--geo-nominatim':
         geoNominatim = true
         break
+      case '--cnpj-list':
+        cnpjListFile = path.resolve(next?.() ?? '')
+        break
+      case '--permitir-cnpj-inativo':
+        somenteCnpjAtivos = false
+        break
       case '--help':
       case '-h':
         console.log(`
@@ -202,6 +230,8 @@ Uso:
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nfs N
         --no-geo  --geo-nominatim
+        --cnpj-list caminho.txt
+        --permitir-cnpj-inativo   (importa CNPJs com situação != ATIVA na Receita)
 `)
         process.exit(0)
       default:
@@ -209,13 +239,54 @@ Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nf
     }
   }
 
-  return { file, nome, periodoInicio, periodoFim, dryRun, batchNfs, geoImport, geoNominatim }
+  return {
+    file,
+    nome,
+    periodoInicio,
+    periodoFim,
+    dryRun,
+    batchNfs,
+    geoImport,
+    geoNominatim,
+    cnpjListFile,
+    somenteCnpjAtivos,
+  }
 }
 
 function chunks(arr, size) {
   const out = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
+}
+
+/** @param {string} filePath @returns {Set<string>} CNPJs 14 dígitos */
+function readCnpjListFile(filePath) {
+  const text = fs.readFileSync(filePath, 'utf8')
+  const set = new Set()
+  for (const line of text.split('\n')) {
+    const t = line.trim()
+    if (!t || t.startsWith('#')) continue
+    const d = normalizeCnpjDigits(t)
+    if (d.length === 14) set.add(d)
+  }
+  return set
+}
+
+/** @param {Array<{ numero_nf: string, cnpj14: string, dataIso: string, header: Record<string, string|null>, items: any[] }>} list */
+function recomputeItemRange(list) {
+  let sumItems = 0
+  /** @type {{ min: string, max: string } | null} */
+  let range = null
+  for (const g of list) {
+    sumItems += g.items.length
+    const d = g.dataIso
+    if (!range) range = { min: d, max: d }
+    else {
+      if (d < range.min) range.min = d
+      if (d > range.max) range.max = d
+    }
+  }
+  return { sumItems, range }
 }
 
 /** @param {unknown} a @param {unknown} b */
@@ -289,6 +360,8 @@ async function main() {
     batchNfs,
     geoImport,
     geoNominatim,
+    cnpjListFile,
+    somenteCnpjAtivos,
   } = parseArgs(process.argv)
 
   if (!file || !nome) {
@@ -297,6 +370,10 @@ async function main() {
   }
   if (!fs.existsSync(file)) {
     console.error('Arquivo não encontrado:', file)
+    process.exit(1)
+  }
+  if (cnpjListFile && !fs.existsSync(cnpjListFile)) {
+    console.error('Arquivo --cnpj-list não encontrado:', cnpjListFile)
     process.exit(1)
   }
 
@@ -436,18 +513,93 @@ async function main() {
     })
   }
 
-  const groupList = [...groups.values()]
-  let sumItems = 0
-  /** @type {{ min: string, max: string } | null} */
-  let range = null
-  for (const g of groupList) {
-    sumItems += g.items.length
-    const d = g.dataIso
-    if (!range) range = { min: d, max: d }
-    else {
-      if (d < range.min) range.min = d
-      if (d > range.max) range.max = d
+  let groupList = [...groups.values()]
+
+  if (cnpjListFile) {
+    const allowed = readCnpjListFile(cnpjListFile)
+    const before = groupList.length
+    groupList = groupList.filter((g) => allowed.has(g.cnpj14))
+    console.log(
+      `Filtro --cnpj-list: ${groupList.length} grupo(s) CNPJ×NF (antes ${before}; ${allowed.size} CNPJ(s) listados).`
+    )
+    if (!allowed.size) {
+      console.error('Nenhum CNPJ válido (14 dígitos) no arquivo --cnpj-list.')
+      process.exit(1)
     }
+    if (!groupList.length) {
+      console.error('Nenhum grupo coincide com os CNPJs do --cnpj-list.')
+      process.exit(1)
+    }
+  }
+
+  let { sumItems, range } = recomputeItemRange(groupList)
+  let uniq = [...new Set(groupList.map((g) => g.cnpj14))]
+
+  /** @type {Map<string, { ok: boolean, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, reason?: string, cadastro_ativo?: boolean, descricao_situacao_cadastral?: string|null }>} */
+  let geoByCnpj = new Map()
+
+  const precisaBrasilApi = Boolean(geoImport || somenteCnpjAtivos)
+  if (!geoImport && somenteCnpjAtivos) {
+    console.log(
+      'Nota: --no-geo só desativa gravação de cidade/UF na dimensão cliente; a BrasilAPI ainda é consultada para manter apenas CNPJs ATIVOS. Sem rede: acrescente --permitir-cnpj-inativo.'
+    )
+  }
+  if (precisaBrasilApi) {
+    const modo =
+      geoImport && somenteCnpjAtivos
+        ? 'BrasilAPI (geo na dimensão cliente + filtro situação ATIVA)'
+        : geoImport
+          ? 'BrasilAPI (dimensão cliente)'
+          : 'BrasilAPI (apenas filtro situação ATIVA; sem atualizar cliente com --no-geo)'
+    console.log(
+      `${modo}: ${uniq.length} CNPJ(s)` +
+        (geoImport && geoNominatim ? ' + Nominatim (~1 req/s).' : '.')
+    )
+    geoByCnpj = await enrichInsightsCnpjBatch(uniq, {
+      useNominatim: Boolean(geoImport && geoNominatim),
+      onProgress: (cur, tot) => process.stdout.write(`\rBrasilAPI [${cur}/${tot}]`),
+    })
+    console.log('')
+    const okCt = [...geoByCnpj.values()].filter((r) => r.ok).length
+    console.log(`BrasilAPI OK (JSON): ${okCt}/${uniq.length} CNPJ(s)`)
+  }
+
+  if (somenteCnpjAtivos) {
+    const excluded = new Set()
+    for (const c of uniq) {
+      const r = geoByCnpj.get(c)
+      if (!r) {
+        excluded.add(c)
+        console.warn(`CNPJ excluído (sem consulta BrasilAPI — verifique flags): ${c}`)
+        continue
+      }
+      if (!r.ok) {
+        excluded.add(c)
+        console.warn(`CNPJ excluído (BrasilAPI: ${r.reason ?? '?'}): ${c}`)
+        continue
+      }
+      if (!r.cadastro_ativo) {
+        excluded.add(c)
+        console.warn(
+          `CNPJ excluído (situação não ATIVA: ${r.descricao_situacao_cadastral ?? '—'}): ${c}`
+        )
+      }
+    }
+    const beforeG = groupList.length
+    groupList = groupList.filter((g) => !excluded.has(g.cnpj14))
+    if (excluded.size) {
+      console.log(
+        `Filtro situação ATIVA: ${groupList.length} grupo(s) restante(s) (removidos ${beforeG - groupList.length} grupo(s); ${excluded.size} CNPJ(s) bloqueado(s)).`
+      )
+    }
+    if (!groupList.length) {
+      console.error(
+        'Nenhum grupo restante após exigir CNPJ ATIVO na Receita. Use --permitir-cnpj-inativo para incluir baixados/outros.'
+      )
+      process.exit(1)
+    }
+    ;({ sumItems, range } = recomputeItemRange(groupList))
+    uniq = [...new Set(groupList.map((g) => g.cnpj14))]
   }
 
   const periodo_inicio = piCli || range?.min
@@ -461,9 +613,11 @@ async function main() {
   console.log(`
 Folha: ${sheetName}
 Linhas dados (exc. cabeçalho): ${totalRows}
-Grupos CNPJ×NF válidos: ${groupList.length}  |  Linhas NF descartadas (CNPJ): ${skippedCnpj}
+Grupos CNPJ×NF (após filtros): ${groupList.length}  |  Linhas NF descartadas (CNPJ inválido): ${skippedCnpj}
 Linhas-itens graváveis (soma nos grupos): ${sumItems}
-Período: ${periodo_inicio} … ${periodo_fim}`)
+Período: ${periodo_inicio} … ${periodo_fim}
+Política Receita: ${somenteCnpjAtivos ? 'apenas CNPJ com situação ATIVA' : '--permitir-cnpj-inativo (todas as situações)'}
+`)
 
   if (dryRun) {
     console.log('\nDry-run OK — não gravou no Supabase.')
@@ -497,7 +651,6 @@ Período: ${periodo_inicio} … ${periodo_fim}`)
   const uploadId = up.id
   console.log('Upload criado:', uploadId)
 
-  const uniq = [...new Set(groupList.map((g) => g.cnpj14))]
   /** @type {Map<string, (typeof groupList)[0]['header']>} */
   const headerByCnpj = new Map()
   for (const g of groupList) {
@@ -513,22 +666,6 @@ Período: ${periodo_inicio} … ${periodo_fim}`)
     process.exit(1)
   }
   const prevBy = new Map((existRows ?? []).map((row) => [row.cnpj_14, row]))
-
-  /** @type {Map<string, { ok: boolean, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, reason?: string }>} */
-  let geoByCnpj = new Map()
-  if (geoImport) {
-    console.log(
-      `Geo (dimensão cliente): ${uniq.length} CNPJ(s) → BrasilAPI` +
-        (geoNominatim ? ' + Nominatim (~1 req/s).' : ' (cidade/UF).')
-    )
-    geoByCnpj = await enrichInsightsCnpjBatch(uniq, {
-      useNominatim: geoNominatim,
-      onProgress: (cur, tot) => process.stdout.write(`\rGeo [${cur}/${tot}]`),
-    })
-    console.log('')
-    const geoOk = [...geoByCnpj.values()].filter((r) => r.ok).length
-    console.log(`Geo BrasilAPI OK: ${geoOk}/${uniq.length} CNPJ(s)`)
-  }
 
   const clienteUpserts = uniq.map((cnpj14) => {
     const header = headerByCnpj.get(cnpj14) ?? {}

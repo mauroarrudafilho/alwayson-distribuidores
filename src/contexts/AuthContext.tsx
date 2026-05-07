@@ -27,6 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [resolvingTenants, setResolvingTenants] = useState(false)
 
   const loadingRef = useRef(false)
+  /** Após loadProfileAndTenants completar para este userId — usado para ignorar SIGNED_IN redundante ao voltar à aba (Gotrue `_recoverAndRefresh`). */
+  const tenantsResolvedUserIdRef = useRef<string | null>(null)
 
   const loadProfileAndTenants = useCallback(async (userId: string) => {
     if (loadingRef.current) return
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
         }
       }
+      tenantsResolvedUserIdRef.current = userId
     } finally {
       loadingRef.current = false
     }
@@ -76,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session?.user) {
         await loadProfileAndTenants(data.session.user.id)
       } else {
+        tenantsResolvedUserIdRef.current = null
         setProfile(null)
         setMemberships([])
         setCurrentTenantId(null)
@@ -83,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Auth refresh:', err instanceof Error ? err.message : err)
       setSession(null)
+      tenantsResolvedUserIdRef.current = null
       setProfile(null)
       setMemberships([])
       setCurrentTenantId(null)
@@ -110,6 +115,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
+        // Ao voltar à aba, Gotrue chama `_recoverAndRefresh` e re-emite SIGNED_IN com a mesma sessão.
+        // Não bloquear a UI: atualiza tokens na sessão e sincroniza perfil/tenants em background.
+        if (
+          event === 'SIGNED_IN' &&
+          newSession?.user &&
+          tenantsResolvedUserIdRef.current === newSession.user.id
+        ) {
+          setSession(newSession)
+          void loadProfileAndTenants(newSession.user.id)
+          return
+        }
+
         setSession(newSession)
 
         if (newSession?.user) {
@@ -121,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           setResolvingTenants(false)
+          tenantsResolvedUserIdRef.current = null
           setProfile(null)
           setMemberships([])
           setCurrentTenantId(null)
