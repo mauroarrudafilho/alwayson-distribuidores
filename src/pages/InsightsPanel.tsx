@@ -51,11 +51,27 @@ function cidadeTerritorioKey(cidade: string | undefined | null, estado: string |
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
 
-function BarRow({ label, value, max, suffix = '' }: { label: string; value: number; max: number; suffix?: string }) {
+function BarRow({
+  label,
+  value,
+  max,
+  suffix = '',
+  detail,
+}: {
+  label: string
+  value: number
+  max: number
+  suffix?: string
+  /** Texto auxiliar à direita do rótulo (ex.: NFs no mês). */
+  detail?: string
+}) {
   const pct = max > 0 ? (value / max) * 100 : 0
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-muted-foreground w-32 shrink-0 truncate">{label}</span>
+      <span className="text-xs text-muted-foreground w-32 shrink-0 truncate" title={detail}>
+        {label}
+        {detail ? <span className="block text-[10px] text-muted-foreground/90 tabular-nums">{detail}</span> : null}
+      </span>
       <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden">
         <div className="h-full bg-primary/75 rounded transition-all" style={{ width: `${pct}%` }} />
       </div>
@@ -100,6 +116,7 @@ function ClienteDetalheDrawer({
   const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
   const maxFat = Math.max(...(mix.map((m) => m.faturamento_total)), 1)
   const maxBar = Math.max(...(historico.map((h) => h.faturamento)), 1)
+  const sumNfsMes = historico.reduce((s, h) => s + h.total_nfs, 0)
 
   function formatMes(m: string) {
     const [year, month] = m.split('-')
@@ -185,8 +202,20 @@ function ClienteDetalheDrawer({
             ) : (
               <div className="space-y-2">
                 {historico.map((h) => (
-                  <BarRow key={h.ano_mes} label={formatMes(h.ano_mes)} value={h.faturamento} max={maxBar} />
+                  <BarRow
+                    key={h.ano_mes}
+                    label={formatMes(h.ano_mes)}
+                    detail={h.total_nfs > 0 ? `${h.total_nfs} NF(s) no mês` : undefined}
+                    value={h.faturamento}
+                    max={maxBar}
+                  />
                 ))}
+                {sumNfsMes !== totalNfsCliente && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-500 pt-2">
+                    Soma de NFs nos meses ({sumNfsMes}) difere do total do cliente ({totalNfsCliente}). Pode haver
+                    datas incorretas na carga ou NFs fora do período agregado.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
@@ -209,6 +238,7 @@ function ClienteDetalheDrawer({
                   <BarRow
                     key={h.ano_mes}
                     label={formatMes(h.ano_mes)}
+                    detail={h.total_nfs > 0 ? `${h.total_nfs} NF(s) no mês` : undefined}
                     value={h.total_skus}
                     max={maxSkus}
                     suffix="SKUs"

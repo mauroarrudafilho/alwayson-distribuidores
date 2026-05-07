@@ -16,6 +16,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
  *   lng: number|null,
  *   geoTs: string|null,
  *   reason?: string,
+ *   cadastro_ativo?: boolean,
+ *   descricao_situacao_cadastral?: string|null,
  * }} EnrichGeoResult
  */
 
@@ -182,6 +184,21 @@ function buildAddressQuery(d) {
 }
 
 /**
+ * A partir do JSON da BrasilAPI (v1/v2), indica se a situação cadastral é ATIVA na Receita.
+ * @param {Record<string, unknown>|null|undefined} data
+ */
+export function brasilApiCadastroAtivo(data) {
+  if (!data || typeof data !== 'object') return false
+  const desc = String(
+    data.descricao_situacao_cadastral ?? data.descricaoSituacaoCadastral ?? ''
+  ).trim()
+  if (desc && desc.toUpperCase() === 'ATIVA') return true
+  const code = data.situacao_cadastral ?? data.situacaoCadastral
+  if (code === 2 || code === '2') return true
+  return false
+}
+
+/**
  * Um CNPJ (14 dígitos): cidade/UF via BrasilAPI; lat/lng opcional via Nominatim.
  * @param {string} digits14
  * @param {{ useNominatim?: boolean, brasilDelayMs?: number }} [opts]
@@ -197,6 +214,8 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
     lat: null,
     lng: null,
     geoTs: null,
+    cadastro_ativo: undefined,
+    descricao_situacao_cadastral: null,
   })
 
   if (digits14.length !== 14) return fail('cnpj_len')
@@ -210,6 +229,9 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
   const postal = cidadeUfPostal(d)
   const cidade = postal.cidade
   const estado = postal.uf
+  const situacaoDesc = String(d.descricao_situacao_cadastral ?? d.descricaoSituacaoCadastral ?? '')
+    .trim()
+  const cadastro_ativo = brasilApiCadastroAtivo(d)
 
   let lat = null
   let lng = null
@@ -227,7 +249,16 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
     }
   }
 
-  return { ok: true, cidade, estado, lat, lng, geoTs }
+  return {
+    ok: true,
+    cidade,
+    estado,
+    lat,
+    lng,
+    geoTs,
+    cadastro_ativo,
+    descricao_situacao_cadastral: situacaoDesc || null,
+  }
 }
 
 /**
