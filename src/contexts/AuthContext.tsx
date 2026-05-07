@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY_TENANT) : null
   )
   const [loading, setLoading] = useState(true)
+  const [resolvingTenants, setResolvingTenants] = useState(false)
 
   const loadingRef = useRef(false)
 
@@ -103,18 +104,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       try {
-        setSession(newSession)
-
         // Eventos que NÃO mudam profile/tenants — só atualizam tokens/metadata.
-        // Recarregar profile aqui só geraria trabalho redundante e, em conjunto
-        // com o lock do gotrue, podia parecer "loop" ao salvar senha.
         if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'PASSWORD_RECOVERY') {
+          setSession(newSession)
           return
         }
 
+        setSession(newSession)
+
         if (newSession?.user) {
-          await loadProfileAndTenants(newSession.user.id)
+          setResolvingTenants(true)
+          try {
+            await loadProfileAndTenants(newSession.user.id)
+          } finally {
+            setResolvingTenants(false)
+          }
         } else {
+          setResolvingTenants(false)
           setProfile(null)
           setMemberships([])
           setCurrentTenantId(null)
@@ -123,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('Auth state change:', err instanceof Error ? err.message : err)
+        setResolvingTenants(false)
       }
     })
 
@@ -161,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthState>(
     () => ({
       loading,
+      resolvingTenants,
       session,
       user: session?.user ?? null,
       profile,
@@ -174,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       loading,
+      resolvingTenants,
       session,
       profile,
       memberships,
