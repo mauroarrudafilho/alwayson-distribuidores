@@ -4,6 +4,40 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 /**
+ * Namespace o storageKey com o ref do projeto Supabase. Isso evita que uma
+ * sessão emitida por um projeto antigo (ex.: ao trocar VITE_SUPABASE_URL no
+ * Vercel) seja reaproveitada contra o projeto novo — o que produz 401 com
+ * "No suitable key or wrong key type" porque o JWT foi assinado por outro
+ * segredo. Trocando o storageKey, o SDK simplesmente não encontra a sessão
+ * antiga e começa fresca, mandando o usuário pro /login.
+ */
+const projectRef = (() => {
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0] || 'default'
+  } catch {
+    return 'default'
+  }
+})()
+
+const STORAGE_KEY = `alwayson-auth-${projectRef}`
+
+if (typeof window !== 'undefined') {
+  // Limpa sessões emitidas por refs anteriores. Não precisamos delas e elas
+  // só causam erros 401 contra o ref atual.
+  try {
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const key = window.localStorage.key(i)
+      if (!key) continue
+      if (key === 'alwayson-auth' || (key.startsWith('alwayson-auth-') && key !== STORAGE_KEY)) {
+        window.localStorage.removeItem(key)
+      }
+    }
+  } catch {
+    // localStorage indisponível (Safari privado, quota etc.) — segue o jogo.
+  }
+}
+
+/**
  * Lock no-op para o gotrue-js.
  *
  * Em React StrictMode (dev) o AuthProvider monta-desmonta-monta, deixando o
@@ -22,7 +56,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: 'alwayson-auth',
+    storageKey: STORAGE_KEY,
     flowType: 'implicit',
     lock: noopLock,
   },
