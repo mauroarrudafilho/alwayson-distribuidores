@@ -3,7 +3,10 @@ export interface Produto {
   sku: string
   descricao: string
   categoria?: string
-  preco_referencia?: number
+  /** Marca comercial (cadastro Vinícola Campestre). */
+  marca?: string
+  /** Detalhe da categoria (ex.: TINTO SUAVE). */
+  detalhamento_categoria?: string
   ativo: boolean
   criado_em: string
 }
