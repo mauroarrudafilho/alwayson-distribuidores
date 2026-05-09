@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -25,8 +25,21 @@ import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
 import { AdminDeParaProdutos } from '@/pages/admin/AdminDeParaProdutos'
 import { AdminInsightsDeParaProdutos } from '@/pages/admin/AdminInsightsDeParaProdutos'
 import { AdminInsightsExcluirClientes } from '@/pages/admin/AdminInsightsExcluirClientes'
+import { AdminDistribuidorLayout } from '@/pages/admin/AdminDistribuidorLayout'
+import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
+import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
+import { AdminInsightsLayout } from '@/pages/admin/AdminInsightsLayout'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 import { InsightsPanel } from '@/pages/InsightsPanel'
+
+function AdminLegacyDeParaProdutos() {
+  const [sp] = useSearchParams()
+  const id = sp.get('distribuidor')
+  if (id) {
+    return <Navigate to={`/admin/distribuidores/${id}/de-para-produtos`} replace />
+  }
+  return <Navigate to="/admin/distribuidores" replace />
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,19 +74,45 @@ function App() {
                   <Route path="/admin" element={<Admin />}>
                     <Route index element={<Navigate to="/admin/distribuidores" replace />} />
                     <Route path="distribuidores" element={<AdminDistribuidores />} />
+                    <Route
+                      path="distribuidores/:distribuidorId"
+                      element={<AdminDistribuidorLayout />}
+                    >
+                      <Route index element={<AdminDistribuidorResumo />} />
+                      <Route path="de-para-produtos" element={<AdminDeParaProdutos />} />
+                      <Route path="metas" element={<AdminMetas />} />
+                      <Route path="hierarquia" element={<AdminDistribuidorHierarquia />} />
+                    </Route>
+                    <Route path="insights" element={<AdminInsightsLayout />}>
+                      <Route
+                        index
+                        element={<Navigate to="/admin/insights/de-para-produtos" replace />}
+                      />
+                      <Route
+                        path="de-para-produtos"
+                        element={<AdminInsightsDeParaProdutos />}
+                      />
+                      <Route
+                        path="excluir-clientes"
+                        element={<AdminInsightsExcluirClientes />}
+                      />
+                    </Route>
                     <Route path="produtos" element={<AdminProdutos />} />
-                    <Route path="metas" element={<AdminMetas />} />
                     <Route path="excelencia" element={<AdminExcelencia />} />
                     <Route path="usuarios" element={<AdminUsuarios />} />
                     <Route path="ajustes-cadastro" element={<AdminAjustesCadastro />} />
-                    <Route path="de-para-produtos" element={<AdminDeParaProdutos />} />
+                    <Route path="de-para-produtos" element={<AdminLegacyDeParaProdutos />} />
                     <Route
                       path="de-para-insights-produtos"
-                      element={<AdminInsightsDeParaProdutos />}
+                      element={<Navigate to="/admin/insights/de-para-produtos" replace />}
                     />
                     <Route
                       path="excluir-insights-clientes"
-                      element={<AdminInsightsExcluirClientes />}
+                      element={<Navigate to="/admin/insights/excluir-clientes" replace />}
+                    />
+                    <Route
+                      path="metas"
+                      element={<Navigate to="/admin/distribuidores" replace />}
                     />
                   </Route>
                   <Route path="/ingestao" element={<IngestaoPanel />} />

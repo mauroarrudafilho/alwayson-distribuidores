@@ -28,8 +28,15 @@
  *
  *   --cnpj-list caminho.txt       Restringe o import aos CNPJs listados (14 dígitos, um por linha; # comenta).
  *
+ * data_venda (obrigatório tipo Data no Excel):
+ *   Por padrão, em toda linha de venda válida a célula deve ser formato Data (o xlsx entrega JavaScript Date).
+ *   Número serial, texto "31/03/2022" ou ISO em texto são rejeitados — evita divergência de calendário na leitura.
+ *   Planilhas antigas: --permitir-data-serial-texto
+ *
  * Linhas com CNPJ inválido / 0 / consumidor final (14 zeros) são descartadas
  * — mesma política que src/lib/insightsCnpj.ts
+ *
+ * Cache BrasilAPI (migration 021): CNPJs com snapshot válido na dimensão cliente não repetem chamada HTTP.
  */
 
 /* eslint-disable no-console -- CLI */
@@ -42,6 +49,11 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@supabase/supabase-js'
 
 import { enrichInsightsCnpjBatch, normalizeCnpjDigits } from './lib/insights-cnpj-geo.mjs'
+import {
+  buildInsightsClienteUpsertPayload,
+  canReuseBrasilApiFromClienteRow,
+  geoEnrichResultFromClienteRow,
+} from './lib/insights-cliente-dimension.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -153,6 +165,57 @@ function parseDataVenda(raw) {
   return null
 }
 
+/** Resumo do valor bruto da célula (mensagens de erro). */
+function descricaoCelulaData(raw) {
+  if (raw == null || raw === '') return '(vazio)'
+  if (typeof raw === 'number') return `número (${raw})`
+  if (raw instanceof Date) return Number.isNaN(+raw) ? `Date inválido` : `Date (inesperado)`
+  const s = String(raw).trim()
+  return s.length > 48 ? `${s.slice(0, 48)}…` : s || '(vazio)'
+}
+
+/**
+ * Linhas de venda = mesmos critérios do loop principal antes de gravar grupo.
+ * @param {unknown[][]} rows
+ * @param {Record<string, number>} ix
+ * @param {boolean} exigir Se true, data_venda tem de ser instanceof Date válido.
+ */
+function validarDataVendaFormatoExcel(rows, ix, exigir) {
+  if (!exigir) return
+  /** @type {{ planilhaLinha: number, recebido: string }[]} */
+  const bad = []
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]
+    if (!Array.isArray(row) || row.every((c) => c === '' || c == null)) continue
+    const p = parseInsightsCnpj(row[ix.cnpj])
+    if (!p.ok) continue
+    const nf = txt(row[ix.nf]) ?? ''
+    const skuTxt = txt(row[ix.sku]) ?? (row[ix.sku] != null ? String(row[ix.sku]).trim() : '')
+    const vt = num(row[ix.vt])
+    const qty = num(row[ix.qty])
+    if (!nf || !skuTxt || vt == null || qty == null) continue
+    const rawD = row[ix.data]
+    if (rawD instanceof Date && !Number.isNaN(+rawD)) continue
+    bad.push({ planilhaLinha: r + 1, recebido: descricaoCelulaData(rawD) })
+  }
+  if (!bad.length) return
+  console.error(
+    'data_venda: em cada linha de venda a célula precisa estar em formato Data no Excel ' +
+      '(leitura com Date de JavaScript; use Formatar células → Data no arquivo).'
+  )
+  console.error(
+    'Valores como número serial puro, texto de data ou ISO em texto são rejeitados por padrão. ' +
+      'Para planilhas legadas: --permitir-data-serial-texto'
+  )
+  const max = 25
+  for (const b of bad.slice(0, max)) {
+    console.error(`  Linha ${b.planilhaLinha} (1 = cabeçalho): recebido ${b.recebido}`)
+  }
+  if (bad.length > max) console.error(`  … e mais ${bad.length - max} linha(s).`)
+  console.error(`Total: ${bad.length} linha(s) fora do padrão Data.`)
+  process.exit(1)
+}
+
 function pickCol(map, aliases) {
   for (const a of aliases) {
     const i = map.get(normalizeHeader(a))
@@ -184,6 +247,7 @@ function parseArgs(argv) {
   let geoNominatim = false
   let cnpjListFile = ''
   let somenteCnpjAtivos = true
+  let exigirDataVendaCelulaExcel = true
 
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -219,6 +283,9 @@ function parseArgs(argv) {
       case '--permitir-cnpj-inativo':
         somenteCnpjAtivos = false
         break
+      case '--permitir-data-serial-texto':
+        exigirDataVendaCelulaExcel = false
+        break
       case '--help':
       case '-h':
         console.log(`
@@ -232,6 +299,7 @@ Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nf
         --no-geo  --geo-nominatim
         --cnpj-list caminho.txt
         --permitir-cnpj-inativo   (importa CNPJs com situação != ATIVA na Receita)
+        --permitir-data-serial-texto (aceita data_venda como serial numérico ou texto; desliga exigência de célula Data)
 `)
         process.exit(0)
       default:
@@ -250,6 +318,7 @@ Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nf
     geoNominatim,
     cnpjListFile,
     somenteCnpjAtivos,
+    exigirDataVendaCelulaExcel,
   }
 }
 
@@ -289,65 +358,25 @@ function recomputeItemRange(list) {
   return { sumItems, range }
 }
 
-/** @param {unknown} a @param {unknown} b */
-function pickText(a, b) {
-  const norm = (v) => {
-    if (v == null) return ''
-    const s = String(v).trim()
-    return s || ''
-  }
-  return norm(a) || norm(b) || null
-}
-
 /**
- * Linha única por CNPJ na dimensão insights (geo + nome consolidados).
- * @param {string} cnpj14
- * @param {Record<string, string | null>} header
- * @param {Record<string, unknown> | undefined} prev
- * @param {{ ok: boolean, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, reason?: string } | undefined} geoR
- * @param {boolean} geoAttempted
+ * @param {import('@supabase/supabase-js').SupabaseClient} sb
+ * @param {string[]} cnpjs
+ * @returns {Promise<Map<string, Record<string, unknown>>>}
  */
-function buildInsightsClienteRow(cnpj14, header, prev, geoR, geoAttempted) {
-  const nowIso = new Date().toISOString()
-  const razao = pickText(header?.razao, prev?.razao_social)
-  const nome = pickText(header?.nome_cliente, prev?.nome_cliente)
-
-  let cidade = prev?.cidade != null ? String(prev.cidade) : null
-  let estado = prev?.estado != null ? String(prev.estado) : null
-  let latRaw = prev?.lat
-  let lngRaw = prev?.lng
-  let lat = latRaw != null && latRaw !== '' ? Number(latRaw) : null
-  let lng = lngRaw != null && lngRaw !== '' ? Number(lngRaw) : null
-  let geoTs = prev?.geo_enriquecido_em ?? null
-  let motivo = prev?.brasil_api_ultimo_motivo != null ? String(prev.brasil_api_ultimo_motivo) : null
-  let tentativa = prev?.brasil_api_ultima_tentativa_em ?? null
-
-  if (geoAttempted && geoR) {
-    tentativa = nowIso
-    if (geoR.ok) {
-      if (geoR.cidade != null) cidade = geoR.cidade
-      if (geoR.estado != null) estado = geoR.estado
-      if (geoR.lat != null) lat = Number(geoR.lat)
-      if (geoR.lng != null) lng = Number(geoR.lng)
-      if (geoR.geoTs != null) geoTs = geoR.geoTs
-      motivo = null
-    } else if (geoR.reason != null) {
-      motivo = String(geoR.reason)
+async function fetchInsightsClientesMap(sb, cnpjs) {
+  /** @type {Map<string, Record<string, unknown>>} */
+  const m = new Map()
+  for (const part of chunks(cnpjs, 120)) {
+    const { data, error } = await sb
+      .from('alwayson_insights_clientes')
+      .select('*')
+      .in('cnpj_14', part)
+    if (error) throw new Error(`Leitura dimensão cliente (cache BrasilAPI): ${error.message}`)
+    for (const row of data ?? []) {
+      if (row?.cnpj_14) m.set(String(row.cnpj_14), /** @type {Record<string, unknown>} */ (row))
     }
   }
-
-  return {
-    cnpj_14: cnpj14,
-    razao_social: razao,
-    nome_cliente: nome,
-    cidade,
-    estado,
-    lat: Number.isFinite(lat) ? lat : null,
-    lng: Number.isFinite(lng) ? lng : null,
-    geo_enriquecido_em: geoTs,
-    brasil_api_ultima_tentativa_em: tentativa,
-    brasil_api_ultimo_motivo: motivo,
-  }
+  return m
 }
 
 async function main() {
@@ -362,6 +391,7 @@ async function main() {
     geoNominatim,
     cnpjListFile,
     somenteCnpjAtivos,
+    exigirDataVendaCelulaExcel,
   } = parseArgs(process.argv)
 
   if (!file || !nome) {
@@ -447,6 +477,8 @@ async function main() {
     )
     process.exit(1)
   }
+
+  validarDataVendaFormatoExcel(rows, ix, exigirDataVendaCelulaExcel)
 
   /** @type {Map<string, { numero_nf: string, cnpj14: string, dataIso: string, header: Record<string, string|null>, items: any[]}>} */
   const groups = new Map()
@@ -538,8 +570,18 @@ async function main() {
   /** @type {Map<string, { ok: boolean, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, reason?: string, cadastro_ativo?: boolean, descricao_situacao_cadastral?: string|null }>} */
   let geoByCnpj = new Map()
 
-  const precisaBrasilApi = Boolean(geoImport || somenteCnpjAtivos)
-  if (!geoImport && somenteCnpjAtivos) {
+  const precisaBrasilApi = Boolean(!dryRun && (geoImport || somenteCnpjAtivos))
+
+  /** CNPJs para os quais houve chamada BrasilAPI nesta execução (não cache). */
+  const brasilApiAttempted = new Set()
+
+  if (dryRun && (geoImport || somenteCnpjAtivos)) {
+    console.warn(
+      'Dry-run: BrasilAPI e filtro de situação ATIVA não rodam; as contagens são só do Excel (e do --cnpj-list, se houver). Rode sem --dry-run para o lote final.'
+    )
+  }
+
+  if (!geoImport && somenteCnpjAtivos && !dryRun) {
     console.log(
       'Nota: --no-geo só desativa gravação de cidade/UF na dimensão cliente; a BrasilAPI ainda é consultada para manter apenas CNPJs ATIVOS. Sem rede: acrescente --permitir-cnpj-inativo.'
     )
@@ -551,20 +593,51 @@ async function main() {
         : geoImport
           ? 'BrasilAPI (dimensão cliente)'
           : 'BrasilAPI (apenas filtro situação ATIVA; sem atualizar cliente com --no-geo)'
-    console.log(
-      `${modo}: ${uniq.length} CNPJ(s)` +
-        (geoImport && geoNominatim ? ' + Nominatim (~1 req/s).' : '.')
-    )
-    geoByCnpj = await enrichInsightsCnpjBatch(uniq, {
-      useNominatim: Boolean(geoImport && geoNominatim),
-      onProgress: (cur, tot) => process.stdout.write(`\rBrasilAPI [${cur}/${tot}]`),
+
+    const sbCache = createClient(SUPABASE_URL.replace(/\/$/, ''), SERVICE, {
+      auth: { persistSession: false, autoRefreshToken: false },
     })
-    console.log('')
-    const okCt = [...geoByCnpj.values()].filter((r) => r.ok).length
-    console.log(`BrasilAPI OK (JSON): ${okCt}/${uniq.length} CNPJ(s)`)
+
+    const clienteCachedBy = await fetchInsightsClientesMap(sbCache, uniq)
+    /** @type {string[]} */
+    const needFetch = []
+    /** @type {string[]} */
+    const skippedCache = []
+    const reuseOpts = { somenteCnpjAtivos }
+
+    for (const c of uniq) {
+      const prevRow = clienteCachedBy.get(c)
+      if (canReuseBrasilApiFromClienteRow(prevRow, reuseOpts)) {
+        geoByCnpj.set(c, geoEnrichResultFromClienteRow(/** @type {Record<string, unknown>} */ (prevRow)))
+        skippedCache.push(c)
+      } else {
+        needFetch.push(c)
+      }
+    }
+
+    console.log(
+      `${modo}: ${uniq.length} CNPJ(s) no lote` +
+        (skippedCache.length ? ` — ${skippedCache.length} já com snapshot BrasilAPI válido (sem rede)` : '') +
+        (needFetch.length ? ` — consultando API: ${needFetch.length}` : '') +
+        (geoImport && geoNominatim ? ' + Nominatim (~1 req/s).' : '')
+    )
+
+    if (needFetch.length) {
+      const fetched = await enrichInsightsCnpjBatch(needFetch, {
+        useNominatim: Boolean(geoImport && geoNominatim),
+        brasilDelayMs: 700,
+        onProgress: (cur, tot) => process.stdout.write(`\rBrasilAPI [${cur}/${tot}]`),
+      })
+      console.log('')
+      for (const [k, v] of fetched) geoByCnpj.set(k, v)
+      for (const c of needFetch) brasilApiAttempted.add(c)
+    }
+
+    const okCt = [...uniq].filter((c) => geoByCnpj.get(c)?.ok).length
+    console.log(`BrasilAPI OK (JSON ou cache): ${okCt}/${uniq.length} CNPJ(s)`)
   }
 
-  if (somenteCnpjAtivos) {
+  if (!dryRun && somenteCnpjAtivos) {
     const excluded = new Set()
     for (const c of uniq) {
       const r = geoByCnpj.get(c)
@@ -617,6 +690,7 @@ Grupos CNPJ×NF (após filtros): ${groupList.length}  |  Linhas NF descartadas (
 Linhas-itens graváveis (soma nos grupos): ${sumItems}
 Período: ${periodo_inicio} … ${periodo_fim}
 Política Receita: ${somenteCnpjAtivos ? 'apenas CNPJ com situação ATIVA' : '--permitir-cnpj-inativo (todas as situações)'}
+data_venda: ${exigirDataVendaCelulaExcel ? 'célula formato Data no Excel obrigatório' : 'legado (--permitir-data-serial-texto)'}
 `)
 
   if (dryRun) {
@@ -671,7 +745,10 @@ Política Receita: ${somenteCnpjAtivos ? 'apenas CNPJ com situação ATIVA' : '-
     const header = headerByCnpj.get(cnpj14) ?? {}
     const prev = prevBy.get(cnpj14)
     const geoR = geoByCnpj.get(cnpj14)
-    return buildInsightsClienteRow(cnpj14, header, prev, geoR, geoImport)
+    return buildInsightsClienteUpsertPayload(cnpj14, header, prev, geoR, {
+      geoImport,
+      brasilAttemptedForCnpj: brasilApiAttempted.has(cnpj14),
+    })
   })
 
   const { error: eCliUp } = await sb.from('alwayson_insights_clientes').upsert(clienteUpserts, {

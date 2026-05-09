@@ -95,7 +95,7 @@ export function AdminDistribuidores() {
               <TableHead>Responsável</TableHead>
               <TableHead>Contato</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right w-[90px]">Ações</TableHead>
+              <TableHead className="text-right w-[90px]">Gerir</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -124,7 +124,12 @@ export function AdminDistribuidores() {
               filtered.map((dist) => (
                 <TableRow key={dist.id}>
                   <TableCell className="text-xs font-medium">
-                    {dist.nome}
+                    <Link
+                      to={`/admin/distribuidores/${dist.id}`}
+                      className="text-primary hover:underline"
+                    >
+                      {dist.nome}
+                    </Link>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground tabular-nums">
                     {dist.cnpj}
@@ -153,10 +158,10 @@ export function AdminDistribuidores() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Link
-                      to={`/admin/de-para-produtos?distribuidor=${dist.id}`}
+                      to={`/admin/distribuidores/${dist.id}`}
                       className="text-xs text-primary hover:underline"
                     >
-                      De-para
+                      Abrir
                     </Link>
                   </TableCell>
                 </TableRow>

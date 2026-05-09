@@ -272,7 +272,10 @@ export function AdminInsightsDeParaProdutos() {
 
       <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
         <span>
-          <Link to="/admin/de-para-produtos" className="text-primary underline-offset-2 hover:underline">
+          <Link
+            to="/admin/distribuidores"
+            className="text-primary underline-offset-2 hover:underline"
+          >
             De-para por distribuidor
           </Link>{' '}
           (sell-in / ERP do cliente).

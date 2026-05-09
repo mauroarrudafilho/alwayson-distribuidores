@@ -8,6 +8,8 @@ import {
   useInsightsClienteHistorico,
 } from '@/hooks/useInsightsQueries'
 
+import { parseInsightsClienteBrasilStatus } from '@/lib/insightsClienteBrasilStatus'
+
 function n(x: unknown): number {
   const v = Number(x)
   return Number.isFinite(v) ? v : 0
@@ -30,6 +32,9 @@ function mapClienteRow(row: Record<string, unknown>): InsightsTopCliente {
     total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
     ultima_compra: isoDateOnly(row.ultima_compra),
     total_skus: Math.trunc(Number(row.total_skus)) || 0,
+    brasil_enriquecimento_status: parseInsightsClienteBrasilStatus(
+      row.brasil_enriquecimento_status
+    ),
   }
 }
 

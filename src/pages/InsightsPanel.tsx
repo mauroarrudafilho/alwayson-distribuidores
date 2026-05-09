@@ -36,6 +36,7 @@ import { formatCurrency } from '@/lib/format'
 import type { InsightsCidadeRow, InsightsTopCliente } from '@/types/insights'
 import { cn } from '@/lib/utils'
 import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
+import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
 import {
   useInsightsBootstrap,
   useInsightsClienteHistorico,
@@ -167,8 +168,11 @@ function ClienteDetalheDrawer({
               </span>
             )}
         </h2>
-        <p className="text-xs text-muted-foreground font-mono mt-0.5">
-          {cliente.cnpj_cliente} · {cliente.cidade}/{cliente.estado}
+        <p className="text-xs text-muted-foreground font-mono mt-0.5 flex flex-wrap items-center gap-2">
+          <span>
+            {cliente.cnpj_cliente} · {cliente.cidade}/{cliente.estado}
+          </span>
+          <InsightsClienteBrasilBadge status={cliente.brasil_enriquecimento_status} />
         </p>
       </div>
 
@@ -362,7 +366,12 @@ function CidadeRow({
                         onSelectCliente(c)
                       }}
                     >
-                      <TableCell className="font-medium">{c.nome_cliente}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span>{c.nome_cliente}</span>
+                          <InsightsClienteBrasilBadge status={c.brasil_enriquecimento_status} />
+                        </span>
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
                         {c.cnpj_cliente}
                       </TableCell>
@@ -759,7 +768,12 @@ export function InsightsPanel() {
                       className="cursor-pointer"
                       onClick={() => openClienteDetalhe(c)}
                     >
-                      <TableCell className="font-medium max-w-[200px] truncate">{c.nome_cliente}</TableCell>
+                      <TableCell className="font-medium max-w-[220px]">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate">{c.nome_cliente}</span>
+                          <InsightsClienteBrasilBadge status={c.brasil_enriquecimento_status} />
+                        </span>
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                         {c.cidade} / {c.estado}
                       </TableCell>
