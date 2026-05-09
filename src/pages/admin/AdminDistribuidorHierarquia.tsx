@@ -90,7 +90,7 @@ export function AdminDistribuidorHierarquia() {
           to={`${base}/de-para-produtos`}
           className="text-primary underline-offset-2 hover:underline"
         >
-          De-para produtos
+          Correlação de Produtos
         </Link>
         .
       </p>

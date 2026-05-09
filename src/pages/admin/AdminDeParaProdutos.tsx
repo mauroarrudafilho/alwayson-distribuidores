@@ -149,7 +149,7 @@ export function AdminDeParaProdutos() {
     <div className="space-y-6 animate-fade-in">
       {!scopedToRoute && (
         <PageHeader
-          title="De-para de produtos (por distribuidor)"
+          title="Correlação de Produtos (por distribuidor)"
           description="Associe o código de produto que o distribuidor usa em relatórios e metas ao SKU oficial do fornecedor (base alwayson_produtos)."
         />
       )}
@@ -291,7 +291,7 @@ export function AdminDeParaProdutos() {
               <Skeleton className="h-32 w-full mt-2" />
             ) : !existentes || existentes.length === 0 ? (
               <p className="text-xs text-muted-foreground py-6 text-center">
-                Nenhum de-para para este distribuidor
+                Nenhuma correlação cadastrada para este distribuidor
               </p>
             ) : (
               <div className="border rounded-md max-h-72 overflow-auto mt-2">

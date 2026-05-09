@@ -200,6 +200,21 @@
   to { transform: translateY(-50%); }
 }
 
+@keyframes insights-reprocess-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+@layer utilities {
+  .animate-insights-reprocess-indeterminate {
+    animation: insights-reprocess-bar 2.1s ease-in-out infinite;
+  }
+}
+
 /* Editorial helpers used in auth screens */
 .editorial-grid {
   background-image:

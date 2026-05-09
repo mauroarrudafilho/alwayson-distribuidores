@@ -26,6 +26,15 @@ export interface InsightsUpload {
   criado_em: string
 }
 
+/** Uma linha da view alwayson_insights_v_resumo_global (conferência / planilha). */
+export interface InsightsResumoGlobal {
+  total_nfs: number
+  total_linhas_itens: number
+  total_cnps_com_nf: number
+  total_cnps_dimensao: number
+  faturamento_soma_linhas_itens: number
+}
+
 export interface InsightsNf {
   id: string
   upload_id: string

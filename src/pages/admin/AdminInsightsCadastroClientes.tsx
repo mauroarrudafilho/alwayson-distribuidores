@@ -1,15 +1,25 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle,
   Trash2,
   CheckCircle2,
   Circle,
   Loader2,
-  XCircle,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  MoreVertical,
 } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
-import { Button } from '@/components/ui/button'
+import { FilterField } from '@/components/distribuidor/FilterBar'
+import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -22,6 +32,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,6 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAuth } from '@/contexts/auth'
 import { supabase } from '@/lib/supabase'
 import { parseInsightsCnpj } from '@/lib/insightsCnpj'
 import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
@@ -127,10 +145,86 @@ function percentualCadastro(checks: CadastroCheck[]) {
 }
 
 function resumoCadastroRow(pct: number, st: InsightsClienteBrasilStatus | undefined) {
-  if (pct >= 100) return { label: 'Completo', variant: 'default' as const }
+  if (pct >= 100) return { label: 'Completo', variant: 'success' as const }
   if (st === 'error' || st === 'not_found')
     return { label: 'Bloqueado', variant: 'destructive' as const }
-  return { label: 'Em andamento', variant: 'secondary' as const }
+  return { label: 'Em andamento', variant: 'warning' as const }
+}
+
+const TABLE_COLS = 9
+
+function CelulaConsultaReceita({ r }: { r: InsightClienteDim }) {
+  const st = parseInsightsClienteBrasilStatus(r.brasil_enriquecimento_status)
+  const hint =
+    st === 'error' || st === 'not_found'
+      ? [insightsClienteBrasilStatusTitle(st), r.brasil_api_ultimo_motivo].filter(Boolean).join(' — ')
+      : undefined
+  if (st === 'ready')
+    return (
+      <Badge variant="success" className="font-normal">
+        OK
+      </Badge>
+    )
+  if (st === 'pending' || st === 'processing')
+    return (
+      <Badge variant="info" className="font-normal">
+        Fila
+      </Badge>
+    )
+  if (st === 'error' || st === 'not_found')
+    return (
+      <Badge variant="destructive" className="font-normal max-w-32 truncate" title={hint}>
+        Falha
+      </Badge>
+    )
+  return (
+    <Badge variant="secondary" className="font-normal">
+      Pendente
+    </Badge>
+  )
+}
+
+function CelulaSituacaoReceita({ r }: { r: InsightClienteDim }) {
+  const st = parseInsightsClienteBrasilStatus(r.brasil_enriquecimento_status)
+  if (st !== 'ready')
+    return <span className="text-xs text-muted-foreground">—</span>
+  if (r.cadastro_ativo === false)
+    return (
+      <Badge variant="destructive" className="font-normal">
+        Não ATIVA
+      </Badge>
+    )
+  return (
+    <Badge variant="success" className="font-normal">
+      ATIVA
+    </Badge>
+  )
+}
+
+const FILTRO_TODAS = 'todos' as const
+const PAGE_SIZE = 25
+
+/** Rótulos do filtro «Situação na Receita» — evita mostrar o valor interno no trigger. */
+const SITUACAO_NA_RECEITA_LABELS: Record<string, string> = {
+  [FILTRO_TODAS]: 'Todos',
+  __all__: 'Todos',
+  ativa: 'ATIVA (última consulta)',
+  inativa: 'Não ATIVA',
+  pendente: 'Consulta pendente / processando',
+  erro: 'Erro ou não encontrado',
+}
+
+function situacaoCadastroRow(r: InsightClienteDim): 'ativa' | 'inativa' | 'pendente' | 'erro' {
+  const st = parseInsightsClienteBrasilStatus(r.brasil_enriquecimento_status)
+  if (st === 'error' || st === 'not_found') return 'erro'
+  if (st === 'ready' && r.cadastro_ativo === false) return 'inativa'
+  if (st === 'ready' && r.cadastro_ativo !== false) return 'ativa'
+  return 'pendente'
+}
+
+function matchSituacaoFiltro(r: InsightClienteDim, filtro: string): boolean {
+  if (!filtro || filtro === FILTRO_TODAS || filtro === '__all__') return true
+  return situacaoCadastroRow(r) === filtro
 }
 
 function CheckIcon({ ok, pending }: { ok: boolean; pending?: boolean }) {
@@ -139,11 +233,155 @@ function CheckIcon({ ok, pending }: { ok: boolean; pending?: boolean }) {
   return <Circle className="w-3.5 h-3.5 text-muted-foreground/60" />
 }
 
+/** Alinhado ao corpo enviado para a Edge Function (`process-insights-pendentes`). */
+const REPROCESS_BATCH_LIMIT = 25
+
+function reprocessPhaseSubtitle(elapsedSec: number): string {
+  if (elapsedSec < 8) return 'A iniciar o lote e marcar CNPJs como em processamento…'
+  if (elapsedSec < 28)
+    return 'A consultar a BrasilAPI — uma chamada por CNPJ, com pausa para respeitar rate limits…'
+  return 'A terminar consultas e gravar cidade, situação cadastral e estado na dimensão Insights…'
+}
+
+/** Destaque visual sequencial durante o tempo de espera (não há stream por CNPJ). */
+function reprocessFlowHighlightIndex(elapsedSec: number): number {
+  if (elapsedSec < 7) return 0
+  if (elapsedSec < 42) return 1
+  return 2
+}
+
+function InsightsReprocessProgressPanel(props: {
+  elapsedSec: number
+  pendingApprox: number
+  batchLimit: number
+}) {
+  const { elapsedSec, pendingApprox, batchLimit } = props
+  const flowIdx = reprocessFlowHighlightIndex(elapsedSec)
+  const flowSteps = [
+    { title: 'Pedido e reserva na base', hint: 'Edge Function marca o lote como em processamento.' },
+    { title: 'Consultas Receita (BrasilAPI)', hint: 'Sequencial, com espera entre pedidos (~1–2 s por CNPJ).' },
+    { title: 'Gravação dos resultados', hint: 'Cidade/UF, situação cadastral e estado da consulta por CNPJ.' },
+  ] as const
+
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+      className={cn(
+        'rounded-xl border border-primary/30 bg-linear-to-br from-primary/[0.07] via-background to-muted/40',
+        'p-4 sm:p-5 space-y-4 shadow-sm ring-1 ring-primary/10'
+      )}
+    >
+      <div className="flex gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-medium text-foreground text-sm">Processamento do lote em curso</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Até <strong className="text-foreground tabular-nums">{batchLimit}</strong> CNPJs em estado{' '}
+            <strong className="text-foreground">pending</strong> por execução.
+            {pendingApprox > 0 ? (
+              <>
+                {' '}
+                Havia mais ou menos{' '}
+                <strong className="text-foreground tabular-nums">{pendingApprox}</strong> com
+                &quot;pending&quot; antes deste pedido (a lista só atualiza no fim).
+              </>
+            ) : null}
+          </p>
+        </div>
+        <span className="tabular-nums shrink-0 text-xs font-medium text-muted-foreground pt-1">
+          {elapsedSec}s
+        </span>
+      </div>
+
+      <div className="rounded-lg border bg-background/60 px-3 py-2 text-xs text-muted-foreground transition-colors duration-300">
+        {reprocessPhaseSubtitle(elapsedSec)}
+      </div>
+
+      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="absolute inset-y-0 left-0 w-[42%] rounded-full bg-primary/80 animate-insights-reprocess-indeterminate shadow-sm"
+          aria-hidden
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Tempo típico neste projeto: ~25–55 s para um lote completo. Com rate limit (429) pode estender —
+        não feche o separador.
+      </p>
+
+      <div className="flex flex-wrap gap-2">
+        {flowSteps.map((s, i) => {
+          const active = flowIdx === i
+          return (
+            <div
+              key={s.title}
+              className={cn(
+                'flex min-w-[min(100%,12rem)] flex-1 gap-2 rounded-lg border px-2.5 py-2 transition-colors duration-300',
+                active
+                  ? 'border-primary/40 bg-primary/12 shadow-sm'
+                  : 'border-border/50 bg-muted/15 opacity-75'
+              )}
+            >
+              <div className="pt-0.5 shrink-0" aria-hidden>
+                {active ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                ) : (
+                  <Circle className="h-4 w-4 text-muted-foreground/55" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className={cn('text-[11px] font-medium leading-snug', active && 'text-foreground')}>
+                  {s.title}
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{s.hint}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground border-t pt-3 border-border/70">
+        Não saia nem dispare novo lote até concluir: o servidor ainda está a trabalhar nos CNPJs
+        selecionados.
+      </p>
+    </div>
+  )
+}
+
+type ReprocessPendentesResult = {
+  ok: boolean
+  mode?: 'batch' | 'single'
+  processed?: number
+  skipped?: number
+  failed?: number
+  limit?: number
+  pending_remaining?: number
+  sample_errors?: string[]
+  message?: string
+  error?: string
+  cnpj_14?: string
+}
+
+function clientePodeReconsultaBrasilApi(r: InsightClienteDim): boolean {
+  const st = parseInsightsClienteBrasilStatus(r.brasil_enriquecimento_status)
+  return st !== 'ready'
+}
+
 export function AdminInsightsCadastroClientes() {
   const qc = useQueryClient()
+  const { isAdmin } = useAuth()
   const [busca, setBusca] = useState('')
+  const [filtroCidade, setFiltroCidade] = useState<string>(FILTRO_TODAS)
+  const [filtroUf, setFiltroUf] = useState<string>(FILTRO_TODAS)
+  const [filtroSituacao, setFiltroSituacao] = useState<string>(FILTRO_TODAS)
+  const [page, setPage] = useState(1)
   const [openCnpj, setOpenCnpj] = useState<string | null>(null)
   const [confirmacao, setConfirmacao] = useState('')
+  const [reprocessMsg, setReprocessMsg] = useState<string | null>(null)
+  const [reprocessElapsedSec, setReprocessElapsedSec] = useState(0)
 
   const list = useQuery({
     queryKey: ['admin', 'insights-clientes-cadastro', 'lista'],
@@ -158,6 +396,118 @@ export function AdminInsightsCadastroClientes() {
       return (data ?? []) as InsightClienteDim[]
     },
   })
+
+  const reprocessPendentes = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke<ReprocessPendentesResult>(
+        'process-insights-pendentes',
+        {
+          body: {
+            limit: REPROCESS_BATCH_LIMIT,
+            use_nominatim: false,
+          },
+        }
+      )
+      if (error) throw new Error(error.message ?? 'Erro ao chamar Edge Function.')
+      const payload = data
+      if (!payload) throw new Error('Resposta vazia.')
+      if (!payload.ok) {
+        const code = payload.error ?? 'unknown'
+        if (code === 'forbidden') throw new Error('Sem permissão (apenas admin global).')
+        if (code === 'missing_auth') throw new Error('Sessão expirada — faça login novamente.')
+        throw new Error(`Função: ${code}`)
+      }
+      return payload
+    },
+    onSuccess: async (payload) => {
+      if ((payload.processed ?? 0) === 0 && payload.message) {
+        setReprocessMsg(payload.message)
+      } else {
+        setReprocessMsg(
+          `Lote: ${payload.processed ?? 0} processado(s).${payload.pending_remaining != null ? ` Restantes pending: ${payload.pending_remaining}.` : ''}${payload.failed ? ` Falhas neste lote: ${payload.failed}.` : ''}`
+        )
+      }
+      await qc.invalidateQueries({ queryKey: ['admin', 'insights-clientes-cadastro'] })
+      await qc.invalidateQueries({ queryKey: ['insights'] })
+    },
+    onError: (err: unknown) => {
+      const raw = err instanceof Error ? err.message : String(err ?? '')
+      const msg =
+        raw.includes('Failed to fetch') || raw.includes('EDGE_FUNCTION_INVOCATION_FAILED')
+          ? 'Edge Function indisponível ou não implantada — use o CLI ou o dashboard Supabase para publicar `process-insights-pendentes`.'
+          : raw
+      setReprocessMsg(msg)
+    },
+  })
+
+  const reprocessUmCliente = useMutation<
+    ReprocessPendentesResult,
+    Error,
+    string
+  >({
+    mutationFn: async (cnpj14: string) => {
+      const { data, error } = await supabase.functions.invoke<ReprocessPendentesResult>(
+        'process-insights-pendentes',
+        {
+          body: { cnpj_14: cnpj14, use_nominatim: false },
+        }
+      )
+      if (error) throw new Error(error.message ?? 'Erro ao chamar Edge Function.')
+      const payload = data
+      if (!payload) throw new Error('Resposta vazia.')
+      if (!payload.ok) {
+        const code = payload.error ?? 'unknown'
+        if (code === 'forbidden') throw new Error('Sem permissão (apenas admin global).')
+        if (code === 'missing_auth') throw new Error('Sessão expirada — faça login novamente.')
+        if (code === 'cnpj_not_found') throw new Error(payload.message ?? 'CNPJ não encontrado.')
+        throw new Error(payload.message ?? `Função: ${code}`)
+      }
+      return payload
+    },
+    onSuccess: async (payload) => {
+      if (payload.mode === 'single' && payload.cnpj_14) {
+        const msg =
+          payload.message ??
+          (payload.processed === 1
+            ? 'Consulta atualizada.'
+            : payload.failed === 1
+              ? 'Falha ao processar.'
+              : undefined)
+        setReprocessMsg(
+          msg
+            ? `${formatCnpjDisplay(payload.cnpj_14)} · ${msg}`
+            : `${formatCnpjDisplay(payload.cnpj_14)} · Concluído.`,
+        )
+      }
+      await qc.invalidateQueries({ queryKey: ['admin', 'insights-clientes-cadastro'] })
+      await qc.invalidateQueries({ queryKey: ['insights'] })
+    },
+    onError: (err: unknown) => {
+      const raw = err instanceof Error ? err.message : String(err ?? '')
+      const msg =
+        raw.includes('Failed to fetch') || raw.includes('EDGE_FUNCTION_INVOCATION_FAILED')
+          ? 'Edge Function indisponível ou não implantada — publique `process-insights-pendentes`.'
+          : raw
+      setReprocessMsg(msg)
+    },
+  })
+
+  const pendingCount = useMemo(
+    () =>
+      list.data?.filter((r) => String(r.brasil_enriquecimento_status ?? '') === 'pending').length ??
+      0,
+    [list.data]
+  )
+
+  useEffect(() => {
+    if (!reprocessPendentes.isPending) return undefined
+    setReprocessElapsedSec(0)
+    const started = Date.now()
+    const tick = window.setInterval(() => {
+      setReprocessElapsedSec(Math.floor((Date.now() - started) / 1000))
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [reprocessPendentes.isPending])
 
   const purge = useMutation({
     mutationFn: async ({ cnpjNorm, confirmacao }: { cnpjNorm: string; confirmacao: string }) => {
@@ -192,9 +542,62 @@ export function AdminInsightsCadastroClientes() {
     return digits.slice(-14) === cnpj14
   }
 
+  const opcoesCidade = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of list.data ?? []) {
+      const c = (r.cidade ?? '').trim()
+      if (c) set.add(c)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
+  }, [list.data])
+
+  const opcoesUf = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of list.data ?? []) {
+      const u = (r.estado ?? '').trim().toUpperCase()
+      if (u) set.add(u)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [list.data])
+
+  useEffect(() => {
+    if (filtroCidade !== FILTRO_TODAS && !opcoesCidade.includes(filtroCidade)) {
+      setFiltroCidade(FILTRO_TODAS)
+    }
+  }, [opcoesCidade, filtroCidade])
+
+  useEffect(() => {
+    if (filtroUf !== FILTRO_TODAS && !opcoesUf.includes(filtroUf)) {
+      setFiltroUf(FILTRO_TODAS)
+    }
+  }, [opcoesUf, filtroUf])
+
+  /** Valor legado dos selects (antes do sentinela `todos`). */
+  useEffect(() => {
+    const legacy = '__all__'
+    if (filtroCidade === legacy) setFiltroCidade(FILTRO_TODAS)
+    if (filtroUf === legacy) setFiltroUf(FILTRO_TODAS)
+    if (filtroSituacao === legacy) setFiltroSituacao(FILTRO_TODAS)
+  }, [filtroCidade, filtroUf, filtroSituacao])
+
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
-    const rows = list.data ?? []
+    let rows = list.data ?? []
+
+    const cidadeF = filtroCidade === '__all__' ? FILTRO_TODAS : filtroCidade
+    const ufF = filtroUf === '__all__' ? FILTRO_TODAS : filtroUf
+    const situacaoF = filtroSituacao === '__all__' ? FILTRO_TODAS : filtroSituacao
+
+    if (cidadeF !== FILTRO_TODAS) {
+      rows = rows.filter((r) => (r.cidade ?? '').trim() === cidadeF)
+    }
+    if (ufF !== FILTRO_TODAS) {
+      rows = rows.filter((r) => (r.estado ?? '').trim().toUpperCase() === ufF)
+    }
+    if (situacaoF !== FILTRO_TODAS) {
+      rows = rows.filter((r) => matchSituacaoFiltro(r, situacaoF))
+    }
+
     if (!q) return rows
     return rows.filter((r) => {
       const d = insightsCnpjKey(r.cnpj_14).toLowerCase()
@@ -202,7 +605,23 @@ export function AdminInsightsCadastroClientes() {
       const loc = `${r.cidade ?? ''} ${r.estado ?? ''}`.toLowerCase()
       return d.includes(q) || nom.includes(q) || loc.includes(q) || r.cnpj_14.includes(q)
     })
-  }, [busca, list.data])
+  }, [busca, list.data, filtroCidade, filtroUf, filtroSituacao])
+
+  useEffect(() => {
+    setPage(1)
+  }, [busca, filtroCidade, filtroUf, filtroSituacao])
+
+  const totalFiltradas = filtradas.length
+  const totalPages = Math.max(1, Math.ceil(totalFiltradas / PAGE_SIZE))
+
+  useEffect(() => {
+    setPage((p) => Math.min(p, totalPages))
+  }, [totalPages])
+
+  const safePage = Math.min(page, totalPages)
+  const inicioIdx = (safePage - 1) * PAGE_SIZE
+  const paginaRows = filtradas.slice(inicioIdx, inicioIdx + PAGE_SIZE)
+  const fimExib = totalFiltradas === 0 ? 0 : inicioIdx + paginaRows.length
 
   const erroRpc = purge.isError
     ? purge.error instanceof Error
@@ -211,256 +630,434 @@ export function AdminInsightsCadastroClientes() {
     : ''
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1400px] animate-fade-in">
       <PageHeader
         title="Cadastro de clientes Insights"
-        description="Acompanhe o preenchimento da dimensão territorial: identificação, local (cidade/UF), consulta Receita Federal (BrasilAPI) e status do CNPJ. A remoção de cliente continua disponível quando precisar corrigir importações antigas."
+        description="Dimensão por CNPJ. O lote processa só clientes em estado pending; erro ou nova consulta pontual usando Reconsultar RF na linha. Remover cliente quando necessário."
       />
 
-      <Card>
-        <CardContent className="pt-6 space-y-4 text-sm">
-          <div className="rounded-lg border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-            <p>
-              Cadastro considerado <strong className="text-foreground">100%</strong> quando os
-              quatro itens à direita estão verificados (inclui CNPJ <strong className="text-foreground">ATIVO</strong>{' '}
-              na última consulta BrasilAPI). Pendentes de API entram na fila — processar com{' '}
-              <code className="text-[11px] font-mono whitespace-nowrap">
-                npm run insights:process-clientes
-              </code>{' '}
-              (service role).
-            </p>
+      <Card className="shadow-card">
+        <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <FilterField label="Buscar">
+              <Input
+                id="busca-ins-cli"
+                placeholder="CNPJ, nome fantasia, razão social ou cidade…"
+                className="h-8 text-sm"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+              />
+            </FilterField>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <FilterField label="Cidade">
+                <Select
+                  value={filtroCidade}
+                  onValueChange={(v) => setFiltroCidade(v ?? FILTRO_TODAS)}
+                  disabled={list.isLoading}
+                >
+                  <SelectTrigger className="h-8 w-full text-sm min-w-0">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FILTRO_TODAS}>Todos</SelectItem>
+                    {opcoesCidade.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+              <FilterField label="UF">
+                <Select
+                  value={filtroUf}
+                  onValueChange={(v) => setFiltroUf(v ?? FILTRO_TODAS)}
+                  disabled={list.isLoading}
+                >
+                  <SelectTrigger className="h-8 w-full text-sm min-w-0">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FILTRO_TODAS}>Todos</SelectItem>
+                    {opcoesUf.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+              <FilterField label="Situação na Receita">
+                <Select
+                  value={filtroSituacao}
+                  onValueChange={(v) =>
+                    setFiltroSituacao(
+                      v == null || v === '' ? FILTRO_TODAS : v
+                    )
+                  }
+                  disabled={list.isLoading}
+                >
+                  <SelectTrigger className="h-8 w-full text-sm min-w-0">
+                    <SelectValue placeholder="Todos">
+                      {SITUACAO_NA_RECEITA_LABELS[filtroSituacao] ?? 'Todos'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FILTRO_TODAS}>Todos</SelectItem>
+                    <SelectItem value="ativa">ATIVA (última consulta)</SelectItem>
+                    <SelectItem value="inativa">Não ATIVA</SelectItem>
+                    <SelectItem value="pendente">Consulta pendente / processando</SelectItem>
+                    <SelectItem value="erro">Erro ou não encontrado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/80 rounded-lg p-3">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium">Remover cliente e todas as NFs é irreversível</p>
-              <p className="text-muted-foreground dark:text-amber-100/85">
-                Use o botão &quot;Remover…&quot; só após revisar o cadastro. Para confirmar, digite
-                o CNPJ no diálogo. Totais{' '}
-                <code className="text-xs font-mono">total_nfs</code> /{' '}
-                <code className="text-xs font-mono">total_itens</code> dos uploads afetados são
-                recalculados automaticamente.
-              </p>
-              <p className="mt-2 text-muted-foreground dark:text-amber-100/85">
-                CLI (service role):{' '}
-                <code className="text-xs font-mono whitespace-nowrap">
-                  npm run insights:delete-cliente -- --cnpj … --yes
+      <Card className="shadow-card" aria-busy={reprocessPendentes.isPending || reprocessUmCliente.isPending}>
+        <CardContent className="p-4 space-y-4 text-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Reprocessar pendentes</span> — fila em lote só
+              para clientes em estado <strong className="text-foreground">pending</strong> (até{' '}
+              {REPROCESS_BATCH_LIMIT} por clique).
+              <span className="hidden lg:inline">
+                {' '}
+                Equivalente CLI:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] whitespace-nowrap">
+                  npm run insights:process-clientes
                 </code>
-              </p>
+              </span>
+              <span className="hidden sm:inline">
+                {' '}
+                Falhas pontuais ou fora da fila padrão: use <strong className="text-foreground">Reconsultar RF</strong>{' '}
+                na linha.
+              </span>
+            </p>
+            <div className="shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                disabled={!isAdmin || reprocessPendentes.isPending || reprocessUmCliente.isPending}
+                onClick={() => {
+                  setReprocessMsg(null)
+                  reprocessPendentes.reset()
+                  reprocessPendentes.mutate()
+                }}
+              >
+                {reprocessPendentes.isPending ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    A processar lote…
+                  </>
+                ) : (
+                  <>Reprocessar pendentes (lote)</>
+                )}
+              </Button>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="busca-ins-cli" className="text-sm font-medium">
-              Filtrar CNPJ, nome ou cidade
-            </label>
-            <Input
-              id="busca-ins-cli"
-              placeholder="Digite parte do CNPJ ou nome..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+          {reprocessPendentes.isPending ? (
+            <InsightsReprocessProgressPanel
+              elapsedSec={reprocessElapsedSec}
+              pendingApprox={pendingCount}
+              batchLimit={REPROCESS_BATCH_LIMIT}
             />
-          </div>
+          ) : null}
 
-          <div className="rounded-lg border overflow-x-auto">
+          {!reprocessPendentes.isPending && reprocessMsg ? (
+            <p
+              className={cn(
+                'text-xs rounded-md px-3 py-2 border',
+                reprocessPendentes.isError ||
+                  reprocessUmCliente.isError ||
+                  reprocessMsg.includes('indisponível')
+                  ? 'text-destructive border-destructive/30 bg-destructive/5'
+                  : 'text-muted-foreground border-border bg-background'
+              )}
+            >
+              {reprocessMsg}
+            </p>
+          ) : null}
+
+          <div className="rounded-lg border border-border bg-card overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[1%] whitespace-nowrap">CNPJ</TableHead>
-                  <TableHead>Nome / razão</TableHead>
-                  <TableHead className="w-[1%] whitespace-nowrap">Cidade</TableHead>
-                  <TableHead className="min-w-[200px]">Cadastro Insights</TableHead>
-                  <TableHead className="w-[1%] text-right" />
+                <TableRow className="hover:bg-transparent border-border/50 bg-muted/55">
+                  <TableHead className="whitespace-nowrap w-[1%]">CNPJ</TableHead>
+                  <TableHead className="min-w-48 max-w-56">Cliente</TableHead>
+                  <TableHead className="whitespace-nowrap">Local</TableHead>
+                  <TableHead className="whitespace-nowrap min-w-30">Progresso</TableHead>
+                  <TableHead
+                    className="text-center w-12 px-2"
+                    title="Nome ou razão social na origem"
+                  >
+                    Nome
+                  </TableHead>
+                  <TableHead className="text-center w-12 px-2" title="Cidade e UF preenchidos">
+                    Munic.
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap" title="Consulta Receita Federal (BrasilAPI)">
+                    Consulta RF
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap" title="Situação cadastral na Receita">
+                    Situação
+                  </TableHead>
+                  <TableHead className="w-[1%] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {list.isLoading ? (
                   [...Array(5)].map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={5}>
-                        <Skeleton className="h-8 w-full" />
+                      <TableCell colSpan={TABLE_COLS}>
+                        <Skeleton className="h-9 w-full" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : filtradas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground text-center py-8">
-                      Nenhum cliente na dimensão (ou filtros não batem).
+                    <TableCell
+                      colSpan={TABLE_COLS}
+                      className="text-muted-foreground text-center py-12 text-sm"
+                    >
+                      Nenhum cliente na dimensão (ou filtros não coincidem com os resultados).
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtradas.map((r) => {
+                  paginaRows.map((r, rowIdx) => {
                     const checks = montarChecksCadastroInsights(r)
+                    const checkNome = checks.find((c) => c.id === 'nome')!
+                    const checkLocal = checks.find((c) => c.id === 'local')!
                     const pct = percentualCadastro(checks)
                     const st = parseInsightsClienteBrasilStatus(r.brasil_enriquecimento_status)
                     const resumo = resumoCadastroRow(pct, st)
                     return (
-                      <TableRow key={r.cnpj_14}>
-                        <TableCell className="font-mono text-xs tabular-nums">
+                      <TableRow
+                        key={r.cnpj_14}
+                        className={cn(
+                          'border-border/50 transition-colors hover:bg-muted/40',
+                          rowIdx % 2 === 1 && 'bg-muted/20'
+                        )}
+                      >
+                        <TableCell className="font-mono text-xs tabular-nums whitespace-nowrap">
                           <span title={r.cnpj_14}>{formatCnpjDisplay(r.cnpj_14)}</span>
                         </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{r.nome_cliente ?? '—'}</span>
+                        <TableCell className="whitespace-normal align-top max-w-56">
+                          <span className="text-sm text-foreground">{r.nome_cliente ?? '—'}</span>
                           {r.razao_social ? (
-                            <p className="text-xs text-muted-foreground truncate max-w-[16rem]">
+                            <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
                               {r.razao_social}
                             </p>
                           ) : null}
                         </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
+                        <TableCell className="text-sm whitespace-nowrap text-foreground">
                           {[r.cidade, r.estado].filter(Boolean).join(' / ') || '—'}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={resumo.variant} className="text-[10px] font-normal">
-                                {resumo.label}
-                              </Badge>
-                              <span className="text-xs tabular-nums text-muted-foreground">
+                        <TableCell className="align-middle">
+                          <div className="flex flex-col gap-1.5 min-w-26">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant={resumo.variant}>{resumo.label}</Badge>
+                              <span className="text-xs font-medium tabular-nums text-muted-foreground">
                                 {pct}%
                               </span>
-                              <div
-                                className="h-1.5 flex-1 min-w-16 max-w-[120px] rounded-full bg-muted overflow-hidden"
-                                title={`${checks.filter((c) => c.ok).length}/${checks.length} etapas`}
-                              >
-                                <div
-                                  className={cn(
-                                    'h-full rounded-full transition-all',
-                                    pct >= 100
-                                      ? 'bg-emerald-500/90'
-                                      : pct >= 50
-                                        ? 'bg-amber-500/80'
-                                        : 'bg-muted-foreground/35'
-                                  )}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
                             </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1">
-                              {checks.map((c) => {
-                                const pendenteBr =
-                                  c.id === 'brasil' &&
-                                  (st === 'pending' || st === 'processing')
-                                const hint = c.ok ? 'Ok' : c.detalhe ?? 'Pendente'
-                                return (
-                                  <span
-                                    key={c.id}
-                                    title={hint}
-                                    className="inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-default"
-                                  >
-                                    <CheckIcon ok={c.ok} pending={pendenteBr} />
-                                    <span className="max-w-36 truncate">{c.label}</span>
-                                  </span>
-                                )
-                              })}
-                              {(st === 'error' || st === 'not_found') && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] text-destructive">
-                                  <XCircle className="w-3 h-3" />
-                                  BrasilAPI
-                                </span>
-                              )}
+                            <div
+                              className="h-2 w-full max-w-40 rounded-full bg-muted overflow-hidden"
+                              title={`${checks.filter((c) => c.ok).length}/${checks.length} etapas`}
+                            >
+                              <div
+                                className={cn(
+                                  'h-full rounded-full transition-all',
+                                  pct >= 100
+                                    ? 'bg-success'
+                                    : pct >= 50
+                                      ? 'bg-warning'
+                                      : 'bg-muted-foreground/40'
+                                )}
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Dialog
-                            open={openCnpj === r.cnpj_14}
-                            onOpenChange={(o) => {
-                              if (!o) {
-                                setOpenCnpj(null)
-                                setConfirmacao('')
-                                purge.reset()
-                                return
-                              }
-                              setOpenCnpj(r.cnpj_14)
-                            }}
+                        <TableCell className="text-center px-2">
+                          <span
+                            className="inline-flex justify-center"
+                            title={checkNome.ok ? 'Ok' : checkNome.detalhe ?? 'Pendente'}
                           >
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-destructive border-destructive/40 hover:bg-destructive/10"
-                              onClick={() => {
+                            <CheckIcon ok={checkNome.ok} />
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center px-2">
+                          <span
+                            className="inline-flex justify-center"
+                            title={checkLocal.ok ? 'Ok' : checkLocal.detalhe ?? 'Pendente'}
+                          >
+                            <CheckIcon ok={checkLocal.ok} />
+                          </span>
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          <CelulaConsultaReceita r={r} />
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          <CelulaSituacaoReceita r={r} />
+                        </TableCell>
+                        <TableCell className="text-right align-middle">
+                          <>
+                            <div className="flex justify-end">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  type="button"
+                                  className={cn(
+                                    buttonVariants({ variant: 'ghost', size: 'icon' }),
+                                    'h-8 w-8 shrink-0'
+                                  )}
+                                  disabled={
+                                    reprocessPendentes.isPending || reprocessUmCliente.isPending
+                                  }
+                                  aria-label="Ações do cliente"
+                                  title="Ações"
+                                >
+                                  {reprocessUmCliente.isPending &&
+                                  reprocessUmCliente.variables === r.cnpj_14 ? (
+                                    <Loader2 className="size-4 animate-spin shrink-0" />
+                                  ) : (
+                                    <MoreVertical className="size-4 shrink-0" />
+                                  )}
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" sideOffset={4} className="min-w-44">
+                                  <DropdownMenuItem
+                                    className="gap-2"
+                                    disabled={
+                                      !isAdmin ||
+                                      !clientePodeReconsultaBrasilApi(r) ||
+                                      reprocessPendentes.isPending ||
+                                      reprocessUmCliente.isPending
+                                    }
+                                    title={
+                                      clientePodeReconsultaBrasilApi(r)
+                                        ? 'Consultar de novo a Receita Federal (BrasilAPI) neste CNPJ'
+                                        : 'Já há consulta concluída (ready)'
+                                    }
+                                    onClick={() => {
+                                      setReprocessMsg(null)
+                                      reprocessUmCliente.mutate(r.cnpj_14)
+                                    }}
+                                  >
+                                    <RefreshCw className="size-4 shrink-0" />
+                                    Reconsultar RF
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    className="gap-2"
+                                    disabled={
+                                      reprocessPendentes.isPending || reprocessUmCliente.isPending
+                                    }
+                                    onClick={() => {
+                                      setOpenCnpj(r.cnpj_14)
+                                      purge.reset()
+                                    }}
+                                  >
+                                    <Trash2 className="size-4 shrink-0" /> Remover cliente…
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            <Dialog
+                              open={openCnpj === r.cnpj_14}
+                              onOpenChange={(o) => {
+                                if (!o) {
+                                  setOpenCnpj(null)
+                                  setConfirmacao('')
+                                  purge.reset()
+                                  return
+                                }
                                 setOpenCnpj(r.cnpj_14)
-                                purge.reset()
                               }}
                             >
-                              <Trash2 className="w-3.5 h-3.5" /> Remover…
-                            </Button>
-                            <DialogContent showCloseButton className="max-w-md">
-                              <DialogHeader>
-                                <DialogTitle>Remover cliente e todas as NFs?</DialogTitle>
-                              </DialogHeader>
-                              <p className="text-sm text-muted-foreground">
-                                {r.nome_cliente ? (
-                                  <>
-                                    <span className="font-medium text-foreground">
-                                      {r.nome_cliente}
-                                    </span>
-                                    {' — '}
-                                  </>
-                                ) : null}
-                                CNPJ{' '}
-                                <span className="font-mono text-foreground">
-                                  {formatCnpjDisplay(r.cnpj_14)}
-                                </span>
-                                . Todas as notas de sell-out territorial desse cliente e os respetivos
-                                itens serão apagados.
-                              </p>
-                              <div className="space-y-1.5">
-                                <label htmlFor="purge-confirm" className="text-sm font-medium">
-                                  Para confirmar, digite o CNPJ deste cliente
-                                </label>
-                                <Input
-                                  id="purge-confirm"
-                                  type="text"
-                                  inputMode="numeric"
-                                  autoComplete="off"
-                                  placeholder={formatCnpjDisplay(r.cnpj_14)}
-                                  value={confirmacao}
-                                  onChange={(e) => setConfirmacao(e.target.value)}
-                                  className="font-mono"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Aceita com ou sem máscara (ex.{' '}
-                                  <code>{formatCnpjDisplay(r.cnpj_14)}</code> ou{' '}
-                                  <code>{r.cnpj_14}</code>).
+                              <DialogContent showCloseButton className="max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Remover cliente e todas as NFs?</DialogTitle>
+                                </DialogHeader>
+                                <p className="text-sm text-muted-foreground">
+                                  {r.nome_cliente ? (
+                                    <>
+                                      <span className="font-medium text-foreground">
+                                        {r.nome_cliente}
+                                      </span>
+                                      {' — '}
+                                    </>
+                                  ) : null}
+                                  CNPJ{' '}
+                                  <span className="font-mono text-foreground">
+                                    {formatCnpjDisplay(r.cnpj_14)}
+                                  </span>
+                                  . Todas as notas de sell-out territorial desse cliente e os
+                                  respetivos itens serão apagados.
                                 </p>
-                              </div>
-                              {erroRpc ? (
-                                <p className="text-sm text-red-600 dark:text-red-400">{erroRpc}</p>
-                              ) : null}
-                              <DialogFooter className="gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => {
-                                    setOpenCnpj(null)
-                                    setConfirmacao('')
-                                    purge.reset()
-                                  }}
-                                >
-                                  Cancelar
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  disabled={
-                                    !confirmacaoBateCnpj(confirmacao, r.cnpj_14) || purge.isPending
-                                  }
-                                  onClick={() => {
-                                    const p = parseInsightsCnpj(r.cnpj_14)
-                                    const norm = p.ok ? p.cnpj14 : insightsCnpjKey(r.cnpj_14)
-                                    purge.mutate({
-                                      cnpjNorm: norm,
-                                      confirmacao,
-                                    })
-                                  }}
-                                >
-                                  {purge.isPending ? 'A apagar…' : 'Confirmar remoção'}
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
+                                <div className="space-y-1.5">
+                                  <label
+                                    htmlFor={`purge-confirm-${r.cnpj_14}`}
+                                    className="text-sm font-medium"
+                                  >
+                                    Para confirmar, digite o CNPJ deste cliente
+                                  </label>
+                                  <Input
+                                    id={`purge-confirm-${r.cnpj_14}`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    placeholder={formatCnpjDisplay(r.cnpj_14)}
+                                    value={confirmacao}
+                                    onChange={(e) => setConfirmacao(e.target.value)}
+                                    className="font-mono"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Aceita com ou sem máscara (ex.{' '}
+                                    <code>{formatCnpjDisplay(r.cnpj_14)}</code> ou{' '}
+                                    <code>{r.cnpj_14}</code>).
+                                  </p>
+                                </div>
+                                {erroRpc ? (
+                                  <p className="text-sm text-red-600 dark:text-red-400">
+                                    {erroRpc}
+                                  </p>
+                                ) : null}
+                                <DialogFooter className="gap-2">
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      setOpenCnpj(null)
+                                      setConfirmacao('')
+                                      purge.reset()
+                                    }}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    disabled={
+                                      !confirmacaoBateCnpj(confirmacao, r.cnpj_14) || purge.isPending
+                                    }
+                                    onClick={() => {
+                                      const p = parseInsightsCnpj(r.cnpj_14)
+                                      const norm = p.ok ? p.cnpj14 : insightsCnpjKey(r.cnpj_14)
+                                      purge.mutate({
+                                        cnpjNorm: norm,
+                                        confirmacao,
+                                      })
+                                    }}
+                                  >
+                                    {purge.isPending ? 'A apagar…' : 'Confirmar remoção'}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </>
                         </TableCell>
                       </TableRow>
                     )
@@ -469,6 +1066,51 @@ export function AdminInsightsCadastroClientes() {
               </TableBody>
             </Table>
           </div>
+
+          {!list.isLoading && totalFiltradas > 0 ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-1 border-t border-border/80">
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Mostrando{' '}
+                <span className="font-medium text-foreground">
+                  {inicioIdx + 1}–{fimExib}
+                </span>{' '}
+                de <span className="font-medium text-foreground">{totalFiltradas}</span>
+                {totalPages > 1 ? (
+                  <>
+                    {' '}
+                    · página{' '}
+                    <span className="font-medium text-foreground">
+                      {safePage}/{totalPages}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="size-4" />
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Seguinte
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
