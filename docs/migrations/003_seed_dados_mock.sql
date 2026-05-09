@@ -27,22 +27,22 @@ INSERT INTO alwayson_distribuidores (id, nome, cnpj, estado, cidade, responsavel
 -- ============================================================
 -- PRODUTOS (15 SKUs)
 -- ============================================================
-INSERT INTO alwayson_produtos (id, sku, descricao, categoria, preco_referencia) VALUES
-  ('a1000000-0000-0000-0000-000000000001', 'AO-001', 'Cerveja Premium Lager 350ml', 'Cervejas', 4.50),
-  ('a1000000-0000-0000-0000-000000000002', 'AO-002', 'Cerveja Premium Lager 600ml', 'Cervejas', 8.90),
-  ('a1000000-0000-0000-0000-000000000003', 'AO-003', 'Cerveja IPA Artesanal 350ml', 'Cervejas', 7.50),
-  ('a1000000-0000-0000-0000-000000000004', 'AO-004', 'Cerveja Pilsen Clássica 350ml', 'Cervejas', 3.20),
-  ('a1000000-0000-0000-0000-000000000005', 'AO-005', 'Cerveja Pilsen Clássica 1L', 'Cervejas', 7.80),
-  ('a1000000-0000-0000-0000-000000000006', 'AO-006', 'Refrigerante Cola 350ml', 'Refrigerantes', 3.00),
-  ('a1000000-0000-0000-0000-000000000007', 'AO-007', 'Refrigerante Cola 2L', 'Refrigerantes', 8.50),
-  ('a1000000-0000-0000-0000-000000000008', 'AO-008', 'Refrigerante Guaraná 350ml', 'Refrigerantes', 2.80),
-  ('a1000000-0000-0000-0000-000000000009', 'AO-009', 'Refrigerante Guaraná 2L', 'Refrigerantes', 7.90),
-  ('a1000000-0000-0000-0000-000000000010', 'AO-010', 'Água Mineral 500ml', 'Águas', 1.50),
-  ('a1000000-0000-0000-0000-000000000011', 'AO-011', 'Água Mineral 1.5L', 'Águas', 3.20),
-  ('a1000000-0000-0000-0000-000000000012', 'AO-012', 'Energético Power 250ml', 'Energéticos', 6.90),
-  ('a1000000-0000-0000-0000-000000000013', 'AO-013', 'Suco Natural Laranja 1L', 'Sucos', 9.50),
-  ('a1000000-0000-0000-0000-000000000014', 'AO-014', 'Suco Natural Uva 1L', 'Sucos', 10.20),
-  ('a1000000-0000-0000-0000-000000000015', 'AO-015', 'Isotônico Sport 500ml', 'Isotônicos', 5.40);
+INSERT INTO alwayson_produtos (id, sku, descricao, categoria) VALUES
+  ('a1000000-0000-0000-0000-000000000001', 'AO-001', 'Cerveja Premium Lager 350ml', 'Cervejas'),
+  ('a1000000-0000-0000-0000-000000000002', 'AO-002', 'Cerveja Premium Lager 600ml', 'Cervejas'),
+  ('a1000000-0000-0000-0000-000000000003', 'AO-003', 'Cerveja IPA Artesanal 350ml', 'Cervejas'),
+  ('a1000000-0000-0000-0000-000000000004', 'AO-004', 'Cerveja Pilsen Clássica 350ml', 'Cervejas'),
+  ('a1000000-0000-0000-0000-000000000005', 'AO-005', 'Cerveja Pilsen Clássica 1L', 'Cervejas'),
+  ('a1000000-0000-0000-0000-000000000006', 'AO-006', 'Refrigerante Cola 350ml', 'Refrigerantes'),
+  ('a1000000-0000-0000-0000-000000000007', 'AO-007', 'Refrigerante Cola 2L', 'Refrigerantes'),
+  ('a1000000-0000-0000-0000-000000000008', 'AO-008', 'Refrigerante Guaraná 350ml', 'Refrigerantes'),
+  ('a1000000-0000-0000-0000-000000000009', 'AO-009', 'Refrigerante Guaraná 2L', 'Refrigerantes'),
+  ('a1000000-0000-0000-0000-000000000010', 'AO-010', 'Água Mineral 500ml', 'Águas'),
+  ('a1000000-0000-0000-0000-000000000011', 'AO-011', 'Água Mineral 1.5L', 'Águas'),
+  ('a1000000-0000-0000-0000-000000000012', 'AO-012', 'Energético Power 250ml', 'Energéticos'),
+  ('a1000000-0000-0000-0000-000000000013', 'AO-013', 'Suco Natural Laranja 1L', 'Sucos'),
+  ('a1000000-0000-0000-0000-000000000014', 'AO-014', 'Suco Natural Uva 1L', 'Sucos'),
+  ('a1000000-0000-0000-0000-000000000015', 'AO-015', 'Isotônico Sport 500ml', 'Isotônicos');
 
 -- ============================================================
 -- VENDEDORES — Distribuidor 1 (Nordeste Distribuição): hierarquia completa

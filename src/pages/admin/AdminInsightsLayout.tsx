@@ -15,16 +15,16 @@ export function AdminInsightsLayout() {
   return (
     <div className="space-y-4 animate-fade-in">
       <p className="text-xs text-muted-foreground max-w-2xl">
-        Parâmetros globais do módulo Insights: mapeamento de códigos da base territorial para SKUs
-        oficiais e exclusão controlada de clientes da dimensão Insights.
+        Parâmetros globais do módulo Insights: de-para produtos e acompanhamento do cadastro territorial
+        (Receita / BrasilAPI) dos clientes na dimensão Insights.
       </p>
 
       <div className="flex flex-wrap gap-1 border-b border-border/50">
         <NavLink to={`${base}/de-para-produtos`} className={subTabClass}>
           De-para produtos
         </NavLink>
-        <NavLink to={`${base}/excluir-clientes`} className={subTabClass}>
-          Excluir clientes
+        <NavLink to={`${base}/cadastro-clientes`} className={subTabClass}>
+          Cadastro clientes
         </NavLink>
       </div>
 

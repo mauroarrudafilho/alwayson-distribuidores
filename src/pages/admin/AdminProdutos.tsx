@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/table'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCurrency } from '@/lib/format'
 
 export function AdminProdutos() {
   const { data: produtos, isLoading } = useProdutos()
@@ -38,10 +37,13 @@ export function AdminProdutos() {
   }, [produtos])
 
   const filtered = (produtos ?? []).filter((p) => {
+    const q = search.toLowerCase()
     const matchSearch =
       !search ||
-      p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      p.descricao.toLowerCase().includes(search.toLowerCase())
+      p.sku.toLowerCase().includes(q) ||
+      p.descricao.toLowerCase().includes(q) ||
+      (p.marca?.toLowerCase().includes(q) ?? false) ||
+      (p.detalhamento_categoria?.toLowerCase().includes(q) ?? false)
     const matchCategoria =
       categoriaFilter === 'todas' || p.categoria === categoriaFilter
     const matchStatus =
@@ -59,7 +61,7 @@ export function AdminProdutos() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               className="h-8 text-sm pl-8 placeholder:text-muted-foreground"
-              placeholder="SKU ou descrição..."
+              placeholder="SKU, descrição, marca…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -106,8 +108,9 @@ export function AdminProdutos() {
             <TableRow className="hover:bg-transparent">
               <TableHead>SKU</TableHead>
               <TableHead>Descrição</TableHead>
+              <TableHead>Marca</TableHead>
               <TableHead>Categoria</TableHead>
-              <TableHead>Preço Ref.</TableHead>
+              <TableHead>Detalhe cat.</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -122,10 +125,13 @@ export function AdminProdutos() {
                     <Skeleton className="h-4 w-40" />
                   </TableCell>
                   <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                  <TableCell>
                     <Skeleton className="h-4 w-28" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="h-4 w-16" />
@@ -134,7 +140,7 @@ export function AdminProdutos() {
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center">
+                <TableCell colSpan={6} className="py-8 text-center">
                   <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum produto encontrado
@@ -151,12 +157,13 @@ export function AdminProdutos() {
                     {p.descricao}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
+                    {p.marca ?? '-'}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
                     {p.categoria ?? '-'}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums">
-                    {p.preco_referencia != null
-                      ? formatCurrency(p.preco_referencia)
-                      : '-'}
+                  <TableCell className="text-xs text-muted-foreground">
+                    {p.detalhamento_categoria ?? '-'}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={p.ativo ? 'ativo' : 'inativo'} />

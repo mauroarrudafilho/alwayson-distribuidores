@@ -24,7 +24,7 @@ import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
 import { AdminDeParaProdutos } from '@/pages/admin/AdminDeParaProdutos'
 import { AdminInsightsDeParaProdutos } from '@/pages/admin/AdminInsightsDeParaProdutos'
-import { AdminInsightsExcluirClientes } from '@/pages/admin/AdminInsightsExcluirClientes'
+import { AdminInsightsCadastroClientes } from '@/pages/admin/AdminInsightsCadastroClientes'
 import { AdminDistribuidorLayout } from '@/pages/admin/AdminDistribuidorLayout'
 import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
 import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
@@ -93,8 +93,12 @@ function App() {
                         element={<AdminInsightsDeParaProdutos />}
                       />
                       <Route
+                        path="cadastro-clientes"
+                        element={<AdminInsightsCadastroClientes />}
+                      />
+                      <Route
                         path="excluir-clientes"
-                        element={<AdminInsightsExcluirClientes />}
+                        element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
                       />
                     </Route>
                     <Route path="produtos" element={<AdminProdutos />} />
@@ -108,7 +112,7 @@ function App() {
                     />
                     <Route
                       path="excluir-insights-clientes"
-                      element={<Navigate to="/admin/insights/excluir-clientes" replace />}
+                      element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
                     />
                     <Route
                       path="metas"
