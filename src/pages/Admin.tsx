@@ -2,16 +2,18 @@ import { Outlet, Navigate, useLocation, Link } from 'react-router-dom'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 
 const adminTabs = [
-  { path: '/admin/distribuidores', label: 'Distribuidores' },
-  { path: '/admin/de-para-produtos', label: 'De-para produtos' },
-  { path: '/admin/de-para-insights-produtos', label: 'De-para Insights' },
-  { path: '/admin/excluir-insights-clientes', label: 'Excluir cliente Insights' },
-  { path: '/admin/produtos', label: 'Produtos' },
-  { path: '/admin/metas', label: 'Metas' },
-  { path: '/admin/excelencia', label: 'Excelência' },
-  { path: '/admin/usuarios', label: 'Usuários' },
-  { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro' },
+  { path: '/admin/distribuidores', label: 'Distribuidores', prefix: true },
+  { path: '/admin/insights', label: 'Insights', prefix: true },
+  { path: '/admin/produtos', label: 'Produtos', prefix: false },
+  { path: '/admin/excelencia', label: 'Excelência', prefix: false },
+  { path: '/admin/usuarios', label: 'Usuários', prefix: false },
+  { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro', prefix: false },
 ]
+
+function tabActive(pathname: string, path: string, prefix: boolean) {
+  if (prefix) return pathname === path || pathname.startsWith(`${path}/`)
+  return pathname === path
+}
 
 export function Admin() {
   const location = useLocation()
@@ -32,7 +34,7 @@ export function Admin() {
             key={tab.path}
             to={tab.path}
             className={`px-3 py-2 text-sm transition-colors border-b-2 ${
-              location.pathname === tab.path
+              tabActive(location.pathname, tab.path, tab.prefix)
                 ? 'border-primary text-foreground font-medium'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}

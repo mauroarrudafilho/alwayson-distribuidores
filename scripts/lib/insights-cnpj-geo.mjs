@@ -39,41 +39,47 @@ export function normalizeCnpjDigits(raw) {
 async function brasilApiCnpj(digits14) {
   async function tryVer(ver) {
     const url = `https://brasilapi.com.br/api/cnpj/${ver}/${digits14}`
-    /** @type {Response | undefined} */
-    let res
-    for (let att = 0; att < 3; att++) {
-      try {
-        res = await fetch(url, {
-          headers: { Accept: 'application/json', 'User-Agent': INSIGHTS_GEO_UA },
-        })
-        break
-      } catch {
-        if (att === 2) return { ok: false, reason: `fetch_erro_${ver}` }
-        await sleep(450 * Math.pow(2, att))
+    for (let r429 = 0; ; r429++) {
+      /** @type {Response | undefined} */
+      let res
+      for (let att = 0; att < 3; att++) {
+        try {
+          res = await fetch(url, {
+            headers: { Accept: 'application/json', 'User-Agent': INSIGHTS_GEO_UA },
+          })
+          break
+        } catch {
+          if (att === 2) return { ok: false, reason: `fetch_erro_${ver}` }
+          await sleep(450 * Math.pow(2, att))
+        }
       }
-    }
-    if (!res) return { ok: false, reason: `fetch_erro_${ver}` }
-    const text = await res.text()
-    /** @type {Record<string, unknown> | null} */
-    let j = null
-    const trimmed = text.trimStart()
-    if (trimmed.startsWith('{')) {
-      try {
-        j = JSON.parse(text)
-      } catch {
-        j = null
+      if (!res) return { ok: false, reason: `fetch_erro_${ver}` }
+      const text = await res.text()
+      /** @type {Record<string, unknown> | null} */
+      let j = null
+      const trimmed = text.trimStart()
+      if (trimmed.startsWith('{')) {
+        try {
+          j = JSON.parse(text)
+        } catch {
+          j = null
+        }
       }
-    }
-    const errName = typeof j?.name === 'string' ? j.name : ''
-    const errType = typeof j?.type === 'string' ? j.type : ''
+      const errName = typeof j?.name === 'string' ? j.name : ''
+      const errType = typeof j?.type === 'string' ? j.type : ''
 
-    if (!res.ok) {
+      if (res.ok) {
+        if (!j || typeof j !== 'object') return { ok: false, reason: `${ver}_resposta_sem_json` }
+        return { ok: true, data: j }
+      }
+      if (res.status === 429 && r429 < 7) {
+        await sleep(Math.min(45_000, 2500 * Math.pow(2, Math.min(r429, 5))))
+        continue
+      }
       if (j && (errType === 'BadRequestError' || errName === 'BadRequestError'))
         return { ok: false, reason: `${ver}_cnpj_invalido` }
       return { ok: false, reason: `http_${res.status}_${ver}` }
     }
-    if (!j || typeof j !== 'object') return { ok: false, reason: `${ver}_resposta_sem_json` }
-    return { ok: true, data: j }
   }
 
   const v1 = await tryVer('v1')
@@ -264,11 +270,11 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
 /**
  * Mapa CNPJ14 → resultado (deduplica lista de entrada).
  * @param {string[]} cnpjList
- * @param {{ useNominatim?: boolean, onProgress?: (cur: number, total: number, digits: string) => void }} [options]
+ * @param {{ useNominatim?: boolean, brasilDelayMs?: number, onProgress?: (cur: number, total: number, digits: string) => void }} [options]
  * @returns {Promise<Map<string, EnrichGeoResult>>}
  */
 export async function enrichInsightsCnpjBatch(cnpjList, options = {}) {
-  const { useNominatim = false, onProgress } = options
+  const { useNominatim = false, brasilDelayMs = 350, onProgress } = options
   const unique = [
     ...new Set(cnpjList.map((c) => normalizeCnpjDigits(c)).filter((d) => d.length === 14)),
   ]
@@ -276,7 +282,7 @@ export async function enrichInsightsCnpjBatch(cnpjList, options = {}) {
   const map = new Map()
   for (let i = 0; i < unique.length; i++) {
     const digits = unique[i]
-    const r = await enrichCnpjGeo(digits, { useNominatim })
+    const r = await enrichCnpjGeo(digits, { useNominatim, brasilDelayMs })
     map.set(digits, r)
     onProgress?.(i + 1, unique.length, digits)
   }

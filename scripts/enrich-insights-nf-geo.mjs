@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 
 import { enrichCnpjGeo, normalizeCnpjDigits } from './lib/insights-cnpj-geo.mjs'
+import { brasilReasonToStatus, CLIENTE_BRASIL_STATUS } from './lib/insights-cliente-dimension.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -85,30 +86,42 @@ Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
   return { uploadId, lastUpload, dryRun, noNominatim, cnpjs }
 }
 
-async function aplicarCliente(sb, r, brOk, dryRun) {
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} sb
+ * @param {string} cnpj
+ * @param {{ ok: boolean, reason?: string, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, cadastro_ativo?: boolean, descricao_situacao_cadastral?: string|null }} geo
+ * @param {boolean} dryRun
+ */
+async function aplicarCliente(sb, cnpj, geo, dryRun) {
   if (dryRun) return
   const nowIso = new Date().toISOString()
-  const digits = normalizeCnpjDigits(r.cnpj)
+  const digits = normalizeCnpjDigits(cnpj)
   if (digits.length !== 14) return
-  if (!brOk) {
+  if (!geo.ok) {
     const { error: eU } = await sb
       .from('alwayson_insights_clientes')
       .update({
         brasil_api_ultima_tentativa_em: nowIso,
-        brasil_api_ultimo_motivo: r._err != null ? String(r._err) : 'desconhecido',
+        brasil_api_ultimo_motivo: geo.reason != null ? String(geo.reason) : 'desconhecido',
+        brasil_enriquecimento_status: brasilReasonToStatus(geo.reason),
+        cadastro_ativo: null,
+        descricao_situacao_cadastral: null,
       })
       .eq('cnpj_14', digits)
     if (eU) console.error('\nUpdate cliente (erro API) falhou', digits, eU.message)
     return
   }
   const patch = {
-    cidade: r.cidade,
-    estado: r.estado,
-    lat: r.lat,
-    lng: r.lng,
-    geo_enriquecido_em: r.geo_ts,
+    cidade: geo.cidade,
+    estado: geo.estado,
+    lat: geo.lat,
+    lng: geo.lng,
+    geo_enriquecido_em: geo.geoTs,
     brasil_api_ultima_tentativa_em: nowIso,
     brasil_api_ultimo_motivo: null,
+    cadastro_ativo: geo.cadastro_ativo === true ? true : geo.cadastro_ativo === false ? false : null,
+    descricao_situacao_cadastral: geo.descricao_situacao_cadastral ?? null,
+    brasil_enriquecimento_status: CLIENTE_BRASIL_STATUS.READY,
   }
   const { error: eU } = await sb.from('alwayson_insights_clientes').update(patch).eq('cnpj_14', digits)
   if (eU) console.error('\nUpdate cliente falhou', digits, eU.message)
@@ -210,7 +223,12 @@ async function main() {
         geo_ts: null,
         _err: r.reason,
       })
-      await aplicarCliente(sb, { cnpj, _err: r.reason }, false, dryRun)
+      await aplicarCliente(
+        sb,
+        cnpj,
+        { ok: false, reason: r.reason },
+        dryRun
+      )
       continue
     }
 
@@ -223,7 +241,21 @@ async function main() {
       geo_ts: r.geoTs,
     }
     results.push(row)
-    await aplicarCliente(sb, row, true, dryRun)
+    await aplicarCliente(
+      sb,
+      cnpj,
+      {
+        ok: true,
+        cidade: r.cidade,
+        estado: r.estado,
+        lat: r.lat,
+        lng: r.lng,
+        geoTs: r.geoTs,
+        cadastro_ativo: r.cadastro_ativo,
+        descricao_situacao_cadastral: r.descricao_situacao_cadastral,
+      },
+      dryRun
+    )
   }
   console.log('\n')
 

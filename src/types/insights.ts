@@ -85,6 +85,14 @@ export interface InsightsCidadeRow {
   unidade_predominante?: string
 }
 
+/** Snapshot BrasilAPI / Receita na dimensão cliente (migrate 021). */
+export type InsightsClienteBrasilStatus =
+  | 'pending'
+  | 'processing'
+  | 'ready'
+  | 'not_found'
+  | 'error'
+
 /** Top cliente dentro de uma cidade ou geral. */
 export interface InsightsTopCliente {
   cnpj_cliente: string
@@ -96,6 +104,7 @@ export interface InsightsTopCliente {
   total_nfs: number
   ultima_compra: string
   total_skus: number
+  brasil_enriquecimento_status?: InsightsClienteBrasilStatus
 }
 
 /** Histórico mensal de um cliente — evolução ao longo do tempo. */

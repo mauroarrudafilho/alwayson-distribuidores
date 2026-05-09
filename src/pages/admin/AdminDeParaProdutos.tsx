@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowRight, Download, Loader2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
@@ -54,8 +54,13 @@ function dedupeRows(
 
 export function AdminDeParaProdutos() {
   const fileRef = useRef<HTMLInputElement>(null)
+  const { distribuidorId: routeDistribuidorId } = useParams<{ distribuidorId?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
-  const did = searchParams.get('distribuidor') ?? ''
+  const did =
+    (routeDistribuidorId && routeDistribuidorId.length > 0
+      ? routeDistribuidorId
+      : searchParams.get('distribuidor')) ?? ''
+  const scopedToRoute = Boolean(routeDistribuidorId)
   const [fileName, setFileName] = useState<string | null>(null)
   const [preview, setPreview] = useState<
     Array<{ codigo_cliente: string; sku_fornecedor: string }>
@@ -79,6 +84,7 @@ export function AdminDeParaProdutos() {
   }, [produtos])
 
   const onDistribChange = (id: string) => {
+    if (scopedToRoute) return
     if (id) setSearchParams({ distribuidor: id })
     else setSearchParams({})
   }
@@ -141,31 +147,35 @@ export function AdminDeParaProdutos() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="De-para de produtos (por distribuidor)"
-        description="Associe o código de produto que o distribuidor usa em relatórios e metas ao SKU oficial do fornecedor (base cadastrogeral / alwayson_produtos)."
-      />
+      {!scopedToRoute && (
+        <PageHeader
+          title="De-para de produtos (por distribuidor)"
+          description="Associe o código de produto que o distribuidor usa em relatórios e metas ao SKU oficial do fornecedor (base alwayson_produtos)."
+        />
+      )}
 
-      <FilterBar>
-        <FilterField label="Distribuidor">
-          <Select
-            value={did || undefined}
-            onValueChange={(v) => onDistribChange(v ?? '')}
-            disabled={loadingDist}
-          >
-            <SelectTrigger className="h-8 text-sm w-[min(100%,280px)]">
-              <SelectValue placeholder="Selecione o distribuidor" />
-            </SelectTrigger>
-            <SelectContent>
-              {(distribuidores ?? []).map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-      </FilterBar>
+      {!scopedToRoute && (
+        <FilterBar>
+          <FilterField label="Distribuidor">
+            <Select
+              value={did || undefined}
+              onValueChange={(v) => onDistribChange(v ?? '')}
+              disabled={loadingDist}
+            >
+              <SelectTrigger className="h-8 text-sm w-[min(100%,280px)]">
+                <SelectValue placeholder="Selecione o distribuidor" />
+              </SelectTrigger>
+              <SelectContent>
+                {(distribuidores ?? []).map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FilterBar>
+      )}
 
       <Card>
         <CardContent className="p-4 space-y-4">
@@ -312,10 +322,26 @@ export function AdminDeParaProdutos() {
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        Voltar para{' '}
-        <Link to="/admin/distribuidores" className="text-primary underline-offset-2 hover:underline">
-          Distribuidores
-        </Link>
+        {scopedToRoute ? (
+          <>
+            <Link
+              to={`/admin/distribuidores/${routeDistribuidorId}`}
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Voltar ao resumo do distribuidor
+            </Link>
+          </>
+        ) : (
+          <>
+            Voltar para{' '}
+            <Link
+              to="/admin/distribuidores"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Distribuidores
+            </Link>
+          </>
+        )}
       </p>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Target } from 'lucide-react'
+import { useParams } from 'react-router-dom'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useMetas } from '@/hooks/useMetas'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
@@ -50,15 +51,19 @@ function AtingimentoCell({ percentual }: { percentual: number }) {
 }
 
 export function AdminMetas() {
+  const { distribuidorId: routeDistribuidorId } = useParams<{ distribuidorId?: string }>()
+  const scoped = Boolean(routeDistribuidorId)
   const { data: metas, isLoading } = useMetas()
   const { data: distribuidores } = useDistribuidores()
   const [distribuidorFilter, setDistribuidorFilter] = useState<string>('todos')
   const [hierarquiaFilter, setHierarquiaFilter] = useState<string>('todos')
   const [tipoFilter, setTipoFilter] = useState<string>('todos')
 
+  const effectiveDistFilter = scoped ? routeDistribuidorId! : distribuidorFilter
+
   const filtered = (metas ?? []).filter((m) => {
     const matchDist =
-      distribuidorFilter === 'todos' || m.distribuidor_id === distribuidorFilter
+      effectiveDistFilter === 'todos' || m.distribuidor_id === effectiveDistFilter
     const matchHier =
       hierarquiaFilter === 'todos' || m.hierarquia === hierarquiaFilter
     const matchTipo = tipoFilter === 'todos' || m.tipo === tipoFilter
@@ -68,24 +73,26 @@ export function AdminMetas() {
   return (
     <div>
       <FilterBar>
-        <FilterField label="Distribuidor">
-          <Select
-            value={distribuidorFilter}
-            onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}
-          >
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              {(distribuidores ?? []).map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
+        {!scoped && (
+          <FilterField label="Distribuidor">
+            <Select
+              value={distribuidorFilter}
+              onValueChange={(v) => setDistribuidorFilter(v ?? 'todos')}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {(distribuidores ?? []).map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        )}
         <FilterField label="Hierarquia">
           <Select
             value={hierarquiaFilter}
@@ -126,7 +133,7 @@ export function AdminMetas() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Distribuidor</TableHead>
+              {!scoped && <TableHead>Distribuidor</TableHead>}
               <TableHead>Responsável</TableHead>
               <TableHead>Hierarquia</TableHead>
               <TableHead>Tipo</TableHead>
@@ -140,7 +147,7 @@ export function AdminMetas() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
+                  {Array.from({ length: scoped ? 7 : 8 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-24" />
                     </TableCell>
@@ -149,7 +156,7 @@ export function AdminMetas() {
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center">
+                <TableCell colSpan={scoped ? 7 : 8} className="py-8 text-center">
                   <Target className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhuma meta encontrada
@@ -159,9 +166,11 @@ export function AdminMetas() {
             ) : (
               filtered.map((m) => (
                 <TableRow key={m.id}>
-                  <TableCell className="text-xs font-medium">
-                    {m.alwayson_distribuidores?.nome ?? '—'}
-                  </TableCell>
+                  {!scoped && (
+                    <TableCell className="text-xs font-medium">
+                      {m.alwayson_distribuidores?.nome ?? '—'}
+                    </TableCell>
+                  )}
                   <TableCell className="text-xs text-muted-foreground">
                     {m.alwayson_vendedores_distribuidor?.nome ?? '—'}
                   </TableCell>
