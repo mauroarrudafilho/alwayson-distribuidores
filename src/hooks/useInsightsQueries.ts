@@ -7,6 +7,7 @@ import type {
   InsightsCidadeRow,
   InsightsProdutoDetalhe,
   InsightsProdutoRow,
+  InsightsResumoGlobal,
   InsightsTopCliente,
   InsightsUpload,
 } from '@/types/insights'
@@ -58,6 +59,8 @@ export function insightsCnpjKey(raw: string | null | undefined): string {
 export type InsightsBootstrap = {
   cidades: InsightsCidadeRow[]
   clientes: InsightsTopCliente[]
+  /** Soma oficial em `nf_itens` e contagens físicas na base (para bater com a planilha). */
+  resumoGlobal: InsightsResumoGlobal | null
   kpiGeral: {
     faturamento_total: number
     total_cidades: number
@@ -73,7 +76,7 @@ export function useInsightsBootstrap() {
     queryKey: ['insights', 'bootstrap'],
     staleTime: 60_000,
     queryFn: async (): Promise<InsightsBootstrap> => {
-      const [cidadesRes, clientesRes, uploadsRes, skuHeadRes] = await Promise.all([
+      const [cidadesRes, clientesRes, uploadsRes, skuHeadRes, resumoGlobalRes] = await Promise.all([
         supabase
           .from('alwayson_insights_v_cidades')
           .select('*')
@@ -85,7 +88,25 @@ export function useInsightsBootstrap() {
           .eq('status', 'concluido')
           .order('criado_em', { ascending: false }),
         supabase.from('alwayson_insights_v_produtos').select('sku', { count: 'exact', head: true }),
+        supabase.from('alwayson_insights_v_resumo_global').select('*').maybeSingle(),
       ])
+
+      /** View 024 opcional até migration aplicada no projeto */
+      let resumoGlobal: InsightsResumoGlobal | null = null
+      if (
+        !resumoGlobalRes.error &&
+        resumoGlobalRes.data &&
+        typeof resumoGlobalRes.data === 'object'
+      ) {
+        const rg = resumoGlobalRes.data as Record<string, unknown>
+        resumoGlobal = {
+          total_nfs: Math.trunc(Number(rg.total_nfs)) || 0,
+          total_linhas_itens: Math.trunc(Number(rg.total_linhas_itens)) || 0,
+          total_cnps_com_nf: Math.trunc(Number(rg.total_cnps_com_nf)) || 0,
+          total_cnps_dimensao: Math.trunc(Number(rg.total_cnps_dimensao)) || 0,
+          faturamento_soma_linhas_itens: n(rg.faturamento_soma_linhas_itens),
+        }
+      }
 
       const miss =
         [cidadesRes.error, clientesRes.error].find((e) =>
@@ -142,15 +163,22 @@ export function useInsightsBootstrap() {
       const uploads = (uploadsRes.data ?? []) as InsightsUpload[]
       const periodo = periodoLabelFromUploads(uploads)
 
-      const faturamento_total = cidades.reduce((s, c) => s + c.faturamento_total, 0)
+      const faturamentoSomadoCidades = cidades.reduce((s, c) => s + c.faturamento_total, 0)
+      const total_nfsSomadoCidades = cidades.reduce((s, c) => s + c.total_nfs, 0)
+
+      /** View 024: totais físicos na base — evita depender só da soma das linhas da view cidades (ex.: paginação). */
+      const faturamento_total =
+        resumoGlobal?.faturamento_soma_linhas_itens ?? faturamentoSomadoCidades
+      const total_nfs = resumoGlobal?.total_nfs ?? total_nfsSomadoCidades
+      const total_clientes = resumoGlobal?.total_cnps_com_nf ?? clientes.length
+
       const total_cidades = cidades.length
-      const total_clientes = clientes.length
-      const total_nfs = cidades.reduce((s, c) => s + c.total_nfs, 0)
       const total_skus = skuHeadRes.count ?? 0
 
       return {
         cidades,
         clientes,
+        resumoGlobal,
         kpiGeral: {
           faturamento_total,
           total_cidades,

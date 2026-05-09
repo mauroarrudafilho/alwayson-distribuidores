@@ -85,7 +85,7 @@ export function AdminDistribuidorResumo() {
                 )}
               >
                 <Link2 className="w-3.5 h-3.5" />
-                De-para produtos
+                Correlação de Produtos
               </Link>
               <Link
                 to={`${base}/metas`}

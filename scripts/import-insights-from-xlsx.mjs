@@ -16,22 +16,28 @@
  *   --periodo-inicio YYYY-MM-DD  (default: menor data_venda do arquivo válido)
  *   --periodo-fim YYYY-MM-DD      (default: maior data_venda)
  *   --batch-nfs 80                NF inseridas por request (PostgREST)
- *   --no-geo                      Não grava cidade/UF/lat da BrasilAPI na dimensão cliente. Se a política
- *                                 padrão (só CNPJ ATIVO) estiver ativa, a BrasilAPI ainda é consultada
- *                                 para filtrar. Import sem rede: --no-geo --permitir-cnpj-inativo
+ *   --no-geo                      Não grava cidade/UF/lat da BrasilAPI na dimensão cliente (situação
+ *                                 cadastral ainda é atualizada quando a BrasilAPI roda).
+ *   --skip-brasil-api             Sem chamadas à BrasilAPI (import totalmente offline; dimensão cliente
+ *                                 fica pending — use "Reprocessar pendentes" ou script de pendentes).
+ *                                 Não usar com --somente-cnpj-ativos.
  *   --geo-nominatim               Além de cidade/UF, busca lat/lng (bem mais lento)
  *
  * Política de CNPJ (Receita Federal via BrasilAPI):
- *   Por padrão, apenas CNPJs com situação cadastral ATIVA entram no lote.
- *   CNPJs com outra situação (ex.: BAIXADA) são excluídos antes de criar o upload.
- *   Para importar também inativos/baixados: --permitir-cnpj-inativo
+ *   Por padrão todos os grupos CNPJ×NF válidos são gravados; a BrasilAPI consulta cada CNPJ (ou usa cache)
+ *   para preencher cadastro_ativo / situação na dimensão alwayson_insights_clientes.
+ *   Para o comportamento legado (excluir não-ATIVOS antes de criar NF/item): --somente-cnpj-ativos
+ *   --permitir-cnpj-inativo       Explícito: mesmo que o padrão (gravar inativos); mantido por compatibilidade com scripts antigos.
  *
  *   --cnpj-list caminho.txt       Restringe o import aos CNPJs listados (14 dígitos, um por linha; # comenta).
  *
+ *   --apenas-grupos-ausentes       Só insere pares CNPJ×numero_nf que ainda não existem em alwayson_insights_nf
+ *                                 (qualquer upload). Credenciais Supabase obrigatórias também com --dry-run.
+ *                                 Novo registro em alwayson_insights_uploads; dimensão cliente: upsert habitual.
+ *
  * data_venda (obrigatório tipo Data no Excel):
- *   Por padrão, em toda linha de venda válida a célula deve ser formato Data (o xlsx entrega JavaScript Date).
- *   Número serial, texto "31/03/2022" ou ISO em texto são rejeitados — evita divergência de calendário na leitura.
- *   Planilhas antigas: --permitir-data-serial-texto
+ *   Em toda linha de venda válida a célula deve estar como formato Data (o xlsx entrega JavaScript Date).
+ *   Número serial, texto de data ou ISO em texto fazem o import abortar — corrigir no Excel antes de voltar a importar.
  *
  * Linhas com CNPJ inválido / 0 / consumidor final (14 zeros) são descartadas
  * — mesma política que src/lib/insightsCnpj.ts
@@ -129,18 +135,6 @@ function normalizeHeader(h) {
     .replace(/\s+/g, '_')
 }
 
-/** Excel serial 1900 (Windows, planilhas GA típicas) → YYYY-MM-DD (calendário UTC do serial, sem deslocar mês). */
-function excelSerialToIso(serial) {
-  const epochUtc = Date.UTC(1899, 11, 31)
-  const ms = epochUtc + Math.round(serial) * 86400000
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return null
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
 /** Data “de planilha” (cellDates / fuso local) → ISO civil local — evita trocar mês que `toISOString()` UTC causa. */
 function dateObjToIsoLocal(d) {
   const y = d.getFullYear()
@@ -149,19 +143,9 @@ function dateObjToIsoLocal(d) {
   return `${y}-${m}-${day}`
 }
 
-/** @returns {string | null} YYYY-MM-DD */
+/** Só aceita Date de célula Excel (validação prévia em `validarDataVendaFormatoExcel`). @returns {string | null} YYYY-MM-DD */
 function parseDataVenda(raw) {
   if (raw instanceof Date && !Number.isNaN(+raw)) return dateObjToIsoLocal(raw)
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 20000 && raw < 100000)
-    return excelSerialToIso(raw)
-  const s = raw != null ? String(raw).trim() : ''
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s)
-  if (m) {
-    const dd = m[1].padStart(2, '0')
-    const mm = m[2].padStart(2, '0')
-    return `${m[3]}-${mm}-${dd}`
-  }
   return null
 }
 
@@ -176,12 +160,11 @@ function descricaoCelulaData(raw) {
 
 /**
  * Linhas de venda = mesmos critérios do loop principal antes de gravar grupo.
+ * data_venda tem de ser instanceof Date válido (célula formato Data no Excel).
  * @param {unknown[][]} rows
  * @param {Record<string, number>} ix
- * @param {boolean} exigir Se true, data_venda tem de ser instanceof Date válido.
  */
-function validarDataVendaFormatoExcel(rows, ix, exigir) {
-  if (!exigir) return
+function validarDataVendaFormatoExcel(rows, ix) {
   /** @type {{ planilhaLinha: number, recebido: string }[]} */
   const bad = []
   for (let r = 1; r < rows.length; r++) {
@@ -204,8 +187,8 @@ function validarDataVendaFormatoExcel(rows, ix, exigir) {
       '(leitura com Date de JavaScript; use Formatar células → Data no arquivo).'
   )
   console.error(
-    'Valores como número serial puro, texto de data ou ISO em texto são rejeitados por padrão. ' +
-      'Para planilhas legadas: --permitir-data-serial-texto'
+    'Valores como número serial, texto de data ou ISO em texto não são aceites — ' +
+      'altere a coluna no Excel para o tipo Data (Formatar células) e volte a importar.'
   )
   const max = 25
   for (const b of bad.slice(0, max)) {
@@ -246,8 +229,10 @@ function parseArgs(argv) {
   let geoImport = true
   let geoNominatim = false
   let cnpjListFile = ''
-  let somenteCnpjAtivos = true
-  let exigirDataVendaCelulaExcel = true
+  /** Se true, grupos com CNPJ não-ATIVO (Receita) ou falha BrasilAPI são dropados antes do insert. */
+  let somenteCnpjAtivos = false
+  let skipBrasilApi = false
+  let apenasGruposAusentes = false
 
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -274,17 +259,28 @@ function parseArgs(argv) {
       case '--no-geo':
         geoImport = false
         break
+      case '--skip-brasil-api':
+        skipBrasilApi = true
+        break
       case '--geo-nominatim':
         geoNominatim = true
         break
       case '--cnpj-list':
         cnpjListFile = path.resolve(next?.() ?? '')
         break
+      case '--somente-cnpj-ativos':
+        somenteCnpjAtivos = true
+        break
       case '--permitir-cnpj-inativo':
         somenteCnpjAtivos = false
         break
       case '--permitir-data-serial-texto':
-        exigirDataVendaCelulaExcel = false
+        console.error(
+          'Removido: --permitir-data-serial-texto. Formate a coluna data_venda como Data no Excel (não serial nem texto).'
+        )
+        process.exit(1)
+      case '--apenas-grupos-ausentes':
+        apenasGruposAusentes = true
         break
       case '--help':
       case '-h':
@@ -296,10 +292,11 @@ Uso:
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nfs N
-        --no-geo  --geo-nominatim
+        --no-geo  --skip-brasil-api  --geo-nominatim
         --cnpj-list caminho.txt
-        --permitir-cnpj-inativo   (importa CNPJs com situação != ATIVA na Receita)
-        --permitir-data-serial-texto (aceita data_venda como serial numérico ou texto; desliga exigência de célula Data)
+        --somente-cnpj-ativos     (legado: não grava grupos se CNPJ não estiver ATIVO na Receita)
+        --permitir-cnpj-inativo   (equivale ao padrão atual; só documentação / scripts antigos)
+        --apenas-grupos-ausentes      (só grava CNPJ×NF que ainda não existem na base — requer env)
 `)
         process.exit(0)
       default:
@@ -318,7 +315,8 @@ Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nf
     geoNominatim,
     cnpjListFile,
     somenteCnpjAtivos,
-    exigirDataVendaCelulaExcel,
+    skipBrasilApi,
+    apenasGruposAusentes,
   }
 }
 
@@ -379,6 +377,39 @@ async function fetchInsightsClientesMap(sb, cnpjs) {
   return m
 }
 
+/**
+ * Chave alinhada ao Map de grupos no import: cnpj14|numero_nf (NF como texto trimado no Excel).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} sb
+ * @param {string[]} cnpjs14
+ */
+async function fetchExistingNfKeysForCnpjs(sb, cnpjs14) {
+  /** @type {Set<string>} */
+  const keys = new Set()
+  const uniqCnpj = [...new Set(cnpjs14.filter((c) => c.length === 14))]
+  for (const part of chunks(uniqCnpj, 80)) {
+    let offset = 0
+    const pageSize = 1000
+    for (;;) {
+      const { data, error } = await sb
+        .from('alwayson_insights_nf')
+        .select('cnpj_cliente, numero_nf')
+        .in('cnpj_cliente', part)
+        .range(offset, offset + pageSize - 1)
+      if (error) throw new Error(`Leitura NFs existentes (--apenas-grupos-ausentes): ${error.message}`)
+      const rows = data ?? []
+      for (const r of rows) {
+        const c = String(r.cnpj_cliente ?? '')
+        const n = String(r.numero_nf ?? '').trim()
+        if (c.length === 14 && n) keys.add(`${c}|${n}`)
+      }
+      if (rows.length < pageSize) break
+      offset += pageSize
+    }
+  }
+  return keys
+}
+
 async function main() {
   const {
     file,
@@ -391,8 +422,16 @@ async function main() {
     geoNominatim,
     cnpjListFile,
     somenteCnpjAtivos,
-    exigirDataVendaCelulaExcel,
+    skipBrasilApi,
+    apenasGruposAusentes,
   } = parseArgs(process.argv)
+
+  if (!dryRun && somenteCnpjAtivos && skipBrasilApi) {
+    console.error(
+      'Incompatível: --somente-cnpj-ativos depende da BrasilAPI. Remova --skip-brasil-api ou desative --somente-cnpj-ativos.'
+    )
+    process.exit(1)
+  }
 
   if (!file || !nome) {
     console.error('Obrigatório: --file <xlsx> e --nome "...". Use --help.')
@@ -410,9 +449,11 @@ async function main() {
   const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
   const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!dryRun && (!SUPABASE_URL || !SERVICE)) {
+  if ((!dryRun || apenasGruposAusentes) && (!SUPABASE_URL || !SERVICE)) {
     console.error(
-      'Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (ou .env.local). --dry-run para só validar o arquivo.'
+      apenasGruposAusentes
+        ? 'Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (--apenas-grupos-ausentes consulta a base mesmo com --dry-run).'
+        : 'Defina SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (ou .env.local). --dry-run para só validar o arquivo.'
     )
     process.exit(1)
   }
@@ -478,7 +519,7 @@ async function main() {
     process.exit(1)
   }
 
-  validarDataVendaFormatoExcel(rows, ix, exigirDataVendaCelulaExcel)
+  validarDataVendaFormatoExcel(rows, ix)
 
   /** @type {Map<string, { numero_nf: string, cnpj14: string, dataIso: string, header: Record<string, string|null>, items: any[]}>} */
   const groups = new Map()
@@ -564,35 +605,56 @@ async function main() {
     }
   }
 
+  if (apenasGruposAusentes) {
+    const uniqForPeek = [...new Set(groupList.map((g) => g.cnpj14))]
+    const sbPeek = createClient(SUPABASE_URL.replace(/\/$/, ''), SERVICE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    const existingKeys = await fetchExistingNfKeysForCnpjs(sbPeek, uniqForPeek)
+    const before = groupList.length
+    groupList = groupList.filter((g) => !existingKeys.has(`${g.cnpj14}|${g.numero_nf}`))
+    console.log(
+      `--apenas-grupos-ausentes: ${groupList.length} grupo(s) novo(s); ${before - groupList.length} grupo(s) do ficheiro ignorados (já em alwayson_insights_nf como mesmo CNPJ×número NF).`
+    )
+    if (!groupList.length) {
+      console.log('Nada a importar — todas as NFs do ficheiro já existem (mesmo CNPJ×número NF).')
+      process.exit(0)
+    }
+  }
+
   let { sumItems, range } = recomputeItemRange(groupList)
   let uniq = [...new Set(groupList.map((g) => g.cnpj14))]
 
   /** @type {Map<string, { ok: boolean, cidade?: string|null, estado?: string|null, lat?: number|null, lng?: number|null, geoTs?: string|null, reason?: string, cadastro_ativo?: boolean, descricao_situacao_cadastral?: string|null }>} */
   let geoByCnpj = new Map()
 
-  const precisaBrasilApi = Boolean(!dryRun && (geoImport || somenteCnpjAtivos))
+  const precisaBrasilApi = Boolean(!dryRun && !skipBrasilApi)
 
   /** CNPJs para os quais houve chamada BrasilAPI nesta execução (não cache). */
   const brasilApiAttempted = new Set()
 
-  if (dryRun && (geoImport || somenteCnpjAtivos)) {
+  if (dryRun && !skipBrasilApi) {
     console.warn(
-      'Dry-run: BrasilAPI e filtro de situação ATIVA não rodam; as contagens são só do Excel (e do --cnpj-list, se houver). Rode sem --dry-run para o lote final.'
+      'Dry-run: BrasilAPI não roda; situação Receita/geo não são simuladas. Contagens só do Excel (e --cnpj-list). Rode sem --dry-run para enriquecer e gravar.'
     )
   }
 
-  if (!geoImport && somenteCnpjAtivos && !dryRun) {
+  if (!dryRun && skipBrasilApi) {
     console.log(
-      'Nota: --no-geo só desativa gravação de cidade/UF na dimensão cliente; a BrasilAPI ainda é consultada para manter apenas CNPJs ATIVOS. Sem rede: acrescente --permitir-cnpj-inativo.'
+      'Nota: --skip-brasil-api — dimensão cliente não recebe snapshot Receita nesta execição; use worker de pendentes depois.'
+    )
+  } else if (!dryRun && !geoImport) {
+    console.log(
+      'Nota: --no-geo — cidade/UF/lat não são atualizadas a partir da BrasilAPI nesta rodada; situação cadastral (cadastro_ativo) ainda é preenchida.'
     )
   }
   if (precisaBrasilApi) {
     const modo =
       geoImport && somenteCnpjAtivos
-        ? 'BrasilAPI (geo na dimensão cliente + filtro situação ATIVA)'
+        ? 'BrasilAPI (geo + filtro opcional só-CNPJ-ATIVOS antes da gravação)'
         : geoImport
-          ? 'BrasilAPI (dimensão cliente)'
-          : 'BrasilAPI (apenas filtro situação ATIVA; sem atualizar cliente com --no-geo)'
+          ? 'BrasilAPI (geo + situação cadastral na dimensão cliente)'
+          : 'BrasilAPI (situação cadastral; sem atualizar cidade/UF com --no-geo)'
 
     const sbCache = createClient(SUPABASE_URL.replace(/\/$/, ''), SERVICE, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -662,12 +724,12 @@ async function main() {
     groupList = groupList.filter((g) => !excluded.has(g.cnpj14))
     if (excluded.size) {
       console.log(
-        `Filtro situação ATIVA: ${groupList.length} grupo(s) restante(s) (removidos ${beforeG - groupList.length} grupo(s); ${excluded.size} CNPJ(s) bloqueado(s)).`
+        `Filtro --somente-cnpj-ativos: ${groupList.length} grupo(s) restante(s) (removidos ${beforeG - groupList.length} grupo(s); ${excluded.size} CNPJ(s) bloqueado(s)).`
       )
     }
     if (!groupList.length) {
       console.error(
-        'Nenhum grupo restante após exigir CNPJ ATIVO na Receita. Use --permitir-cnpj-inativo para incluir baixados/outros.'
+        'Nenhum grupo restante após --somente-cnpj-ativos (situação ATIVA + BrasilAPI OK). Remova essa flag para gravar mesmo CNPJs inativos.'
       )
       process.exit(1)
     }
@@ -689,8 +751,10 @@ Linhas dados (exc. cabeçalho): ${totalRows}
 Grupos CNPJ×NF (após filtros): ${groupList.length}  |  Linhas NF descartadas (CNPJ inválido): ${skippedCnpj}
 Linhas-itens graváveis (soma nos grupos): ${sumItems}
 Período: ${periodo_inicio} … ${periodo_fim}
-Política Receita: ${somenteCnpjAtivos ? 'apenas CNPJ com situação ATIVA' : '--permitir-cnpj-inativo (todas as situações)'}
-data_venda: ${exigirDataVendaCelulaExcel ? 'célula formato Data no Excel obrigatório' : 'legado (--permitir-data-serial-texto)'}
+BrasilAPI: ${skipBrasilApi ? '--skip-brasil-api (enriquecimento adiado)' : 'consulta/cache por CNPJ do lote'}
+Gravação NF: ${somenteCnpjAtivos ? '--somente-cnpj-ativos (só grupos ATIVO/OK API)' : 'padrão — todos os grupos válidos do Excel'}
+Incremental: ${apenasGruposAusentes ? 'SIM (--apenas-grupos-ausentes: só NF que ainda não existem)' : 'não'}
+data_venda: células no formato Data no Excel (obrigatório)
 `)
 
   if (dryRun) {

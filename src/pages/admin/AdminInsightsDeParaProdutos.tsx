@@ -123,7 +123,7 @@ export function AdminInsightsDeParaProdutos() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="De-para Insights → fábrica"
+        title="Correlação de Produtos (Insights → fábrica)"
         description="Mapa único AlwaysOn: código da base territorial (tipicamente coluna codprod_fornecedor no export GA) para o SKU oficial em alwayson_produtos. Usado para comparativos territorial vs cadastro Vinícola."
       />
 
@@ -240,7 +240,7 @@ export function AdminInsightsDeParaProdutos() {
             <Skeleton className="h-32 w-full mt-2" />
           ) : !existentes || existentes.length === 0 ? (
             <p className="text-xs text-muted-foreground py-6 text-center">
-              Nenhum de-para Insights ainda — importe pelo upload acima ou aplique a migration{' '}
+              Ainda não há correlação de produtos Insights — importe pelo upload acima ou aplique a migration{' '}
               <code className="text-foreground">011_insights_produto_de_para.sql</code> no Supabase.
             </p>
           ) : (
@@ -276,7 +276,7 @@ export function AdminInsightsDeParaProdutos() {
             to="/admin/distribuidores"
             className="text-primary underline-offset-2 hover:underline"
           >
-            De-para por distribuidor
+            Correlação por distribuidor
           </Link>{' '}
           (sell-in / ERP do cliente).
         </span>

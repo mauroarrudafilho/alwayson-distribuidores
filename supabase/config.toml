@@ -1,0 +1,5 @@
+# Projeto canônico: osukbalwykbqvoumddxz
+# Deploy: supabase functions deploy process-insights-pendentes --project-ref osukbalwykbqvoumddxz
+
+[functions.process-insights-pendentes]
+verify_jwt = true

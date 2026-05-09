@@ -56,7 +56,7 @@ export function AdminDistribuidorLayout() {
           Resumo
         </NavLink>
         <NavLink to={`${base}/de-para-produtos`} className={subTabClass}>
-          De-para produtos
+          Correlação de Produtos
         </NavLink>
         <NavLink to={`${base}/metas`} className={subTabClass}>
           Metas
