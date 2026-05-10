@@ -271,13 +271,22 @@ export function useInsightsProdutos() {
 }
 
 type ItemNfRow = {
+  id: string
   sku: string
+  codprod_fornecedor?: string | null
   quantidade: string | number | null
   valor_total: string | number | null
   alwayson_insights_nf: {
     cnpj_cliente: string
     nome_cliente: string | null
   } | null
+}
+
+/** Espelha COALESCE(NULLIF(TRIM(codprod),''), TRIM(sku)) nas views Insights + de-para. */
+function insightsNfItemCodigoOrigem(row: Pick<ItemNfRow, 'sku' | 'codprod_fornecedor'>) {
+  const c = (row.codprod_fornecedor ?? '').trim()
+  const s = (row.sku ?? '').trim()
+  return c !== '' ? c : s
 }
 
 function aggregateProdutoDetalhe(
@@ -364,11 +373,24 @@ export function useInsightsProdutoExpandido(sku: string | null) {
     queryKey: ['insights', 'produto-expand', sku],
     enabled: !!sku && sku.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('alwayson_insights_nf_itens')
-        .select(
-          `
+      const resolved = sku!.trim()
+      const { data: deparaRows, error: deparaErr } = await supabase
+        .from('alwayson_insights_produto_de_para')
+        .select('codigo_origem')
+        .eq('sku_fornecedor', resolved)
+      if (deparaErr) throw deparaErr
+
+      const originKeys = new Set<string>([resolved])
+      for (const r of deparaRows ?? []) {
+        const o = String((r as { codigo_origem: string }).codigo_origem ?? '').trim()
+        if (o) originKeys.add(o)
+      }
+      const keyList = [...originKeys].filter(Boolean)
+
+      const select = `
+          id,
           sku,
+          codprod_fornecedor,
           quantidade,
           valor_total,
           alwayson_insights_nf!inner (
@@ -376,10 +398,25 @@ export function useInsightsProdutoExpandido(sku: string | null) {
             nome_cliente
           )
         `
-        )
-        .eq('sku', sku!)
-      if (error) throw error
-      const rows = (data ?? []) as unknown as ItemNfRow[]
+
+      const [resSku, resCod] = await Promise.all([
+        supabase.from('alwayson_insights_nf_itens').select(select).in('sku', keyList),
+        supabase.from('alwayson_insights_nf_itens').select(select).in('codprod_fornecedor', keyList),
+      ])
+      if (resSku.error) throw resSku.error
+      if (resCod.error) throw resCod.error
+
+      const byId = new Map<string, ItemNfRow>()
+      for (const row of resSku.data ?? []) {
+        byId.set(String((row as { id: string }).id), row as unknown as ItemNfRow)
+      }
+      for (const row of resCod.data ?? []) {
+        byId.set(String((row as { id: string }).id), row as unknown as ItemNfRow)
+      }
+
+      const rows = [...byId.values()].filter((row) =>
+        originKeys.has(insightsNfItemCodigoOrigem(row))
+      )
       const keys = [
         ...new Set(
           rows

@@ -32,7 +32,12 @@ export function ClientesBusca() {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Clientes" description="Consulta detalhada por cliente" />
+      <PageHeader
+        eyebrow="AlwaysOn · Distribuidores"
+        title="Clientes"
+        accent="por recorte"
+        description="consulta detalhada"
+      />
 
       <InputGroup className="mb-6 h-10">
         <InputGroupAddon>
@@ -65,7 +70,8 @@ export function ClientesBusca() {
                   <TableHead>Nome Fantasia</TableHead>
                   <TableHead>Razão Social</TableHead>
                   <TableHead>CNPJ</TableHead>
-                  <TableHead>Cidade-UF</TableHead>
+                  <TableHead>UF</TableHead>
+                  <TableHead>Cidade</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -75,6 +81,7 @@ export function ClientesBusca() {
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     </TableRow>
                   ))
@@ -85,7 +92,7 @@ export function ClientesBusca() {
                         <span className="inline-flex items-center gap-1.5">
                           <Link
                             to={`/clientes/${c.id}`}
-                            className="text-foreground hover:text-primary transition-colors"
+                            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
                           >
                             {c.nome_fantasia || '—'}
                           </Link>
@@ -98,13 +105,18 @@ export function ClientesBusca() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Link to={`/clientes/${c.id}`} className="block font-mono text-xs">
+                        <Link to={`/clientes/${c.id}`} className="block tabular-nums">
                           {c.cnpj}
                         </Link>
                       </TableCell>
                       <TableCell>
                         <Link to={`/clientes/${c.id}`} className="block">
-                          {c.cidade}-{c.estado}
+                          {c.estado}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link to={`/clientes/${c.id}`} className="block">
+                          {c.cidade}
                         </Link>
                       </TableCell>
                     </TableRow>

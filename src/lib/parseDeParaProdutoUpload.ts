@@ -48,6 +48,36 @@ export interface DeParaProdutoRow {
   sku_fornecedor: string
 }
 
+/**
+ * Normaliza códigos vindos de CSV/Excel para bater com `alwayson_produtos.sku` (padrão XX.YYYY):
+ * - Inteiro 100000–999999 → "XX.YYYY" (ex.: 117004 → 11.7004), igual ao script Campestre do repo
+ * - Número decimal (Excel) → 4 casas, evitando lixo IEEE (ex.: 11.700400000002 → 11.7004)
+ * - Texto "11,7004" ou com espaços finos → ponto decimal + arredondamento
+ */
+export function normalizeDeParaCellValue(raw: unknown): string {
+  if (raw === '' || raw == null) return ''
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const ri = Math.round(raw)
+    if (raw === ri && ri >= 100_000 && ri <= 999_999) {
+      const digits = String(ri)
+      return `${digits.slice(0, 2)}.${digits.slice(2)}`
+    }
+    if (raw === ri) return String(ri)
+    const r = Math.round(raw * 10_000) / 10_000
+    return r.toFixed(4)
+  }
+  let s = String(raw).trim().replace(/\u00a0/g, '').replace(',', '.')
+  if (!s) return ''
+  if (/^\d{6}$/.test(s)) return `${s.slice(0, 2)}.${s.slice(2)}`
+  if (/^\d+\.\d+$/.test(s)) {
+    const n = Number(s)
+    if (!Number.isFinite(n)) return s
+    const r = Math.round(n * 10_000) / 10_000
+    return r.toFixed(4)
+  }
+  return s
+}
+
 export function parseDeParaCsv(text: string): DeParaProdutoRow[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim())
   if (lines.length < 2) return []
@@ -66,8 +96,8 @@ export function parseDeParaCsv(text: string): DeParaProdutoRow[] {
   const out: DeParaProdutoRow[] = []
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split(sep).map((c) => c.trim().replace(/^"|"$/g, ''))
-    const codigo_cliente = String(cells[colCliente] ?? '').trim()
-    const sku_fornecedor = String(cells[colFornec] ?? '').trim()
+    const codigo_cliente = normalizeDeParaCellValue(String(cells[colCliente] ?? '').trim())
+    const sku_fornecedor = normalizeDeParaCellValue(String(cells[colFornec] ?? '').trim())
     if (!codigo_cliente || !sku_fornecedor) continue
     out.push({ codigo_cliente, sku_fornecedor })
   }
@@ -101,16 +131,24 @@ export function parseDeParaXlsx(buffer: ArrayBuffer): DeParaProdutoRow[] {
     const addrS = XLSX.utils.encode_cell({ r: i, c: colFornec })
     const cellC = ws[addrC] as { w?: string; v?: unknown } | undefined
     const cellS = ws[addrS] as { w?: string; v?: unknown } | undefined
-    let codigo_cliente = (cellC?.w ?? row[colCliente] ?? '').toString().trim()
-    let sku_fornecedor = (cellS?.w ?? row[colFornec] ?? '').toString().trim()
-    if (!codigo_cliente && cellC?.v != null) codigo_cliente = String(cellC.v).trim()
-    if (!sku_fornecedor && cellS?.v != null) {
-      const v = cellS.v
-      sku_fornecedor =
-        typeof v === 'number'
-          ? (Number.isInteger(v) ? String(v) : String(v))
-          : String(v).trim()
+    let codigo_cliente = ''
+    if (cellC?.w != null && String(cellC.w).trim() !== '') {
+      codigo_cliente = normalizeDeParaCellValue(String(cellC.w).trim())
+    } else if (cellC?.v != null) {
+      codigo_cliente = normalizeDeParaCellValue(cellC.v)
+    } else {
+      codigo_cliente = normalizeDeParaCellValue(row[colCliente])
     }
+
+    let sku_fornecedor = ''
+    if (cellS?.w != null && String(cellS.w).trim() !== '') {
+      sku_fornecedor = normalizeDeParaCellValue(String(cellS.w).trim())
+    } else if (cellS?.v != null) {
+      sku_fornecedor = normalizeDeParaCellValue(cellS.v)
+    } else {
+      sku_fornecedor = normalizeDeParaCellValue(row[colFornec])
+    }
+
     if (!codigo_cliente || !sku_fornecedor) continue
     out.push({ codigo_cliente, sku_fornecedor })
   }

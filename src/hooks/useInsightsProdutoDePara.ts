@@ -23,12 +23,19 @@ export function useUpsertInsightsProdutoDePara() {
       rows: Array<{ codigo_origem: string; sku_fornecedor: string }>
     }) => {
       const now = new Date().toISOString()
-      const payloads = args.rows.map((r) => ({
-        codigo_origem: r.codigo_origem.trim(),
-        sku_fornecedor: String(r.sku_fornecedor).trim(),
+      const byOrigem = new Map<string, string>()
+      for (const r of args.rows) {
+        const o = r.codigo_origem.trim()
+        if (!o) continue
+        byOrigem.set(o, String(r.sku_fornecedor).trim())
+      }
+      const payloads = [...byOrigem.entries()].map(([codigo_origem, sku_fornecedor]) => ({
+        codigo_origem,
+        sku_fornecedor,
         ativo: true,
         atualizado_em: now,
       }))
+      if (payloads.length === 0) return
       const { error } = await supabase
         .from('alwayson_insights_produto_de_para')
         .upsert(payloads, { onConflict: 'codigo_origem' })

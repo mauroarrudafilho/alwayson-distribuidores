@@ -16,6 +16,8 @@
  *   --periodo-inicio YYYY-MM-DD  (default: menor data_venda do arquivo válido)
  *   --periodo-fim YYYY-MM-DD      (default: maior data_venda)
  *   --batch-nfs 80                NF inseridas por request (PostgREST)
+ *   --brasil-concurrency 3       Pedidos BrasilAPI em paralelo (default 3; usar 1 = sequencial conservador).
+ *   --brasil-delay-ms 280        Espera após cada CNPJ/worker antes do próximo (default 280 com pool; aumente se receber 429).
  *   --no-geo                      Não grava cidade/UF/lat da BrasilAPI na dimensão cliente (situação
  *                                 cadastral ainda é atualizada quando a BrasilAPI roda).
  *   --skip-brasil-api             Sem chamadas à BrasilAPI (import totalmente offline; dimensão cliente
@@ -233,6 +235,10 @@ function parseArgs(argv) {
   let somenteCnpjAtivos = false
   let skipBrasilApi = false
   let apenasGruposAusentes = false
+  /** Pedidos HTTP BrasilAPI em paralelo (1 = como antes, sequencial). */
+  let brasilConcurrency = 3
+  /** Delay pós-consulta por worker (ms). */
+  let brasilDelayMs = 280
 
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
@@ -255,6 +261,12 @@ function parseArgs(argv) {
         break
       case '--batch-nfs':
         batchNfs = Math.max(1, parseInt(String(next?.() ?? '80'), 10) || 80)
+        break
+      case '--brasil-concurrency':
+        brasilConcurrency = Math.max(1, Math.min(32, parseInt(String(next?.() ?? '3'), 10) || 3))
+        break
+      case '--brasil-delay-ms':
+        brasilDelayMs = Math.max(0, parseInt(String(next?.() ?? '280'), 10) || 280)
         break
       case '--no-geo':
         geoImport = false
@@ -292,6 +304,7 @@ Uso:
 
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nfs N
+        --brasil-concurrency N  --brasil-delay-ms MS
         --no-geo  --skip-brasil-api  --geo-nominatim
         --cnpj-list caminho.txt
         --somente-cnpj-ativos     (legado: não grava grupos se CNPJ não estiver ATIVO na Receita)
@@ -317,6 +330,8 @@ Flags: --periodo-inicio YYYY-MM-DD --periodo-fim YYYY-MM-DD --dry-run --batch-nf
     somenteCnpjAtivos,
     skipBrasilApi,
     apenasGruposAusentes,
+    brasilConcurrency,
+    brasilDelayMs,
   }
 }
 
@@ -424,6 +439,8 @@ async function main() {
     somenteCnpjAtivos,
     skipBrasilApi,
     apenasGruposAusentes,
+    brasilConcurrency,
+    brasilDelayMs,
   } = parseArgs(process.argv)
 
   if (!dryRun && somenteCnpjAtivos && skipBrasilApi) {
@@ -681,13 +698,27 @@ async function main() {
       `${modo}: ${uniq.length} CNPJ(s) no lote` +
         (skippedCache.length ? ` — ${skippedCache.length} já com snapshot BrasilAPI válido (sem rede)` : '') +
         (needFetch.length ? ` — consultando API: ${needFetch.length}` : '') +
-        (geoImport && geoNominatim ? ' + Nominatim (~1 req/s).' : '')
+        (geoImport && geoNominatim ? ' + Nominatim (~1 req/s).' : '') +
+        (needFetch.length
+          ? ` | pool ${brasilConcurrency}× ~${brasilDelayMs}ms`
+          : '')
     )
 
     if (needFetch.length) {
+      let conc = brasilConcurrency
+      let delay = brasilDelayMs
+      if (geoImport && geoNominatim && conc > 1) {
+        console.warn(
+          'Nota: --geo-nominatim respeita ~1 req/s ao Nominatim; a usar consulta BrasilAPI sequencial (concurrency=1).'
+        )
+        conc = 1
+        delay = Math.max(delay, 350)
+      }
+
       const fetched = await enrichInsightsCnpjBatch(needFetch, {
         useNominatim: Boolean(geoImport && geoNominatim),
-        brasilDelayMs: 700,
+        brasilDelayMs: delay,
+        concurrency: conc,
         onProgress: (cur, tot) => process.stdout.write(`\rBrasilAPI [${cur}/${tot}]`),
       })
       console.log('')
@@ -751,7 +782,7 @@ Linhas dados (exc. cabeçalho): ${totalRows}
 Grupos CNPJ×NF (após filtros): ${groupList.length}  |  Linhas NF descartadas (CNPJ inválido): ${skippedCnpj}
 Linhas-itens graváveis (soma nos grupos): ${sumItems}
 Período: ${periodo_inicio} … ${periodo_fim}
-BrasilAPI: ${skipBrasilApi ? '--skip-brasil-api (enriquecimento adiado)' : 'consulta/cache por CNPJ do lote'}
+BrasilAPI: ${skipBrasilApi ? '--skip-brasil-api (enriquecimento adiado)' : `consulta/cache — pool ${brasilConcurrency} worker(s), ${brasilDelayMs}ms pós-pedido/worker`}
 Gravação NF: ${somenteCnpjAtivos ? '--somente-cnpj-ativos (só grupos ATIVO/OK API)' : 'padrão — todos os grupos válidos do Excel'}
 Incremental: ${apenasGruposAusentes ? 'SIM (--apenas-grupos-ausentes: só NF que ainda não existem)' : 'não'}
 data_venda: células no formato Data no Excel (obrigatório)
@@ -795,15 +826,21 @@ data_venda: células no formato Data no Excel (obrigatório)
     if (!headerByCnpj.has(g.cnpj14)) headerByCnpj.set(g.cnpj14, g.header)
   }
 
-  const { data: existRows, error: eCliRead } = await sb
-    .from('alwayson_insights_clientes')
-    .select('*')
-    .in('cnpj_14', uniq)
-  if (eCliRead) {
-    console.error('Falha ao ler alwayson_insights_clientes:', eCliRead.message)
-    process.exit(1)
+  /** Leituras em batches — `.in()` muito grande quebra URLs / PostgREST e pode causar falhas de rede obscuras. */
+  /** @type {Record<string, unknown>[]} */
+  const existRows = []
+  for (const part of chunks(uniq, 120)) {
+    const { data, error: eCliRead } = await sb
+      .from('alwayson_insights_clientes')
+      .select('*')
+      .in('cnpj_14', part)
+    if (eCliRead) {
+      console.error('Falha ao ler alwayson_insights_clientes:', eCliRead.message)
+      process.exit(1)
+    }
+    if (data?.length) existRows.push(...data)
   }
-  const prevBy = new Map((existRows ?? []).map((row) => [row.cnpj_14, row]))
+  const prevBy = new Map(existRows.map((row) => [row.cnpj_14, row]))
 
   const clienteUpserts = uniq.map((cnpj14) => {
     const header = headerByCnpj.get(cnpj14) ?? {}
