@@ -31,6 +31,11 @@ import {
 } from '@/components/ui/table'
 import { HistoricoAjustesCard } from '@/components/cliente/HistoricoAjustesCard'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
+import {
+  ClientTag,
+  ClientTagStack,
+  type ClientTagCategory,
+} from '@/components/distribuidor/ClientTag'
 
 function useCliente(id: string | undefined) {
   return useQuery({
@@ -262,8 +267,12 @@ export function ClienteDetalhe() {
   if (loadingCliente) {
     return (
       <div className="animate-fade-in space-y-6">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-3 w-32" />
+        <div className="space-y-2.5 border-b border-border pb-5">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-7 w-72" />
+          <Skeleton className="h-4 w-56" />
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24" />
@@ -273,46 +282,87 @@ export function ClienteDetalhe() {
     )
   }
 
+  const backLink = (
+    <Link
+      to="/clientes"
+      className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors"
+    >
+      <ArrowLeft className="h-3 w-3" />
+      Voltar · Clientes
+    </Link>
+  )
+
   if (!cliente) {
     return (
-      <div className="animate-fade-in">
-        <Link
-          to="/clientes"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Link>
+      <div className="animate-fade-in space-y-4">
+        {backLink}
         <p className="text-sm text-muted-foreground">Cliente não encontrado.</p>
       </div>
     )
   }
 
+  const cidadeUF = `${cliente.cidade}-${cliente.estado}`
+  const headerTags: { category: ClientTagCategory; label: string }[] = []
+  if (cliente.plano_excelencia) {
+    headerTags.push({ category: 'programa', label: 'Plano Excelência' })
+  }
+  if (cliente.status === 'em_risco') {
+    headerTags.push({ category: 'risk', label: 'Em Risco' })
+  } else if (cliente.status === 'inativo') {
+    headerTags.push({ category: 'flag', label: 'Inativo' })
+  }
+  if (cliente.ultima_compra) {
+    const days = Math.floor(
+      (Date.now() - new Date(cliente.ultima_compra).getTime()) / 86_400_000
+    )
+    if (days > 60) {
+      headerTags.push({ category: 'flag', label: `Sem compra ${days}d` })
+    }
+  }
+  headerTags.push({ category: 'segmento', label: cidadeUF })
+
+  const nomeExibicao = cliente.nome_fantasia || cliente.razao_social
+  const mostrarRazaoSocial =
+    Boolean(cliente.nome_fantasia) && cliente.razao_social !== cliente.nome_fantasia
+
   return (
     <div className="animate-fade-in space-y-6">
-      <Link
-        to="/clientes"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Voltar
-      </Link>
+      {backLink}
 
-      <div>
-        <h1 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
-          {cliente.nome_fantasia || cliente.razao_social}
-          <InsightsBadge
-            cnpj={cliente.cnpj}
-            faturamentoLocal={kpis?.total ?? null}
-            nfsLocais={faturamentos?.length ?? null}
-          />
+      <header className="border-b border-border pb-5">
+        <ClientTagStack className="mb-2.5">
+          {headerTags.map((t) => (
+            <ClientTag key={`${t.category}-${t.label}`} category={t.category} label={t.label} />
+          ))}
+        </ClientTagStack>
+
+        <h1
+          className="font-display italic text-[22px] font-normal leading-tight tracking-[-0.015em] text-foreground"
+          style={{ fontVariationSettings: '"opsz" 24, "SOFT" 50' }}
+        >
+          {nomeExibicao}
+          <span className="ml-2 align-middle">
+            <InsightsBadge
+              cnpj={cliente.cnpj}
+              faturamentoLocal={kpis?.total ?? null}
+              nfsLocais={faturamentos?.length ?? null}
+            />
+          </span>
         </h1>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          {mostrarRazaoSocial && <span>{cliente.razao_social}</span>}
           <span className="font-mono text-xs">{cliente.cnpj}</span>
-          <span>{cliente.cidade}-{cliente.estado}</span>
-          {vendedorNome && <span>Vendedor: {vendedorNome}</span>}
+          {vendedorNome && (
+            <span>
+              <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/70 mr-1.5">
+                Vendedor
+              </span>
+              {vendedorNome}
+            </span>
+          )}
         </div>
-      </div>
+      </header>
 
       <HistoricoAjustesCard
         cliente={{
@@ -338,7 +388,7 @@ export function ClienteDetalhe() {
           label="Faturamento Total"
           value={kpis ? formatCurrency(kpis.total) : '—'}
           icon={DollarSign}
-          variant="primary"
+          variant="primary-quiet"
         />
         <KPICard
           label="Ticket Médio"
@@ -359,7 +409,9 @@ export function ClienteDetalhe() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Evolução de Faturamento</CardTitle>
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            Evolução de Faturamento
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           {loadingMensal ? (
@@ -380,7 +432,9 @@ export function ClienteDetalhe() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Histórico de Faturamento</CardTitle>
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            Histórico de Faturamento
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loadingFat ? (
@@ -418,8 +472,8 @@ export function ClienteDetalhe() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-4 w-4" />
+          <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            <Package className="h-3.5 w-3.5" />
             Produtos Mais Comprados
           </CardTitle>
         </CardHeader>

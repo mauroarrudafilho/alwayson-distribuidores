@@ -16,6 +16,7 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
+import { SnapshotStrip, type SnapshotItem } from '@/components/distribuidor/SnapshotStrip'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useDashboardKPIs } from '@/hooks/useDashboardKPIs'
@@ -29,6 +30,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 
+function formatCompactBRL(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return `R$ ${(n / 1_000_000).toFixed(1).replace('.', ',')}M`
+  if (Math.abs(n) >= 1_000) return `R$ ${(n / 1_000).toFixed(0)}k`
+  return formatCurrency(n)
+}
+
 export function Dashboard() {
   const { data, isLoading } = useDashboardKPIs()
   const { data: distribuidores, isLoading: loadingDist } = useDistribuidores()
@@ -41,9 +48,12 @@ export function Dashboard() {
     return (
       <div>
         <PageHeader
-          title="Dashboard"
-          description="Visão geral dos distribuidores parceiros"
+          eyebrow="AlwaysOn · Distribuidores"
+          title="Performance"
+          accent="consolidada"
+          description="visão geral dos parceiros"
         />
+        <Skeleton className="h-[68px] w-full mb-6 rounded-lg" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i}>
@@ -71,12 +81,58 @@ export function Dashboard() {
       return fatB - fatA
     }) ?? []
 
+  const variacao = kpis?.variacao_percentual ?? 0
+  const snapshotItems: SnapshotItem[] = [
+    {
+      label: 'Faturamento',
+      value: formatCompactBRL(kpis?.faturamento_periodo ?? 0),
+      delta: variacao !== 0 ? `${variacao > 0 ? '+' : ''}${variacao.toFixed(1)}%` : undefined,
+      tone: variacao > 0 ? 'up' : variacao < 0 ? 'down' : 'flat',
+    },
+    {
+      label: 'Cobertura',
+      value: `${(kpis?.taxa_positivacao ?? 0).toFixed(1)}%`,
+      delta: `${kpis?.clientes_positivados ?? 0} pos.`,
+      tone: 'flat',
+    },
+    {
+      label: 'Distribuidores',
+      value: `${distAtivos}`,
+      delta: 'ativos',
+      tone: 'flat',
+    },
+    {
+      label: 'Excelência',
+      value: `${kpis?.clientes_excelencia_ativos ?? 0} / ${kpis?.clientes_excelencia_total ?? 0}`,
+      delta: kpis?.clientes_excelencia_total
+        ? `${Math.round(((kpis?.clientes_excelencia_ativos ?? 0) / kpis.clientes_excelencia_total) * 100)}%`
+        : undefined,
+      tone: 'up',
+    },
+    {
+      label: 'Metas',
+      value: `${kpis?.metas_atingidas ?? 0} / ${kpis?.total_metas ?? 0}`,
+      delta: 'no período',
+      tone: 'flat',
+    },
+    {
+      label: 'Sem dados',
+      value: `${semDadosRecentes}`,
+      delta: '> 7 dias',
+      tone: semDadosRecentes > 0 ? 'down' : 'flat',
+    },
+  ]
+
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Dashboard"
-        description="Visão geral dos distribuidores parceiros"
+        eyebrow="AlwaysOn · Distribuidores"
+        title="Performance"
+        accent="consolidada"
+        description="visão geral dos parceiros"
       />
+
+      <SnapshotStrip items={snapshotItems} className="mb-6" />
 
       <KPIGrid columns={4}>
         <KPICard
@@ -154,7 +210,7 @@ export function Dashboard() {
                       <span className="text-[11px] font-bold text-muted-foreground w-4">
                         {idx + 1}
                       </span>
-                      <span className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                         {dist.nome}
                       </span>
                       <span className="text-[11px] text-muted-foreground">

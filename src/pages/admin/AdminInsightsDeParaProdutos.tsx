@@ -19,6 +19,7 @@ import {
 } from '@/hooks/useInsightsProdutoDePara'
 import { useProdutos } from '@/hooks/useProdutos'
 import {
+  normalizeDeParaCellValue,
   parseDeParaCsv,
   parseDeParaXlsx,
 } from '@/lib/parseDeParaProdutoUpload'
@@ -35,9 +36,9 @@ function dedupeByOrigem(
 ): Array<{ codigo_origem: string; sku_fornecedor: string }> {
   const m = new Map<string, string>()
   for (const r of rows) {
-    const o = r.codigo_cliente.trim()
+    const o = normalizeDeParaCellValue(r.codigo_cliente)
     if (!o) continue
-    m.set(o, r.sku_fornecedor.trim())
+    m.set(o, normalizeDeParaCellValue(r.sku_fornecedor))
   }
   return [...m.entries()].map(([codigo_origem, sku_fornecedor]) => ({
     codigo_origem,
@@ -53,15 +54,20 @@ export function AdminInsightsDeParaProdutos() {
   >([])
   const [parseError, setParseError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
 
   const { data: existentes, isLoading: loadingMap } = useInsightsProdutoDePara()
-  const { data: produtos } = useProdutos()
+  const { data: produtos, isPending: loadingProdutos } = useProdutos()
   const upsert = useUpsertInsightsProdutoDePara()
 
   const skuValidos = useMemo(() => {
     const s = new Set<string>()
     for (const p of produtos ?? []) {
-      s.add(p.sku.trim())
+      const k = p.sku.trim()
+      if (!k) continue
+      s.add(k)
+      const n = normalizeDeParaCellValue(k)
+      if (n && n !== k) s.add(n)
     }
     return s
   }, [produtos])
@@ -69,6 +75,7 @@ export function AdminInsightsDeParaProdutos() {
   const onFile = useCallback(async (file: File | null) => {
     setParseError(null)
     setSaveError(null)
+    setSaveNotice(null)
     setPreview([])
     if (!file) {
       setFileName(null)
@@ -102,21 +109,57 @@ export function AdminInsightsDeParaProdutos() {
     if (skuValidos.size === 0) return []
     const u = new Set<string>()
     for (const r of preview) {
-      if (!skuValidos.has(r.sku_fornecedor)) u.add(r.sku_fornecedor)
+      const skuN = normalizeDeParaCellValue(r.sku_fornecedor)
+      if (!skuValidos.has(skuN)) u.add(skuN || r.sku_fornecedor)
     }
     return [...u].sort().slice(0, 50)
   }, [preview, skuValidos])
 
+  const previewForaDoCatalogo = useMemo(() => {
+    if (skuValidos.size === 0) return []
+    return preview.filter((r) => !skuValidos.has(normalizeDeParaCellValue(r.sku_fornecedor)))
+  }, [preview, skuValidos])
+
+  const skuEstaNoCatalogo = (sku: string) => skuValidos.has(normalizeDeParaCellValue(sku))
+
   const handleGravar = async () => {
     setSaveError(null)
+    setSaveNotice(null)
     if (preview.length === 0) return
+    if (loadingProdutos || skuValidos.size === 0) {
+      setSaveError('Aguarde o carregamento da lista de produtos ou verifique a conexão.')
+      return
+    }
+    const validRows = preview.filter((r) => skuEstaNoCatalogo(r.sku_fornecedor))
+    const skipped = preview.length - validRows.length
+    if (validRows.length === 0) {
+      setSaveError(
+        'Nenhuma linha pode ser gravada: todo sku_fornecedor precisa existir em Produtos (cadastro sempreon_produtos). Corrija os itens em laranja ou cadastre o SKU primeiro.'
+      )
+      return
+    }
     try {
-      await upsert.mutateAsync({ rows: preview })
-      setPreview([])
-      setFileName(null)
-      if (fileRef.current) fileRef.current.value = ''
+      await upsert.mutateAsync({ rows: validRows })
+      if (skipped > 0) {
+        setSaveNotice(
+          `Gravados ${validRows.length} mapeamento(s). ${skipped} linha(s) com SKU inexistente em Produtos ficaram de fora (importação bloqueia FK).`
+        )
+        setPreview(preview.filter((r) => !skuEstaNoCatalogo(r.sku_fornecedor)))
+      } else {
+        setPreview([])
+        setFileName(null)
+        if (fileRef.current) fileRef.current.value = ''
+      }
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Erro ao gravar')
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : 'Erro ao gravar'
+      setSaveError(
+        /foreign key|23503/i.test(msg)
+          ? `${msg} — Confira se cada sku_fornecedor existe exatamente igual em Produtos.`
+          : msg
+      )
     }
   }
 
@@ -137,7 +180,9 @@ export function AdminInsightsDeParaProdutos() {
             <code className="text-foreground">codigo_insights</code> → alinhamento ao mesmo papel de{' '}
             <code>codigo_cliente</code> nos templates distribuidores; e{' '}
             <code className="text-foreground">sku_fornecedor</code> igual ao cadastro de produtos. Aba{' '}
-            <strong>De_Para</strong> em .xlsx é detectada quando existir.
+            <strong>De_Para</strong> em .xlsx é detectada quando existir. Códigos no padrão
+            Campestre: inteiro de 6 dígitos (ex. 117004) vira <code>11.7004</code>; células numéricas
+            com decimais são arredondadas para 4 casas para bater com o cadastro.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <a
@@ -175,6 +220,9 @@ export function AdminInsightsDeParaProdutos() {
           {saveError && (
             <p className="text-xs text-destructive">{saveError}</p>
           )}
+          {saveNotice && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">{saveNotice}</p>
+          )}
           {preview.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
@@ -185,15 +233,62 @@ export function AdminInsightsDeParaProdutos() {
                 <p className="text-xs text-amber-600 dark:text-amber-500">
                   SKUs ainda não cadastrados em Produtos (amostra):{' '}
                   {skusDesconhecidos.join(', ')}
-                  {(preview.some((r) => !skuValidos.has(r.sku_fornecedor)) &&
+                  {(preview.some((r) => !skuEstaNoCatalogo(r.sku_fornecedor)) &&
                     skusDesconhecidos.length === 50 &&
                     ' …') ||
-                    ''}
+                    ''}{' '}
+                  <span className="font-medium">
+                    Ao gravar, só entram linhas cujo sku_fornecedor existir no cadastro; as demais serão ignoradas.
+                  </span>
+                </p>
+              )}
+              {previewForaDoCatalogo.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                    Mapeamentos que não batem com Produtos ({previewForaDoCatalogo.length} linha(s))
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Valores já normalizados (Excel como número, texto &quot;117004&quot;, vírgula decimal,
+                    etc.). Se o SKU existir no cadastro com outro texto, cadastre ou ajuste a planilha.
+                  </p>
+                  <div className="border rounded-md max-h-40 overflow-auto bg-background">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-xs">codigo_origem</TableHead>
+                          <TableHead className="text-xs">sku_fornecedor (interpretado)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewForaDoCatalogo.slice(0, 30).map((r) => (
+                          <TableRow key={`${r.codigo_origem}-${r.sku_fornecedor}`}>
+                            <TableCell className="text-xs font-mono">{r.codigo_origem}</TableCell>
+                            <TableCell className="text-xs font-mono">{r.sku_fornecedor}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {previewForaDoCatalogo.length > 30 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      … e mais {previewForaDoCatalogo.length - 30} linha(s); use a lista resumida
+                      acima ou exporte os SKU distintos.
+                    </p>
+                  )}
+                </div>
+              )}
+              {preview.length > 0 && !loadingProdutos && skuValidos.size === 0 && (
+                <p className="text-xs text-destructive">
+                  Não há produtos no cadastro (ou a lista não carregou). Sem SKUs em{' '}
+                  <code className="text-foreground">alwayson_produtos</code> a gravação fica bloqueada
+                  pela regra de integridade.
                 </p>
               )}
               <Button
                 size="sm"
-                disabled={upsert.isPending}
+                disabled={
+                  upsert.isPending || loadingProdutos || skuValidos.size === 0 || preview.length === 0
+                }
                 onClick={() => void handleGravar()}
               >
                 {upsert.isPending ? (

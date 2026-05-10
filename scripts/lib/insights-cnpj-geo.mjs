@@ -270,21 +270,56 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
 /**
  * Mapa CNPJ14 → resultado (deduplica lista de entrada).
  * @param {string[]} cnpjList
- * @param {{ useNominatim?: boolean, brasilDelayMs?: number, onProgress?: (cur: number, total: number, digits: string) => void }} [options]
+ * @param {{
+ *   useNominatim?: boolean,
+ *   brasilDelayMs?: number,
+ *   concurrency?: number,
+ *   onProgress?: (cur: number, total: number, digits: string) => void,
+ * }} [options]
  * @returns {Promise<Map<string, EnrichGeoResult>>}
  */
 export async function enrichInsightsCnpjBatch(cnpjList, options = {}) {
-  const { useNominatim = false, brasilDelayMs = 350, onProgress } = options
+  const {
+    useNominatim = false,
+    brasilDelayMs = 350,
+    concurrency = 1,
+    onProgress,
+  } = options
   const unique = [
     ...new Set(cnpjList.map((c) => normalizeCnpjDigits(c)).filter((d) => d.length === 14)),
   ]
   /** @type {Map<string, EnrichGeoResult>} */
   const map = new Map()
-  for (let i = 0; i < unique.length; i++) {
-    const digits = unique[i]
-    const r = await enrichCnpjGeo(digits, { useNominatim, brasilDelayMs })
-    map.set(digits, r)
-    onProgress?.(i + 1, unique.length, digits)
+  const total = unique.length
+  if (total === 0) return map
+
+  const workers = Math.max(1, Math.min(32, Math.floor(concurrency)))
+
+  if (workers <= 1) {
+    for (let i = 0; i < total; i++) {
+      const digits = unique[i]
+      const r = await enrichCnpjGeo(digits, { useNominatim, brasilDelayMs })
+      map.set(digits, r)
+      onProgress?.(i + 1, total, digits)
+    }
+    return map
   }
+
+  let next = 0
+  let completed = 0
+
+  async function runWorker() {
+    for (;;) {
+      const i = next++
+      if (i >= total) break
+      const digits = unique[i]
+      const r = await enrichCnpjGeo(digits, { useNominatim, brasilDelayMs })
+      map.set(digits, r)
+      completed++
+      onProgress?.(completed, total, digits)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(workers, total) }, () => runWorker()))
   return map
 }
