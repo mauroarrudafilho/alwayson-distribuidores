@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Info } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -12,8 +13,12 @@ import {
 import type { InsightsTopCliente } from '@/types/insights'
 import { formatCurrency } from '@/lib/format'
 import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   InsightsChartCard,
-  InsightsCallout,
   formatCurrencyCompact,
   formatPercent,
   formatInt,
@@ -142,29 +147,44 @@ export function InsightsClientesCharts({ clientes }: Props) {
     )
   }
 
+  const topInfo = (
+    <UITooltip>
+      <TooltipTrigger
+        type="button"
+        aria-label="Detalhes da lista"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground transition-colors"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[320px] p-3 text-left">
+        <div className="space-y-1.5 text-xs leading-relaxed">
+          <p>
+            Os <strong>10 maiores</strong> clientes respondem por{' '}
+            <strong>{formatPercent(callouts.top10Pct)}</strong> do faturamento da lista
+            filtrada; os <strong>20 maiores</strong>,{' '}
+            <strong>{formatPercent(callouts.top20Pct)}</strong>.
+          </p>
+          <p>
+            <strong>{formatInt(callouts.staleCount)}</strong> cliente(s) sem compra nos
+            últimos <strong>180 dias</strong> (ou sem data de última compra).
+          </p>
+          {callouts.top3CatLabel && (
+            <p className="opacity-80">
+              Faixas mais povoadas: {callouts.top3CatLabel}.
+            </p>
+          )}
+        </div>
+      </TooltipContent>
+    </UITooltip>
+  )
+
   return (
     <div className="space-y-4 mb-6">
-      <InsightsCallout>
-        <p>
-          Os <strong>10 maiores</strong> clientes respondem por{' '}
-          <strong>{formatPercent(callouts.top10Pct)}</strong> do faturamento da lista filtrada;
-          os <strong>20 maiores</strong>, <strong>{formatPercent(callouts.top20Pct)}</strong>.
-        </p>
-        <p>
-          <strong>{formatInt(callouts.staleCount)}</strong> cliente(s) sem compra nos últimos{' '}
-          <strong>180 dias</strong> (ou sem data de última compra).
-        </p>
-        {callouts.top3CatLabel ? (
-          <p className="text-muted-foreground text-xs">
-            Faixas de faturamento mais povoadas: {callouts.top3CatLabel}.
-          </p>
-        ) : null}
-      </InsightsCallout>
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <InsightsChartCard
           title="Top 20 clientes por faturamento"
-          description={`Da lista filtrada — ${clientes.length.toLocaleString('pt-BR')} clientes; ver callout acima para concentração acumulada`}
+          description={`Da lista filtrada — ${clientes.length.toLocaleString('pt-BR')} clientes`}
+          headerAction={topInfo}
           height={520}
         >
           <ResponsiveContainer width="100%" height="100%">
