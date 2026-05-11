@@ -16,18 +16,17 @@ import {
   LineChart as LineChartIcon,
 } from 'lucide-react'
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
-  ComposedChart,
+  Cell,
+  Legend,
   Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  Cell,
 } from 'recharts'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
@@ -63,6 +62,7 @@ import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
 import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
 import { InsightsClientesCharts } from '@/components/insights/InsightsClientesCharts'
 import { InsightsTerritoryCharts } from '@/components/insights/InsightsTerritoryCharts'
+import { buildYoySeries } from '@/lib/insights-yoy'
 import {
   useInsightsBootstrap,
   useInsightsClienteHistorico,
@@ -88,14 +88,6 @@ function cidadeTerritorioKey(cidade: string | undefined | null, estado: string |
   const c = (cidade ?? '').trim() || '— sem cidade —'
   const e = (estado ?? '').trim() || '—'
   return `${c}\t${e}`
-}
-
-function formatMesInsight(anoMes: string) {
-  const [year, month] = anoMes.split('-')
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-  const mi = Number(month) - 1
-  if (!year || mi < 0 || mi > 11) return anoMes
-  return `${months[mi]}/${year.slice(2)}`
 }
 
 // ─── Subcomponentes ──────────────────────────────────────────────────────────
@@ -142,15 +134,12 @@ function ClienteDetalheDrawer({
   const anoInicio = periodo.inicio?.slice(0, 4) ?? '—'
   const anoFim = periodo.fim?.slice(0, 4) ?? '—'
 
-  const historicoChart = useMemo(
-    () =>
-      historico.map((h) => ({
-        mes: formatMesInsight(h.ano_mes),
-        ano_mes: h.ano_mes,
-        faturamento: h.faturamento,
-        total_nfs: h.total_nfs,
-        total_skus: h.total_skus,
-      })),
+  const historicoYoyFat = useMemo(
+    () => buildYoySeries(historico, 'faturamento'),
+    [historico]
+  )
+  const historicoYoySkus = useMemo(
+    () => buildYoySeries(historico, 'total_skus'),
     [historico]
   )
 
@@ -265,89 +254,95 @@ function ClienteDetalheDrawer({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <InsightsChartCard
-          title="Evolução mensal"
-          description={`Faturamento em barras · NFs no eixo direito · janela Arruda ${anoInicio}–${anoFim}`}
+          title="Faturamento mensal · ano-sobre-ano"
+          description={`Jan–Dez · uma linha por ano · janela Arruda ${anoInicio}–${anoFim}`}
           height={268}
         >
           {historico.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">Sem histórico disponível.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={historicoChart} margin={{ left: 4, right: 8, top: 8 }}>
+              <LineChart data={historicoYoyFat.data} margin={{ left: 4, right: 8, top: 8 }}>
                 <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
+                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval={0} />
                 <YAxis
-                  yAxisId="left"
                   tick={CHART_AXIS_TICK}
                   tickFormatter={(v: number) => formatCurrencyCompact(v)}
                 />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={CHART_AXIS_TICK}
-                  tickFormatter={(v: number) => formatInt(v)}
-                />
                 <Tooltip
-                  formatter={((value: unknown, name: unknown) => {
-                    const v = coerceTooltipNumber(value)
-                    return String(name) === 'NFs' ? formatInt(v) : formatCurrency(v)
-                  }) as never}
-                  labelFormatter={(_, payload) =>
-                    payload?.[0]?.payload?.ano_mes
-                      ? formatMesInsight(payload[0].payload.ano_mes as string)
-                      : ''
-                  }
+                  formatter={((value: unknown) =>
+                    formatCurrency(coerceTooltipNumber(value))
+                  ) as never}
                   contentStyle={{
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
                     fontSize: 12,
                   }}
                 />
-                <Bar
-                  yAxisId="left"
-                  dataKey="faturamento"
-                  fill="var(--color-primary)"
-                  name="Faturamento"
-                  radius={[4, 4, 0, 0]}
+                <Legend
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                  formatter={(value) => (
+                    <span className="text-xs text-muted-foreground">{value}</span>
+                  )}
                 />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="total_nfs"
-                  stroke={INSIGHTS_CHART_COLORS[2]}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  name="NFs"
-                />
-              </ComposedChart>
+                {historicoYoyFat.years.map((year, idx) => (
+                  <Line
+                    key={year}
+                    type="monotone"
+                    dataKey={String(year)}
+                    stroke={INSIGHTS_CHART_COLORS[idx % INSIGHTS_CHART_COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    name={String(year)}
+                    connectNulls={false}
+                  />
+                ))}
+              </LineChart>
             </ResponsiveContainer>
           )}
         </InsightsChartCard>
 
-        <InsightsChartCard title="SKUs distintos por mês" description="Quantidade de SKUs com venda">
+        <InsightsChartCard
+          title="SKUs distintos · ano-sobre-ano"
+          description="Quantidade de SKUs com venda · uma linha por ano"
+        >
           {historico.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">Sem dados.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={historicoChart} margin={{ left: 4, right: 8, top: 8 }}>
+              <LineChart data={historicoYoySkus.data} margin={{ left: 4, right: 8, top: 8 }}>
                 <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
+                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval={0} />
                 <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} />
                 <Tooltip
                   formatter={((value: unknown) => formatInt(coerceTooltipNumber(value))) as never}
-                  labelFormatter={(_, payload) =>
-                    payload?.[0]?.payload?.ano_mes
-                      ? formatMesInsight(payload[0].payload.ano_mes as string)
-                      : ''
-                  }
                   contentStyle={{
                     borderRadius: 8,
                     border: '1px solid var(--color-border)',
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="total_skus" fill={INSIGHTS_CHART_COLORS[1]} name="SKUs" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Legend
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                  formatter={(value) => (
+                    <span className="text-xs text-muted-foreground">{value}</span>
+                  )}
+                />
+                {historicoYoySkus.years.map((year, idx) => (
+                  <Line
+                    key={year}
+                    type="monotone"
+                    dataKey={String(year)}
+                    stroke={INSIGHTS_CHART_COLORS[idx % INSIGHTS_CHART_COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    name={String(year)}
+                    connectNulls={false}
+                  />
+                ))}
+              </LineChart>
             </ResponsiveContainer>
           )}
         </InsightsChartCard>

@@ -1,22 +1,21 @@
 import { useMemo } from 'react'
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
+  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
-  Cell,
-  Pie,
-  PieChart,
   ZAxis,
 } from 'recharts'
 import type { InsightsCidadeRow, InsightsMesGlobalRow } from '@/types/insights'
@@ -32,6 +31,7 @@ import {
   INSIGHTS_CHART_COLORS,
   coerceTooltipNumber,
 } from '@/components/insights/charts'
+import { buildYoySeries } from '@/lib/insights-yoy'
 
 function cidadeLabel(c: InsightsCidadeRow, maxLen = 18) {
   const s = `${c.cidade} / ${c.estado}`
@@ -45,16 +45,11 @@ type Props = {
   mesGlobal?: InsightsMesGlobalRow[]
 }
 
-function formatAnoMesPt(ano_mes: string) {
-  const [y, m] = ano_mes.split('-')
-  if (!y || !m) return ano_mes
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-  const mi = Number(m) - 1
-  if (mi < 0 || mi > 11) return ano_mes
-  return `${months[mi]}/${y.slice(2)}`
-}
-
 export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGlobal = [] }: Props) {
+  const mesGlobalYoy = useMemo(
+    () => buildYoySeries(mesGlobal, 'faturamento_total'),
+    [mesGlobal]
+  )
   const topCidades = useMemo(() => {
     const sorted = [...cidades].sort((a, b) => b.faturamento_total - a.faturamento_total)
     return sorted.slice(0, 12).map((c) => ({
@@ -142,46 +137,48 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
     <div className="space-y-4 mb-6">
       {mesGlobal.length > 0 ? (
         <InsightsChartCard
-          title="Evolução mensal do sell-out"
-          description="Faturamento agregado (todas as NFs da base Insights)"
+          title="Sell-out mensal · ano-sobre-ano"
+          description="Faturamento agregado (todas as NFs Insights) · Jan–Dez · uma linha por ano"
           height={260}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={mesGlobal} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
-              <defs>
-                <linearGradient id="insightsMesFat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <LineChart data={mesGlobalYoy.data} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
               <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="ano_mes"
+              <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval={0} />
+              <YAxis
                 tick={CHART_AXIS_TICK}
-                tickFormatter={formatAnoMesPt}
-                interval="preserveStartEnd"
+                tickFormatter={(v: number) => formatCurrencyCompact(v)}
               />
-              <YAxis tick={CHART_AXIS_TICK} tickFormatter={(v: number) => formatCurrencyCompact(v)} />
               <Tooltip
                 formatter={((value: unknown) =>
                   formatCurrency(coerceTooltipNumber(value))
                 ) as never}
-                labelFormatter={(l) => (typeof l === 'string' ? formatAnoMesPt(l) : String(l))}
                 contentStyle={{
                   borderRadius: 8,
                   border: '1px solid var(--color-border)',
                   fontSize: 12,
                 }}
               />
-              <Area
-                type="monotone"
-                dataKey="faturamento_total"
-                name="Faturamento"
-                stroke="var(--color-primary)"
-                fill="url(#insightsMesFat)"
-                strokeWidth={2}
+              <Legend
+                iconType="circle"
+                wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                formatter={(value) => (
+                  <span className="text-xs text-muted-foreground">{value}</span>
+                )}
               />
-            </AreaChart>
+              {mesGlobalYoy.years.map((year, idx) => (
+                <Line
+                  key={year}
+                  type="monotone"
+                  dataKey={String(year)}
+                  stroke={INSIGHTS_CHART_COLORS[idx % INSIGHTS_CHART_COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  name={String(year)}
+                  connectNulls={false}
+                />
+              ))}
+            </LineChart>
           </ResponsiveContainer>
         </InsightsChartCard>
       ) : null}
