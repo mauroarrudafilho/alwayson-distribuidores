@@ -69,6 +69,7 @@ import {
   useInsightsClienteMix,
   useInsightsMesGlobal,
   insightsCnpjKey,
+  formatPeriodoLabel,
 } from '@/hooks/useInsightsQueries'
 import { usePagination } from '@/hooks/usePagination'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -708,7 +709,7 @@ export function InsightsPanel() {
       <div className="animate-fade-in">
         <PageHeader
           title="Insights"
-          description={`Base histórica ${periodo.inicio} – ${periodo.fim}`}
+          description={`Base histórica ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`}
         />
         <ClienteDetalheDrawer
           cliente={clienteDetalhe}
@@ -746,7 +747,7 @@ export function InsightsPanel() {
     <div className="animate-fade-in">
       <PageHeader
         title="Insights"
-        description={`Base histórica ${periodo.inicio} – ${periodo.fim} · ${kpi.total_cidades} cidades`}
+        description={`Base histórica ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)} · ${kpi.total_cidades} cidades`}
       />
 
       <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
@@ -1007,7 +1008,7 @@ export function InsightsPanel() {
           {clientesListaFiltrada.length > clientesPag.pageSize && (
             <TopAcionaveis
               eyebrow="Prioridade · Clientes a recuperar"
-              description={`Top 10 por faturamento histórico × gap até o fim do período (${periodo.fim}). Clientes que pararam mais cedo dentro do histórico Arruda — candidatos para reativação via distribuidor.`}
+              description={`Top 10 por faturamento histórico × gap até o fim do período (${formatPeriodoLabel(periodo.fim)}). Clientes que pararam mais cedo dentro do histórico Arruda — candidatos para reativação via distribuidor.`}
               items={clientesTopAcionaveis}
               getKey={(c) => c.cnpj_cliente}
               onItemClick={(c) => openClienteDetalhe(c)}

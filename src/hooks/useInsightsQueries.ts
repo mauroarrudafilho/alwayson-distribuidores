@@ -30,7 +30,18 @@ function formatMesAnoPt(d: Date): string {
   return s.replace(/\./g, '')
 }
 
-function periodoLabelFromUploads(rows: InsightsUpload[]): { inicio: string; fim: string } {
+/**
+ * Converte ISO date "YYYY-MM-DD" para label legível "mês de YYYY" (ex.: "jan de 2022").
+ * Retorna o input se inválido.
+ */
+export function formatPeriodoLabel(iso: string): string {
+  if (!iso || iso === '—') return iso || '—'
+  const d = new Date(`${iso}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return formatMesAnoPt(d)
+}
+
+function periodoFromUploads(rows: InsightsUpload[]): { inicio: string; fim: string } {
   let min: Date | null = null
   let max: Date | null = null
   for (const u of rows) {
@@ -44,7 +55,7 @@ function periodoLabelFromUploads(rows: InsightsUpload[]): { inicio: string; fim:
     }
   }
   if (!min || !max) return { inicio: '—', fim: '—' }
-  return { inicio: formatMesAnoPt(min), fim: formatMesAnoPt(max) }
+  return { inicio: min.toISOString().slice(0, 10), fim: max.toISOString().slice(0, 10) }
 }
 
 /** Chave canônica 14 dígitos para igualar DB e query params */
@@ -166,7 +177,7 @@ export function useInsightsBootstrap() {
         .sort((a, b) => b.faturamento_total - a.faturamento_total)
 
       const uploads = (uploadsRes.data ?? []) as InsightsUpload[]
-      const periodo = periodoLabelFromUploads(uploads)
+      const periodo = periodoFromUploads(uploads)
 
       const faturamentoSomadoCidades = cidades.reduce((s, c) => s + c.faturamento_total, 0)
       const total_nfsSomadoCidades = cidades.reduce((s, c) => s + c.total_nfs, 0)

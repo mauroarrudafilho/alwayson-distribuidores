@@ -9,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -104,9 +103,9 @@ export function InsightsAcaoMenu({ cnpj, acao, prefixLabel }: InsightsAcaoMenuPr
         onClick={(e) => e.stopPropagation()}
         className="w-44"
       >
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Status da ação
-        </DropdownMenuLabel>
+        </div>
         <DropdownMenuItem
           onClick={() => setEstado('em_acao')}
           disabled={estado === 'em_acao' || mut.isPending}
