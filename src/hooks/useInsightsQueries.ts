@@ -257,6 +257,10 @@ export function useInsightsProdutos() {
           String((row as { descricao: string | null }).descricao ?? '').trim() ||
           String((row as { sku: string }).sku),
         categoria: String((row as { categoria: string | null }).categoria ?? '—'),
+        marca: String((row as { marca: string | null }).marca ?? '—'),
+        detalhamento_categoria: String(
+          (row as { detalhamento_categoria: string | null }).detalhamento_categoria ?? '—'
+        ),
         faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
         quantidade_total: n((row as { quantidade_total: unknown }).quantidade_total),
         unidade: String((row as { unidade: string | null }).unidade ?? ''),
@@ -282,11 +286,20 @@ type ItemNfRow = {
   } | null
 }
 
-/** Espelha COALESCE(NULLIF(TRIM(codprod),''), TRIM(sku)) nas views Insights + de-para. */
-function insightsNfItemCodigoOrigem(row: Pick<ItemNfRow, 'sku' | 'codprod_fornecedor'>) {
+/** Resolve SKU fábrica alinhado à view v_produtos (codprod no mapa, senão sku da linha). */
+function insightsItemSkuFabrica(
+  row: Pick<ItemNfRow, 'sku' | 'codprod_fornecedor'>,
+  depMap: Map<string, string>
+): string {
   const c = (row.codprod_fornecedor ?? '').trim()
   const s = (row.sku ?? '').trim()
-  return c !== '' ? c : s
+  if (c) {
+    const hit = depMap.get(c)
+    if (hit) return hit.trim()
+  }
+  const hitSku = depMap.get(s)
+  if (hitSku) return hitSku.trim()
+  return s
 }
 
 function aggregateProdutoDetalhe(
@@ -374,16 +387,22 @@ export function useInsightsProdutoExpandido(sku: string | null) {
     enabled: !!sku && sku.length > 0,
     queryFn: async () => {
       const resolved = sku!.trim()
-      const { data: deparaRows, error: deparaErr } = await supabase
+
+      const { data: allDep, error: allErr } = await supabase
         .from('alwayson_insights_produto_de_para')
-        .select('codigo_origem')
-        .eq('sku_fornecedor', resolved)
-      if (deparaErr) throw deparaErr
+        .select('codigo_origem, sku_fornecedor')
+      if (allErr) throw allErr
+
+      const depMap = new Map<string, string>()
+      for (const r of allDep ?? []) {
+        const o = String((r as { codigo_origem: string }).codigo_origem ?? '').trim()
+        const sf = String((r as { sku_fornecedor: string }).sku_fornecedor ?? '').trim()
+        if (o && sf) depMap.set(o, sf)
+      }
 
       const originKeys = new Set<string>([resolved])
-      for (const r of deparaRows ?? []) {
-        const o = String((r as { codigo_origem: string }).codigo_origem ?? '').trim()
-        if (o) originKeys.add(o)
+      for (const [o, sf] of depMap) {
+        if (sf === resolved) originKeys.add(o)
       }
       const keyList = [...originKeys].filter(Boolean)
 
@@ -414,8 +433,8 @@ export function useInsightsProdutoExpandido(sku: string | null) {
         byId.set(String((row as { id: string }).id), row as unknown as ItemNfRow)
       }
 
-      const rows = [...byId.values()].filter((row) =>
-        originKeys.has(insightsNfItemCodigoOrigem(row))
+      const rows = [...byId.values()].filter(
+        (row) => insightsItemSkuFabrica(row, depMap) === resolved
       )
       const keys = [
         ...new Set(

@@ -143,6 +143,8 @@ export interface InsightsProdutoRow {
   sku: string
   descricao: string
   categoria: string
+  marca: string
+  detalhamento_categoria: string
   faturamento_total: number
   quantidade_total: number
   unidade: string
