@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
+import { Info } from 'lucide-react'
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -20,6 +20,11 @@ import {
 } from 'recharts'
 import type { InsightsCidadeRow, InsightsMesGlobalRow } from '@/types/insights'
 import { formatCurrency } from '@/lib/format'
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   InsightsChartCard,
   InsightsCallout,
@@ -52,8 +57,8 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
   )
   const topCidades = useMemo(() => {
     const sorted = [...cidades].sort((a, b) => b.faturamento_total - a.faturamento_total)
-    return sorted.slice(0, 12).map((c) => ({
-      name: cidadeLabel(c),
+    return sorted.slice(0, 20).map((c) => ({
+      name: cidadeLabel(c, 28),
       full: `${c.cidade} — ${c.estado}`,
       fat: c.faturamento_total,
       clientes: c.total_clientes,
@@ -80,21 +85,6 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
     [byUf]
   )
 
-  const pareto = useMemo(() => {
-    const sorted = [...cidades].sort((a, b) => b.faturamento_total - a.faturamento_total)
-    const total = sorted.reduce((s, c) => s + c.faturamento_total, 0)
-    const head = sorted.slice(0, 20)
-    return head.map((c, idx) => {
-      const cum = head.slice(0, idx + 1).reduce((s, row) => s + row.faturamento_total, 0)
-      return {
-        name: cidadeLabel(c, 14),
-        full: `${c.cidade} — ${c.estado}`,
-        fat: c.faturamento_total,
-        cumPct: total > 0 ? (cum / total) * 100 : 0,
-      }
-    })
-  }, [cidades])
-
   const scatter = useMemo(
     () =>
       cidades.map((c) => ({
@@ -110,8 +100,8 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
   const callouts = useMemo(() => {
     const sorted = [...cidades].sort((a, b) => b.faturamento_total - a.faturamento_total)
     const total = faturamentoFiltrado > 0 ? faturamentoFiltrado : 1
-    const top3 = sorted.slice(0, 3).reduce((s, c) => s + c.faturamento_total, 0)
-    const top5 = sorted.slice(0, 5).reduce((s, c) => s + c.faturamento_total, 0)
+    const sumN = (n: number) =>
+      sorted.slice(0, n).reduce((s, c) => s + c.faturamento_total, 0)
     const leader = byUf[0]
     const second = byUf[1]
     const gap =
@@ -119,8 +109,10 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
         ? ((leader.fat - second.fat) / second.fat) * 100
         : null
     return {
-      top3Pct: (top3 / total) * 100,
-      top5Pct: (top5 / total) * 100,
+      top3Pct: (sumN(3) / total) * 100,
+      top5Pct: (sumN(5) / total) * 100,
+      top10Pct: (sumN(10) / total) * 100,
+      top20Pct: (sumN(20) / total) * 100,
       leaderUf: leader?.uf,
       leaderShare: leader ? (leader.fat / total) * 100 : 0,
       gapPct: gap,
@@ -206,9 +198,46 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
       </InsightsCallout>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <InsightsChartCard title="Top cidades — faturamento" description="Até 12 maiores no filtro atual">
+        <InsightsChartCard
+          title="Top 20 cidades por faturamento"
+          description={`Da lista filtrada — ${cidades.length.toLocaleString('pt-BR')} cidades`}
+          headerAction={
+            <UITooltip>
+              <TooltipTrigger
+                type="button"
+                aria-label="Detalhes da concentração de cidades"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground transition-colors"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[320px] p-3 text-left">
+                <div className="space-y-1.5 text-xs leading-relaxed">
+                  <p>
+                    As <strong>3 maiores</strong> cidades concentram{' '}
+                    <strong>{formatPercent(callouts.top3Pct)}</strong>; as{' '}
+                    <strong>10 maiores</strong>,{' '}
+                    <strong>{formatPercent(callouts.top10Pct)}</strong>; as{' '}
+                    <strong>20 maiores</strong>,{' '}
+                    <strong>{formatPercent(callouts.top20Pct)}</strong>.
+                  </p>
+                  {callouts.leaderUf && (
+                    <p>
+                      <strong>{callouts.leaderUf}</strong> lidera entre estados com{' '}
+                      <strong>{formatPercent(callouts.leaderShare)}</strong> do total.
+                    </p>
+                  )}
+                </div>
+              </TooltipContent>
+            </UITooltip>
+          }
+          height={520}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={topCidades} layout="vertical" margin={{ left: 8, right: 16, top: 8 }}>
+            <BarChart
+              data={topCidades}
+              layout="vertical"
+              margin={{ left: 4, right: 16, top: 4, bottom: 4 }}
+            >
               <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" horizontal={false} />
               <XAxis
                 type="number"
@@ -218,7 +247,7 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
               <YAxis
                 type="category"
                 dataKey="name"
-                width={132}
+                width={200}
                 tick={CHART_AXIS_TICK}
                 interval={0}
               />
@@ -274,55 +303,6 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
                 formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>}
               />
             </PieChart>
-          </ResponsiveContainer>
-        </InsightsChartCard>
-
-        <InsightsChartCard
-          title="Pareto das cidades"
-          description="Barras = faturamento; linha = % acumulado do total filtrado"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={pareto} margin={{ left: 4, right: 12, top: 8, bottom: 24 }}>
-              <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={CHART_AXIS_TICK} interval={0} angle={-28} textAnchor="end" height={60} />
-              <YAxis
-                yAxisId="left"
-                tick={CHART_AXIS_TICK}
-                tickFormatter={(v: number) => formatCurrencyCompact(v)}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                domain={[0, 100]}
-                tick={CHART_AXIS_TICK}
-                tickFormatter={(v: number) => `${v}%`}
-              />
-              <Tooltip
-                formatter={((value: unknown, name: unknown) => {
-                  const v = coerceTooltipNumber(value)
-                  const n = String(name)
-                  return n.includes('%') || n.includes('acum') ? `${v.toFixed(1)}%` : formatCurrency(v)
-                }) as never}
-                labelFormatter={(l, payload) =>
-                  payload?.[0]?.payload?.full ?? (typeof l === 'string' ? l : '')
-                }
-                contentStyle={{
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
-                  fontSize: 12,
-                }}
-              />
-              <Bar yAxisId="left" dataKey="fat" fill="var(--color-primary)" radius={[4, 4, 0, 0]} name="Faturamento" />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="cumPct"
-                stroke={INSIGHTS_CHART_COLORS[1]}
-                strokeWidth={2}
-                dot={false}
-                name="% acumulado"
-              />
-            </ComposedChart>
           </ResponsiveContainer>
         </InsightsChartCard>
 
