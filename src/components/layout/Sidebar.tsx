@@ -20,15 +20,23 @@ interface SidebarProps {
   onToggle: () => void
 }
 
-const menuItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'operacional' },
-  { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'operacional' },
-  { path: '/excelencia', label: 'Excelência', icon: Award, group: 'operacional' },
-  { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacional' },
-  { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacional' },
-  { path: '/insights', label: 'Insights', icon: BarChart3, group: 'operacional' },
-  { path: '/admin', label: 'Administração', icon: Settings, group: 'admin' },
-  { path: '/ingestao', label: 'Ingestão', icon: Upload, group: 'admin' },
+type MenuGroup = 'analise' | 'operacao' | 'setup'
+
+const GROUP_LABELS: Record<MenuGroup, string> = {
+  analise: 'Análise',
+  operacao: 'Operação',
+  setup: 'Setup',
+}
+
+const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; group: MenuGroup }[] = [
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'analise' },
+  { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'analise' },
+  { path: '/excelencia', label: 'Excelência', icon: Award, group: 'analise' },
+  { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
+  { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },
+  { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacao' },
+  { path: '/admin', label: 'Administração', icon: Settings, group: 'setup' },
+  { path: '/ingestao', label: 'Ingestão', icon: Upload, group: 'setup' },
 ]
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -66,8 +74,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <nav className="flex-1 px-2 py-2 space-y-0.5">
         {menuItems.map((item, idx) => {
-          const prevGroup = idx > 0 ? menuItems[idx - 1].group : item.group
-          const showSeparator = item.group !== prevGroup
+          const prevGroup = idx > 0 ? menuItems[idx - 1].group : null
+          const startsNewGroup = item.group !== prevGroup
 
           const isActive =
             item.path === '/'
@@ -96,8 +104,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
           return (
             <div key={item.path} title={collapsed ? item.label : undefined}>
-              {showSeparator && (
-                <div className="my-2 mx-2 border-t border-border/50" />
+              {startsNewGroup && (
+                collapsed ? (
+                  idx > 0 && <div className="my-2 mx-2 border-t border-border/50" />
+                ) : (
+                  <p
+                    className={cn(
+                      'px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/60',
+                      idx === 0 ? 'mb-1' : 'mt-3 mb-1'
+                    )}
+                  >
+                    {GROUP_LABELS[item.group]}
+                  </p>
+                )
               )}
               {linkContent}
             </div>
