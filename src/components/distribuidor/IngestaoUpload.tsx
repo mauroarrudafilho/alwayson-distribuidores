@@ -1,5 +1,13 @@
-import { useState, useRef } from 'react'
-import { Upload, Download, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
+import {
+  CheckCircle2,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  Upload,
+  X,
+  XCircle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -20,16 +28,32 @@ const TIPOS_RELATORIO = [
   { value: 'clientes', label: 'Clientes' },
 ] as const
 
+type TipoRelatorio = (typeof TIPOS_RELATORIO)[number]['value']
+
 const EXTENSOES_ACEITAS = '.xlsx,.xls,.csv'
+const EXTENSOES_VALIDAS = ['xlsx', 'xls', 'csv'] as const
 const TAMANHO_MAX_MB = 10
 
 const templateHref = (file: string) =>
   `${import.meta.env.BASE_URL}templates/${file}`.replace(/\/+/g, '/')
 
-const TEMPLATE_MAP: Record<string, string> = {
+const TEMPLATE_MAP: Record<TipoRelatorio, string> = {
   vendas: templateHref('template-vendas.xlsx'),
   estoque: templateHref('template-estoque.xlsx'),
   clientes: templateHref('template-clientes.xlsx'),
+}
+
+/** Colunas esperadas por tipo de relatório (hint para o usuário, não validação). */
+const COLUNAS_ESPERADAS: Record<TipoRelatorio, string[]> = {
+  vendas: ['data', 'cnpj_cliente', 'sku', 'quantidade', 'valor_total'],
+  estoque: ['sku', 'descricao', 'quantidade', 'est_minimo', 'dias_cobertura'],
+  clientes: ['cnpj', 'razao_social', 'nome_fantasia', 'cidade', 'estado'],
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 interface IngestaoUploadProps {
@@ -38,19 +62,14 @@ interface IngestaoUploadProps {
   className?: string
 }
 
-export function IngestaoUpload({
-  onSuccess,
-  onError,
-  className,
-}: IngestaoUploadProps) {
-  const [tipo, setTipo] = useState<string>('vendas')
+export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUploadProps) {
+  const [tipo, setTipo] = useState<TipoRelatorio>('vendas')
   const [distribuidorId, setDistribuidorId] = useState<string>('')
   const [periodoReferencia, setPeriodoReferencia] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [uploadStatus, setUploadStatus] = useState<
-    'idle' | 'success' | 'error' | null
-  >(null)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error' | null>(null)
   const [uploadMessage, setUploadMessage] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -59,23 +78,56 @@ export function IngestaoUpload({
 
   const ingestApiUrl = import.meta.env.VITE_INGEST_API_URL
 
+  const setFileSafe = useCallback(
+    (selected: File | null) => {
+      if (!selected) {
+        setFile(null)
+        return
+      }
+      const ext = selected.name.split('.').pop()?.toLowerCase() ?? ''
+      if (!(EXTENSOES_VALIDAS as readonly string[]).includes(ext)) {
+        const msg = 'Formato inválido. Use .xlsx, .xls ou .csv'
+        setUploadStatus('error')
+        setUploadMessage(msg)
+        onError?.(msg)
+        return
+      }
+      if (selected.size > TAMANHO_MAX_MB * 1024 * 1024) {
+        const msg = `Arquivo muito grande. Máximo ${TAMANHO_MAX_MB}MB`
+        setUploadStatus('error')
+        setUploadMessage(msg)
+        onError?.(msg)
+        return
+      }
+      setFile(selected)
+      setUploadStatus(null)
+      setUploadMessage('')
+    },
+    [onError]
+  )
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0]
-    if (!selected) return
+    setFileSafe(e.target.files?.[0] ?? null)
+  }
 
-    const ext = selected.name.split('.').pop()?.toLowerCase()
-    if (!['xlsx', 'xls', 'csv'].includes(ext ?? '')) {
-      onError?.('Formato inválido. Use .xlsx, .xls ou .csv')
-      return
-    }
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
 
-    if (selected.size > TAMANHO_MAX_MB * 1024 * 1024) {
-      onError?.(`Arquivo muito grande. Máximo ${TAMANHO_MAX_MB}MB`)
-      return
-    }
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
 
-    setFile(selected)
-    setUploadStatus(null)
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const dropped = e.dataTransfer.files?.[0]
+    if (dropped) setFileSafe(dropped)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,14 +188,10 @@ export function IngestaoUpload({
   }
 
   const hoje = new Date().toISOString().split('T')[0]
+  const colunasEsperadas = COLUNAS_ESPERADAS[tipo]
 
   return (
-    <Card
-      className={cn(
-        'hover:shadow-card-hover transition-shadow',
-        className
-      )}
-    >
+    <Card className={cn('hover:shadow-card-hover transition-shadow', className)}>
       <CardContent className="p-3">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -151,7 +199,7 @@ export function IngestaoUpload({
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Tipo de Relatório
               </label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v ?? 'vendas')}>
+              <Select value={tipo} onValueChange={(v) => setTipo((v as TipoRelatorio) ?? 'vendas')}>
                 <SelectTrigger className="h-8 w-full text-xs shadow-none border-border/50">
                   <SelectValue />
                 </SelectTrigger>
@@ -201,20 +249,79 @@ export function IngestaoUpload({
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
               Arquivo
             </label>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept={EXTENSOES_ACEITAS}
-                onChange={handleFileChange}
-                className="h-8 text-xs file:mr-2 file:rounded-sm file:border-0 file:bg-primary file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-primary-foreground file:cursor-pointer"
-              />
-              {file && (
-                <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
-                  {file.name}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={EXTENSOES_ACEITAS}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {file ? (
+              <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
+                    <p className="text-[11px] text-muted-foreground tabular-nums">
+                      {formatBytes(file.size)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 shrink-0"
+                  onClick={() => {
+                    setFile(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                  aria-label="Remover arquivo"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={cn(
+                  'w-full flex flex-col items-center justify-center gap-1.5 rounded-md border border-dashed px-4 py-6 transition-colors cursor-pointer',
+                  isDragging
+                    ? 'border-primary/60 bg-primary/5'
+                    : 'border-border/60 hover:border-border hover:bg-muted/20'
+                )}
+              >
+                <Upload className="w-5 h-5 text-muted-foreground" />
+                <p className="text-xs text-foreground font-medium">
+                  Arraste o arquivo ou clique para selecionar
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  .xlsx · .xls · .csv · máx {TAMANHO_MAX_MB}MB
+                </p>
+              </button>
+            )}
+
+            {colunasEsperadas && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Colunas esperadas
                 </span>
-              )}
-            </div>
+                {colunasEsperadas.map((col) => (
+                  <span
+                    key={col}
+                    className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground"
+                  >
+                    {col}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {uploadStatus && (
@@ -253,7 +360,7 @@ export function IngestaoUpload({
               )}
             </Button>
             <a
-              href={TEMPLATE_MAP[tipo] ?? TEMPLATE_MAP.vendas}
+              href={TEMPLATE_MAP[tipo]}
               download
               className="inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-xs font-medium hover:bg-muted hover:text-foreground transition-all"
             >
