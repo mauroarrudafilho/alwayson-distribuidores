@@ -1,11 +1,6 @@
 import {
-  DollarSign,
-  Building2,
   Users,
-  Award,
-  Target,
   AlertTriangle,
-  Clock,
   FileText,
   TrendingUp,
   Package,
@@ -54,8 +49,9 @@ export function Dashboard() {
           description="visão geral dos parceiros"
         />
         <Skeleton className="h-[68px] w-full mb-6 rounded-lg" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {Array.from({ length: 8 }).map((_, i) => (
+        <Skeleton className="h-3 w-24 mb-2" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="p-3">
                 <Skeleton className="h-3 w-24 mb-2" />
@@ -134,26 +130,12 @@ export function Dashboard() {
 
       <SnapshotStrip items={snapshotItems} className="mb-6" />
 
-      <KPIGrid columns={4}>
-        <KPICard
-          label="Faturamento Período"
-          value={formatCurrency(kpis?.faturamento_periodo ?? 0)}
-          icon={DollarSign}
-          variant="primary"
-          trend={
-            kpis?.variacao_percentual
-              ? {
-                  value: kpis.variacao_percentual,
-                  positive: kpis.variacao_percentual > 0,
-                }
-              : undefined
-          }
-        />
-        <KPICard
-          label="Distribuidores Ativos"
-          value={distAtivos}
-          icon={Building2}
-        />
+      <div className="mb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Para agir hoje
+        </p>
+      </div>
+      <KPIGrid columns={3}>
         <KPICard
           label="Clientes Positivados"
           value={`${kpis?.clientes_positivados ?? 0} / ${kpis?.total_clientes_carteira ?? 0}`}
@@ -161,38 +143,16 @@ export function Dashboard() {
           badge={`${(kpis?.taxa_positivacao ?? 0).toFixed(0)}%`}
         />
         <KPICard
-          label="Plano Excelência"
-          value={`${kpis?.clientes_excelencia_ativos ?? 0} / ${kpis?.clientes_excelencia_total ?? 0}`}
-          icon={Award}
-          variant="primary"
+          label="Estoque Crítico"
+          value={kpis?.itens_estoque_critico ?? 0}
+          icon={AlertTriangle}
+        />
+        <KPICard
+          label="Relatórios Pendentes"
+          value={relatoriosPendentes}
+          icon={FileText}
         />
       </KPIGrid>
-
-      <div className="mt-6">
-        <KPIGrid columns={4}>
-          <KPICard
-            label="Metas Atingidas"
-            value={`${kpis?.metas_atingidas ?? 0} / ${kpis?.total_metas ?? 0}`}
-            icon={Target}
-          />
-          <KPICard
-            label="Estoque Crítico"
-            value={kpis?.itens_estoque_critico ?? 0}
-            icon={AlertTriangle}
-          />
-          <KPICard
-            label="Sem Dados Recentes"
-            value={semDadosRecentes}
-            icon={Clock}
-            subtitle="> 7 dias sem atualização"
-          />
-          <KPICard
-            label="Relatórios Pendentes"
-            value={relatoriosPendentes}
-            icon={FileText}
-          />
-        </KPIGrid>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
         <Card>
