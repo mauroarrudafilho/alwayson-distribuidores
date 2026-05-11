@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  BarChart3,
   DollarSign,
   MapPin,
   Users,
@@ -10,10 +9,23 @@ import {
   ChevronRight,
   ChevronDown,
   ArrowLeft,
-  TrendingUp,
   ShoppingCart,
   Loader2,
 } from 'lucide-react'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Cell,
+} from 'recharts'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
@@ -34,13 +46,25 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/format'
 import type { InsightsCidadeRow, InsightsTopCliente } from '@/types/insights'
+import {
+  InsightsChartCard,
+  formatCurrencyCompact,
+  formatInt,
+  CHART_AXIS_TICK,
+  CHART_GRID_STROKE,
+  INSIGHTS_CHART_COLORS,
+  coerceTooltipNumber,
+} from '@/components/insights/charts'
 import { cn } from '@/lib/utils'
 import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
 import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
+import { InsightsClientesCharts } from '@/components/insights/InsightsClientesCharts'
+import { InsightsTerritoryCharts } from '@/components/insights/InsightsTerritoryCharts'
 import {
   useInsightsBootstrap,
   useInsightsClienteHistorico,
   useInsightsClienteMix,
+  useInsightsMesGlobal,
   insightsCnpjKey,
 } from '@/hooks/useInsightsQueries'
 
@@ -50,38 +74,15 @@ function cidadeTerritorioKey(cidade: string | undefined | null, estado: string |
   return `${c}\t${e}`
 }
 
-// ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function BarRow({
-  label,
-  value,
-  max,
-  suffix = '',
-  detail,
-}: {
-  label: string
-  value: number
-  max: number
-  suffix?: string
-  /** Texto auxiliar à direita do rótulo (ex.: NFs no mês). */
-  detail?: string
-}) {
-  const pct = max > 0 ? (value / max) * 100 : 0
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-muted-foreground w-32 shrink-0 truncate" title={detail}>
-        {label}
-        {detail ? <span className="block text-[10px] text-muted-foreground/90 tabular-nums">{detail}</span> : null}
-      </span>
-      <div className="flex-1 h-5 bg-muted/50 rounded overflow-hidden">
-        <div className="h-full bg-primary/75 rounded transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs font-medium tabular-nums w-24 text-right">
-        {suffix ? `${value.toLocaleString('pt-BR')} ${suffix}` : formatCurrency(value)}
-      </span>
-    </div>
-  )
+function formatMesInsight(anoMes: string) {
+  const [year, month] = anoMes.split('-')
+  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  const mi = Number(month) - 1
+  if (!year || mi < 0 || mi > 11) return anoMes
+  return `${months[mi]}/${year.slice(2)}`
 }
+
+// ─── Subcomponentes ──────────────────────────────────────────────────────────
 
 function MixRow({ row, maxFat }: { row: import('@/types/insights').InsightsClienteMixRow; maxFat: number }) {
   const pct = maxFat > 0 ? (row.faturamento_total / maxFat) * 100 : 0
@@ -116,18 +117,47 @@ function ClienteDetalheDrawer({
   const { data: historico = [], isPending: loadHist } = useInsightsClienteHistorico(cliente.cnpj_cliente)
   const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
   const maxFat = Math.max(...(mix.map((m) => m.faturamento_total)), 1)
-  const maxBar = Math.max(...(historico.map((h) => h.faturamento)), 1)
   const sumNfsMes = historico.reduce((s, h) => s + h.total_nfs, 0)
 
-  function formatMes(m: string) {
-    const [year, month] = m.split('-')
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    return `${months[Number(month) - 1]}/${year.slice(2)}`
-  }
+  const historicoChart = useMemo(
+    () =>
+      historico.map((h) => ({
+        mes: formatMesInsight(h.ano_mes),
+        ano_mes: h.ano_mes,
+        faturamento: h.faturamento,
+        total_nfs: h.total_nfs,
+        total_skus: h.total_skus,
+      })),
+    [historico]
+  )
+
+  const mixPie = useMemo(() => {
+    const sorted = [...mix].sort((a, b) => b.faturamento_total - a.faturamento_total)
+    const head = sorted.slice(0, 7)
+    const tail = sorted.slice(7)
+    const outros = tail.reduce((s, r) => s + r.faturamento_total, 0)
+    const rows = head.map((r) => {
+      const lbl = (r.descricao?.trim() || r.sku) as string
+      const short = lbl.length > 18 ? `${lbl.slice(0, 17)}…` : lbl
+      return {
+        name: short,
+        full: `${r.descricao?.trim() || '—'} (${r.sku})`,
+        value: r.faturamento_total,
+      }
+    })
+    if (outros > 0) {
+      rows.push({
+        name: `Outros (${tail.length})`,
+        full: `${tail.length} SKUs adicionais`,
+        value: outros,
+      })
+    }
+    return rows
+  }, [mix])
 
   const totalNfsCliente = cliente.total_nfs
   const totalFaturamento = cliente.faturamento_total
-  const maxSkus = Math.max(...historico.map((h) => h.total_skus))
+  const maxSkusMes = historico.length > 0 ? Math.max(...historico.map((h) => h.total_skus)) : 0
 
   return (
     <div className="animate-fade-in">
@@ -179,7 +209,12 @@ function ClienteDetalheDrawer({
       <KPIGrid columns={4}>
         <KPICard label="Faturamento Total"  value={formatCurrency(totalFaturamento)} icon={DollarSign} />
         <KPICard label="NFs Emitidas"       value={totalNfsCliente}                         icon={Receipt} />
-        <KPICard label="SKUs no Mix"         value={mix.length}                       icon={Package} badge={`${maxSkus} máx/mês`} />
+        <KPICard
+          label="SKUs no Mix"
+          value={mix.length}
+          icon={Package}
+          badge={`${maxSkusMes} máx/mês`}
+        />
         <KPICard
           label="Última Compra"
           value={
@@ -191,100 +226,169 @@ function ClienteDetalheDrawer({
         />
       </KPIGrid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Evolução mensal */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-              Evolução Mensal de Faturamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {historico.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem histórico disponível.</p>
-            ) : (
-              <div className="space-y-2">
-                {historico.map((h) => (
-                  <BarRow
-                    key={h.ano_mes}
-                    label={formatMes(h.ano_mes)}
-                    detail={h.total_nfs > 0 ? `${h.total_nfs} NF(s) no mês` : undefined}
-                    value={h.faturamento}
-                    max={maxBar}
-                  />
-                ))}
-                {sumNfsMes !== totalNfsCliente && (
-                  <p className="text-[11px] text-amber-700 dark:text-amber-500 pt-2">
-                    Soma de NFs nos meses ({sumNfsMes}) difere do total do cliente ({totalNfsCliente}). Pode haver
-                    datas incorretas na carga ou NFs fora do período agregado.
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        <InsightsChartCard
+          title="Evolução mensal"
+          description="Faturamento em barras · NFs no eixo direito"
+          height={268}
+        >
+          {historico.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Sem histórico disponível.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={historicoChart} margin={{ left: 4, right: 8, top: 8 }}>
+                <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
+                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
+                <YAxis
+                  yAxisId="left"
+                  tick={CHART_AXIS_TICK}
+                  tickFormatter={(v: number) => formatCurrencyCompact(v)}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={CHART_AXIS_TICK}
+                  tickFormatter={(v: number) => formatInt(v)}
+                />
+                <Tooltip
+                  formatter={((value: unknown, name: unknown) => {
+                    const v = coerceTooltipNumber(value)
+                    return String(name) === 'NFs' ? formatInt(v) : formatCurrency(v)
+                  }) as never}
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]?.payload?.ano_mes
+                      ? formatMesInsight(payload[0].payload.ano_mes as string)
+                      : ''
+                  }
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid var(--color-border)',
+                    fontSize: 12,
+                  }}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="faturamento"
+                  fill="var(--color-primary)"
+                  name="Faturamento"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="total_nfs"
+                  stroke={INSIGHTS_CHART_COLORS[2]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  name="NFs"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </InsightsChartCard>
 
-        {/* Mix por mês resumo */}
-        <Card>
+        <InsightsChartCard title="SKUs distintos por mês" description="Quantidade de SKUs com venda">
+          {historico.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Sem dados.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={historicoChart} margin={{ left: 4, right: 8, top: 8 }}>
+                <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
+                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval="preserveStartEnd" />
+                <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} />
+                <Tooltip
+                  formatter={((value: unknown) => formatInt(coerceTooltipNumber(value))) as never}
+                  labelFormatter={(_, payload) =>
+                    payload?.[0]?.payload?.ano_mes
+                      ? formatMesInsight(payload[0].payload.ano_mes as string)
+                      : ''
+                  }
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid var(--color-border)',
+                    fontSize: 12,
+                  }}
+                />
+                <Bar dataKey="total_skus" fill={INSIGHTS_CHART_COLORS[1]} name="SKUs" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </InsightsChartCard>
+      </div>
+
+      {historico.length > 0 && sumNfsMes !== totalNfsCliente && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-500 mt-4">
+          Soma de NFs nos meses ({sumNfsMes}) difere do total do cliente ({totalNfsCliente}). Pode haver datas
+          incorretas na carga ou NFs fora do período agregado.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        <InsightsChartCard title="Participação no mix — faturamento" description="Até 7 SKUs · demais agrupados">
+          {mix.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Sem itens para o gráfico.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={mixPie}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={86}
+                  paddingAngle={1}
+                >
+                  {mixPie.map((_, i) => (
+                    <Cell key={`${mixPie[i].name}-${i}`} fill={INSIGHTS_CHART_COLORS[i % INSIGHTS_CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={((v: unknown) => formatCurrency(coerceTooltipNumber(v))) as never}
+                  labelFormatter={(_, payload) => String(payload?.[0]?.payload?.full ?? '')}
+                  contentStyle={{
+                    borderRadius: 8,
+                    border: '1px solid var(--color-border)',
+                    fontSize: 12,
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </InsightsChartCard>
+
+        <Card className="border-border/70">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-muted-foreground" />
-              SKUs por Mês
+              <Package className="w-4 h-4 text-muted-foreground" />
+              Mix cadastrado (detalhe)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {historico.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem dados.</p>
+          <CardContent className="p-0">
+            {mix.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">Sem itens.</p>
             ) : (
-              <div className="space-y-2">
-                {historico.map((h) => (
-                  <BarRow
-                    key={h.ano_mes}
-                    label={formatMes(h.ano_mes)}
-                    detail={h.total_nfs > 0 ? `${h.total_nfs} NF(s) no mês` : undefined}
-                    value={h.total_skus}
-                    max={maxSkus}
-                    suffix="SKUs"
-                  />
-                ))}
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Qtd Total</TableHead>
+                    <TableHead className="text-right">Meses</TableHead>
+                    <TableHead>Faturamento</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mix.map((row) => (
+                    <MixRow key={row.sku} row={row} maxFat={maxFat} />
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Mix cadastrado */}
-      <Card className="mt-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Package className="w-4 h-4 text-muted-foreground" />
-            Mix Cadastrado
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {mix.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Sem itens.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="text-right">Qtd Total</TableHead>
-                  <TableHead className="text-right">Meses</TableHead>
-                  <TableHead>Faturamento</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mix.map((row) => (
-                  <MixRow key={row.sku} row={row} maxFat={maxFat} />
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }
@@ -411,6 +515,7 @@ function CidadeRow({
 
 export function InsightsPanel() {
   const boot = useInsightsBootstrap()
+  const mesGlobalQ = useInsightsMesGlobal()
   const cidades = boot.data?.cidades ?? []
   const clientes = boot.data?.clientes ?? []
   const kpi = boot.data?.kpiGeral ?? {
@@ -633,6 +738,12 @@ export function InsightsPanel() {
             </KPIGrid>
           )}
 
+          <InsightsTerritoryCharts
+            cidades={cidadesFiltradas}
+            faturamentoFiltrado={faturamentoFiltrado}
+            mesGlobal={mesGlobalQ.data ?? []}
+          />
+
           <SectionTitle title="Cidades" icon={MapPin} />
           <Card>
             <CardContent className="p-0">
@@ -739,6 +850,8 @@ export function InsightsPanel() {
               </div>
             </FilterField>
           </FilterBar>
+
+          <InsightsClientesCharts clientes={clientesListaFiltrada} />
 
           <Card>
             <CardContent className="p-0">

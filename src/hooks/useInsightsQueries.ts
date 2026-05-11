@@ -5,6 +5,7 @@ import type {
   InsightsClienteMes,
   InsightsClienteMixRow,
   InsightsCidadeRow,
+  InsightsMesGlobalRow,
   InsightsProdutoDetalhe,
   InsightsProdutoRow,
   InsightsResumoGlobal,
@@ -135,6 +136,10 @@ export function useInsightsBootstrap() {
         ticket_medio_cliente: n(row.ticket_medio_cliente),
         total_skus: Math.trunc(Number(row.total_skus)) || 0,
         quantidade_total: n(row.quantidade_total),
+        unidade_predominante:
+          row.unidade_predominante != null && String(row.unidade_predominante).trim() !== ''
+            ? String(row.unidade_predominante).trim()
+            : undefined,
       }))
 
       const clienteRows = (clientesRes.data ?? []) as Record<string, unknown>[]
@@ -270,6 +275,33 @@ export function useInsightsProdutos() {
         primeira_venda: isoDateOnly((row as { primeira_venda: unknown }).primeira_venda),
         ultima_venda: isoDateOnly((row as { ultima_venda: unknown }).ultima_venda),
       })) satisfies InsightsProdutoRow[]
+    },
+  })
+}
+
+export function useInsightsMesGlobal() {
+  return useQuery({
+    queryKey: ['insights', 'mes-global'],
+    staleTime: 60_000,
+    queryFn: async (): Promise<InsightsMesGlobalRow[]> => {
+      const { data, error } = await supabase
+        .from('alwayson_insights_v_mes_global')
+        .select('*')
+        .order('ano_mes', { ascending: true })
+      if (error) {
+        const msg = String(error.message ?? '')
+        if (msg.includes('does not exist') || msg.includes('schema cache')) {
+          return []
+        }
+        throw error
+      }
+      return (data ?? []).map((row) => ({
+        ano_mes: String((row as { ano_mes: string }).ano_mes),
+        faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
+        total_nfs: Math.trunc(Number((row as { total_nfs: unknown }).total_nfs)) || 0,
+        total_clientes: Math.trunc(Number((row as { total_clientes: unknown }).total_clientes)) || 0,
+        total_skus: Math.trunc(Number((row as { total_skus: unknown }).total_skus)) || 0,
+      })) satisfies InsightsMesGlobalRow[]
     },
   })
 }

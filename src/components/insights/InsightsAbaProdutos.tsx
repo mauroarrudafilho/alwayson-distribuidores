@@ -28,6 +28,10 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { formatCurrency } from '@/lib/format'
 import type { InsightsProdutoDetalhe, InsightsProdutoRow } from '@/types/insights'
 import { useInsightsProdutoExpandido, useInsightsProdutos } from '@/hooks/useInsightsQueries'
+import {
+  InsightsProdutoDrillCharts,
+  InsightsProdutosCharts,
+} from '@/components/insights/InsightsProdutosCharts'
 
 function ProdutoRow({
   row,
@@ -94,20 +98,22 @@ function ProdutoRow({
       {expanded && (
         <TableRow className="bg-muted/20 hover:bg-muted/20">
           <TableCell colSpan={10} className="p-0">
-            <div className="px-8 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="px-8 py-4 space-y-6">
               {drillPending && (
-                <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground py-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
                   <Loader2 className="w-4 h-4 animate-spin" /> Carregando detalhes do SKU…
                 </div>
               )}
               {!drillPending && drillError && (
-                <div className="col-span-full text-sm text-destructive py-2">{drillError.message}</div>
+                <div className="text-sm text-destructive py-2">{drillError.message}</div>
               )}
-              {!drillPending && !drillError && (
+              {!drillPending && !drillError && detalhe && (
                 <>
-                  <div>
+                  <InsightsProdutoDrillCharts detalhe={detalhe} />
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <Users className="w-3 h-3" /> Top Clientes
+                      <Users className="w-3 h-3" /> Top Clientes (tabela)
                     </p>
                     {detalhe?.topClientes && detalhe.topClientes.length > 0 ? (
                       <Table>
@@ -139,11 +145,11 @@ function ProdutoRow({
                     ) : (
                       <p className="text-xs text-muted-foreground py-2">Sem dados de clientes para este SKU.</p>
                     )}
-                  </div>
+                    </div>
 
-                  <div>
+                    <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <MapPin className="w-3 h-3" /> Top Cidades
+                      <MapPin className="w-3 h-3" /> Top Cidades (tabela)
                     </p>
                     {detalhe?.topCidades && detalhe.topCidades.length > 0 ? (
                       <Table>
@@ -176,6 +182,7 @@ function ProdutoRow({
                     ) : (
                       <p className="text-xs text-muted-foreground py-2">Sem dados de cidades para este SKU.</p>
                     )}
+                    </div>
                   </div>
                 </>
               )}
@@ -280,6 +287,8 @@ export function InsightsAbaProdutos() {
           <KPICard label="NFs (filtro)" value={totais.nfs.toLocaleString('pt-BR')} icon={ShoppingCart} />
         </KPIGrid>
       )}
+
+      <InsightsProdutosCharts produtosFiltrados={produtosFiltrados} fatTotalFiltrado={totais.fat} />
 
       <SectionTitle title="Produtos" icon={Package} />
       <Card>
