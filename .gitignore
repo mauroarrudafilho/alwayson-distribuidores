@@ -44,3 +44,9 @@ docs/migrations/_*.sql
 
 # Supabase CLI local cache (não versionar)
 supabase/.temp/
+
+# Playwright MCP / capturas locais da IDE
+.playwright-mcp/
+
+# Esboços HTML/CSS de planeamento (local)
+.planning/sketches/
