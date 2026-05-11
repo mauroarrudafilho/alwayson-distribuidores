@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth'
 
 export function RequireAuth() {
-  const { loading, resolvingTenants, session, memberships } = useAuth()
+  const { loading, resolvingTenants, session, memberships, profile } = useAuth()
   const location = useLocation()
 
   if (loading || (session && resolvingTenants)) {
@@ -21,6 +21,37 @@ export function RequireAuth() {
   if (!session) {
     const next = `${location.pathname}${location.search}`
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
+  }
+
+  if (profile?.status === 'suspended') {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[oklch(0.98_0.005_250)] px-6">
+        <div className="max-w-md space-y-4 text-center">
+          <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground editorial-rule">
+            Conta suspensa
+          </p>
+          <h1
+            className="text-[36px] leading-[1.05] tracking-[-0.02em] text-foreground"
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 360,
+              fontVariationSettings: '"opsz" 144, "SOFT" 30',
+            }}
+          >
+            O seu acesso foi{' '}
+            <em
+              className="italic text-navy"
+              style={{ fontVariationSettings: '"opsz" 144, "SOFT" 50' }}
+            >
+              temporariamente bloqueado.
+            </em>
+          </h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Contacte o administrador da plataforma AlwaysOn se precisar de esclarecimentos.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (memberships.length === 0) {
