@@ -28,6 +28,10 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { formatCurrency } from '@/lib/format'
 import type { InsightsProdutoDetalhe, InsightsProdutoRow } from '@/types/insights'
 import { useInsightsProdutoExpandido, useInsightsProdutos } from '@/hooks/useInsightsQueries'
+import { usePagination } from '@/hooks/usePagination'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import { TopAcionaveis } from '@/components/insights/TopAcionaveis'
+import { topProdutosPrioritarios } from '@/lib/insights-priority'
 import {
   InsightsProdutoDrillCharts,
   InsightsProdutosCharts,
@@ -227,6 +231,16 @@ export function InsightsAbaProdutos() {
     return { fat, qtd, nfs }
   }, [produtosFiltrados])
 
+  const produtosTopAcionaveis = useMemo(
+    () => topProdutosPrioritarios(produtosFiltrados, 10),
+    [produtosFiltrados]
+  )
+  const produtosPag = usePagination({
+    items: produtosFiltrados,
+    initialPageSize: 25,
+    resetKey: `${busca}|${categoria}`,
+  })
+
   if (isPending && produtos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
@@ -290,6 +304,32 @@ export function InsightsAbaProdutos() {
 
       <InsightsProdutosCharts produtosFiltrados={produtosFiltrados} fatTotalFiltrado={totais.fat} />
 
+      {produtosFiltrados.length > produtosPag.pageSize && (
+        <TopAcionaveis
+          eyebrow="Prioridade · SKUs estratégicos"
+          description="Top 10 por faturamento × penetração de clientes — produtos que combinam volume e adoção ampla."
+          items={produtosTopAcionaveis}
+          getKey={(p) => p.sku}
+          onItemClick={(p) => setBusca(p.sku)}
+          renderItem={(p) => (
+            <div>
+              <p className="flex items-baseline gap-2 flex-wrap">
+                <span className="font-mono text-xs text-muted-foreground">{p.sku}</span>
+                <span className="font-medium text-foreground truncate">{p.descricao}</span>
+              </p>
+              <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(p.faturamento_total)}
+                </span>
+                <span className="text-muted-foreground">
+                  {p.total_clientes} clientes · {p.total_cidades} cidades
+                </span>
+              </p>
+            </div>
+          )}
+        />
+      )}
+
       <SectionTitle title="Produtos" icon={Package} />
       <Card>
         <CardContent className="p-0">
@@ -316,7 +356,7 @@ export function InsightsAbaProdutos() {
                   </TableCell>
                 </TableRow>
               )}
-              {produtosFiltrados.map((row) => (
+              {produtosPag.paginated.map((row) => (
                 <ProdutoRow
                   key={row.sku}
                   row={row}
@@ -332,6 +372,13 @@ export function InsightsAbaProdutos() {
               ))}
             </TableBody>
           </Table>
+          <PaginationBar
+            page={produtosPag.page}
+            pageSize={produtosPag.pageSize}
+            total={produtosPag.total}
+            onPageChange={produtosPag.setPage}
+            onPageSizeChange={produtosPag.setPageSize}
+          />
         </CardContent>
       </Card>
     </div>
