@@ -46,7 +46,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatCurrency } from '@/lib/format'
+import { formatCidadeUf, formatCnpj, formatCurrency } from '@/lib/format'
 import type { InsightsCidadeRow, InsightsTopCliente } from '@/types/insights'
 import {
   InsightsChartCard,
@@ -57,7 +57,6 @@ import {
   INSIGHTS_CHART_COLORS,
   coerceTooltipNumber,
 } from '@/components/insights/charts'
-import { cn } from '@/lib/utils'
 import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
 import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
 import { InsightsClientesCharts } from '@/components/insights/InsightsClientesCharts'
@@ -223,7 +222,10 @@ function ClienteDetalheDrawer({
         </h2>
         <p className="text-xs text-muted-foreground font-mono mt-0.5 flex flex-wrap items-center gap-2">
           <span>
-            {cliente.cnpj_cliente} · {cliente.cidade}/{cliente.estado}
+            {formatCnpj(cliente.cnpj_cliente)}
+            {formatCidadeUf(cliente.cidade, cliente.estado) && (
+              <> · {formatCidadeUf(cliente.cidade, cliente.estado)}</>
+            )}
           </span>
           <InsightsClienteBrasilBadge status={cliente.brasil_enriquecimento_status} />
         </p>
@@ -522,7 +524,7 @@ function CidadeRow({
                         </span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
-                        {c.cnpj_cliente}
+                        {formatCnpj(c.cnpj_cliente)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatCurrency(c.faturamento_total)}
@@ -911,34 +913,6 @@ export function InsightsPanel() {
               />
             </CardContent>
           </Card>
-
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Object.entries(
-              cidadesFiltradas.reduce<Record<string, number>>((acc, c) => {
-                acc[c.estado] = (acc[c.estado] ?? 0) + c.faturamento_total
-                return acc
-              }, {})
-            )
-              .sort(([, a], [, b]) => b - a)
-              .map(([uf, fat]) => {
-                const denom = faturamentoFiltrado > 0 ? faturamentoFiltrado : 1
-                const pct = (fat / denom) * 100
-                return (
-                  <Card key={uf} className={cn(estadoFilter === uf && 'border-primary/30 bg-primary/5')}>
-                    <CardContent>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{uf}</span>
-                        <Badge variant="secondary" className="text-[10px]">{pct.toFixed(1)}%</Badge>
-                      </div>
-                      <p className="text-base font-bold tabular-nums">{formatCurrency(fat)}</p>
-                      <div className="mt-2 h-1.5 bg-muted/50 rounded overflow-hidden">
-                        <div className="h-full bg-primary/70 rounded" style={{ width: `${pct}%` }} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-          </div>
         </TabsContent>
 
         <TabsContent value="clientes" className="mt-0">
@@ -1025,9 +999,11 @@ export function InsightsPanel() {
                       <span className="font-medium text-foreground truncate">
                         {c.nome_cliente}
                       </span>
-                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                        {c.cidade}/{c.estado}
-                      </span>
+                      {formatCidadeUf(c.cidade, c.estado) && (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {formatCidadeUf(c.cidade, c.estado)}
+                        </span>
+                      )}
                     </p>
                     <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
                       <span className="font-semibold text-foreground">
@@ -1083,10 +1059,10 @@ export function InsightsPanel() {
                         </span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                        {c.cidade} / {c.estado}
+                        {formatCidadeUf(c.cidade, c.estado)}
                       </TableCell>
                       <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
-                        {c.cnpj_cliente}
+                        {formatCnpj(c.cnpj_cliente)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatCurrency(c.faturamento_total)}
