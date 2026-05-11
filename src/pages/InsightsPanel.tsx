@@ -78,6 +78,11 @@ import {
   topCidadesPrioritarias,
   topClientesPrioritarios,
 } from '@/lib/insights-priority'
+import {
+  useInsightsAcoesByCnpj,
+  type InsightsAcaoEstado,
+} from '@/hooks/useInsightsAcoes'
+import { InsightsAcaoMenu, INSIGHTS_ACAO_LABEL } from '@/components/insights/InsightsAcaoMenu'
 
 function cidadeTerritorioKey(cidade: string | undefined | null, estado: string | undefined | null) {
   const c = (cidade ?? '').trim() || '— sem cidade —'
@@ -122,10 +127,12 @@ function ClienteDetalheDrawer({
   cliente,
   onClose,
   periodo,
+  acao,
 }: {
   cliente: InsightsTopCliente
   onClose: () => void
   periodo: { inicio: string; fim: string }
+  acao?: import('@/hooks/useInsightsAcoes').InsightsAcao
 }) {
   const { data: historico = [], isPending: loadHist } = useInsightsClienteHistorico(cliente.cnpj_cliente)
   const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
@@ -230,6 +237,9 @@ function ClienteDetalheDrawer({
           </span>
           <InsightsClienteBrasilBadge status={cliente.brasil_enriquecimento_status} />
         </p>
+        <div className="mt-2">
+          <InsightsAcaoMenu cnpj={cliente.cnpj_cliente} acao={acao} prefixLabel="Ação:" />
+        </div>
       </div>
 
       <KPIGrid columns={4}>
@@ -573,7 +583,9 @@ export function InsightsPanel() {
   const [tabBeforeDetail, setTabBeforeDetail] = useState<'territorio' | 'clientes' | 'produtos'>('territorio')
   const [buscaCliente, setBuscaCliente] = useState('')
   const [estadoCliente, setEstadoCliente] = useState('')
+  const [acaoFilter, setAcaoFilter] = useState<'todos' | InsightsAcaoEstado>('todos')
   const [searchParams, setSearchParams] = useSearchParams()
+  const acoesByCnpj = useInsightsAcoesByCnpj()
 
   const topPorCidade = useMemo(() => {
     const m = new Map<string, InsightsTopCliente[]>()
@@ -641,6 +653,12 @@ export function InsightsPanel() {
     const nameQ = raw.toLowerCase()
     return clientes.filter((c) => {
       const matchUf = estadoCliente === '' || c.estado === estadoCliente
+
+      const acao = acoesByCnpj.get(insightsCnpjKey(c.cnpj_cliente))
+      const estadoAcao: InsightsAcaoEstado = acao?.estado ?? 'pendente'
+      const matchAcao = acaoFilter === 'todos' || estadoAcao === acaoFilter
+      if (!matchAcao) return false
+
       if (raw === '') return matchUf
       const cnpjDigits = insightsCnpjKey(c.cnpj_cliente)
       const matchCnpj = q.length >= 2 && cnpjDigits.includes(q)
@@ -649,7 +667,24 @@ export function InsightsPanel() {
       const matchUfText = c.estado?.toLowerCase() === nameQ
       return matchUf && (matchCnpj || matchNome || matchCidade || matchUfText)
     })
-  }, [buscaCliente, estadoCliente, clientes])
+  }, [buscaCliente, estadoCliente, clientes, acoesByCnpj, acaoFilter])
+
+  const acaoCounts = useMemo(() => {
+    const c: Record<'todos' | InsightsAcaoEstado, number> = {
+      todos: clientes.length,
+      pendente: 0,
+      em_acao: 0,
+      resolvido: 0,
+      snooze: 0,
+      arquivado: 0,
+    }
+    for (const cli of clientes) {
+      const a = acoesByCnpj.get(insightsCnpjKey(cli.cnpj_cliente))
+      const estado: InsightsAcaoEstado = a?.estado ?? 'pendente'
+      c[estado]++
+    }
+    return c
+  }, [clientes, acoesByCnpj])
 
   // ─── Top acionáveis + paginação ───────────────────────────────────────────
   const cidadesTopAcionaveis = useMemo(
@@ -669,7 +704,7 @@ export function InsightsPanel() {
   const clientesPag = usePagination({
     items: clientesListaFiltrada,
     initialPageSize: 25,
-    resetKey: `${buscaCliente}|${estadoCliente}`,
+    resetKey: `${buscaCliente}|${estadoCliente}|${acaoFilter}`,
   })
 
   // ─── Detalhe de cliente ───────────────────────────────────────────────────
@@ -683,6 +718,7 @@ export function InsightsPanel() {
         <ClienteDetalheDrawer
           cliente={clienteDetalhe}
           periodo={periodo}
+          acao={acoesByCnpj.get(insightsCnpjKey(clienteDetalhe.cnpj_cliente))}
           onClose={() => {
             setClienteDetalhe(null)
             setInsightsTab(tabBeforeDetail)
@@ -947,6 +983,30 @@ export function InsightsPanel() {
             </FilterField>
           </FilterBar>
 
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+              Status da ação
+            </span>
+            {(['todos', 'pendente', 'em_acao', 'resolvido', 'snooze', 'arquivado'] as const).map(
+              (estado) => {
+                const label = estado === 'todos' ? 'Todos' : INSIGHTS_ACAO_LABEL[estado]
+                const count = acaoCounts[estado]
+                return (
+                  <Button
+                    key={estado}
+                    size="sm"
+                    variant={acaoFilter === estado ? 'default' : 'outline'}
+                    className="h-7 text-xs gap-1.5"
+                    onClick={() => setAcaoFilter(estado)}
+                  >
+                    {label}
+                    <span className="opacity-60 tabular-nums">{count}</span>
+                  </Button>
+                )
+              }
+            )}
+          </div>
+
           <InsightsClientesCharts clientes={clientesListaFiltrada} />
 
           {clientesListaFiltrada.length > clientesPag.pageSize && (
@@ -1003,7 +1063,7 @@ export function InsightsPanel() {
                     <TableHead className="text-right">Faturamento</TableHead>
                     <TableHead className="hidden lg:table-cell text-right">NFs</TableHead>
                     <TableHead className="hidden lg:table-cell text-right">SKUs</TableHead>
-                    <TableHead className="w-8" />
+                    <TableHead className="w-36 text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1038,7 +1098,13 @@ export function InsightsPanel() {
                       <TableCell className="hidden lg:table-cell text-right tabular-nums">{c.total_nfs}</TableCell>
                       <TableCell className="hidden lg:table-cell text-right tabular-nums">{c.total_skus}</TableCell>
                       <TableCell>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        <div className="flex items-center justify-end gap-1.5">
+                          <InsightsAcaoMenu
+                            cnpj={c.cnpj_cliente}
+                            acao={acoesByCnpj.get(insightsCnpjKey(c.cnpj_cliente))}
+                          />
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
