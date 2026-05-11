@@ -204,21 +204,21 @@ export function Dashboard() {
                   <Link
                     key={dist.id}
                     to={`/performance?distribuidor=${dist.id}`}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors group"
+                    className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors group"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-muted-foreground w-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] font-bold text-muted-foreground w-4 shrink-0">
                         {idx + 1}
                       </span>
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
                         {dist.nome}
                       </span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">
                         {dist.estado}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-medium text-foreground">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-medium text-foreground tabular-nums">
                         {formatCurrency(rankingMap.get(dist.id) ?? 0)}
                       </span>
                       <StatusBadge status={dist.status} />
