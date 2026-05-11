@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Download, Loader2, Upload } from 'lucide-react'
+import { ArrowRight, Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 import {
   useInsightsProdutoDePara,
   useUpsertInsightsProdutoDePara,
@@ -55,6 +56,7 @@ export function AdminInsightsDeParaProdutos() {
   const [parseError, setParseError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   const { data: existentes, isLoading: loadingMap } = useInsightsProdutoDePara()
   const { data: produtos, isPending: loadingProdutos } = useProdutos()
@@ -71,6 +73,22 @@ export function AdminInsightsDeParaProdutos() {
     }
     return s
   }, [produtos])
+
+  const produtoBySkuNorm = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of produtos ?? []) {
+      const k = p.sku.trim()
+      if (!k) continue
+      m.set(k, p.descricao)
+      const n = normalizeDeParaCellValue(k)
+      if (n) m.set(n, p.descricao)
+    }
+    return m
+  }, [produtos])
+
+  const origemJaNoServidor = useMemo(() => {
+    return new Set((existentes ?? []).map((e) => e.codigo_origem.trim()))
+  }, [existentes])
 
   const onFile = useCallback(async (file: File | null) => {
     setParseError(null)
@@ -94,9 +112,7 @@ export function AdminInsightsDeParaProdutos() {
         return
       }
       if (raw.length === 0) {
-        setParseError(
-          'Nenhuma linha válida. Use colunas codigo_origem ou codprod_fornecedor (esquerda) e sku_fornecedor (direita), ou abra o template.'
-        )
+        setParseError('Nenhuma linha válida no arquivo (precisa cabeçalho e pares código → SKU).')
         return
       }
       setPreview(dedupeByOrigem(raw))
@@ -105,20 +121,30 @@ export function AdminInsightsDeParaProdutos() {
     }
   }, [])
 
-  const skusDesconhecidos = useMemo(() => {
-    if (skuValidos.size === 0) return []
-    const u = new Set<string>()
-    for (const r of preview) {
-      const skuN = normalizeDeParaCellValue(r.sku_fornecedor)
-      if (!skuValidos.has(skuN)) u.add(skuN || r.sku_fornecedor)
-    }
-    return [...u].sort().slice(0, 50)
-  }, [preview, skuValidos])
+  const previewLinhas = useMemo(() => {
+    return preview
+      .map((r) => {
+        const skuN = normalizeDeParaCellValue(r.sku_fornecedor)
+        const okCatalogo = skuValidos.has(skuN)
+        return {
+          ...r,
+          skuNorm: skuN,
+          okCatalogo,
+          descricaoCadastro: okCatalogo ? produtoBySkuNorm.get(skuN) ?? '' : '',
+          jaNoMapa: origemJaNoServidor.has(r.codigo_origem.trim()),
+        }
+      })
+      .sort((a, b) => {
+        if (a.okCatalogo !== b.okCatalogo) return a.okCatalogo ? -1 : 1
+        return a.codigo_origem.localeCompare(b.codigo_origem, undefined, { numeric: true })
+      })
+  }, [preview, skuValidos, produtoBySkuNorm, origemJaNoServidor])
 
-  const previewForaDoCatalogo = useMemo(() => {
-    if (skuValidos.size === 0) return []
-    return preview.filter((r) => !skuValidos.has(normalizeDeParaCellValue(r.sku_fornecedor)))
-  }, [preview, skuValidos])
+  const contagem = useMemo(() => {
+    const ok = previewLinhas.filter((x) => x.okCatalogo).length
+    const bad = previewLinhas.length - ok
+    return { ok, bad, total: previewLinhas.length }
+  }, [previewLinhas])
 
   const skuEstaNoCatalogo = (sku: string) => skuValidos.has(normalizeDeParaCellValue(sku))
 
@@ -134,7 +160,7 @@ export function AdminInsightsDeParaProdutos() {
     const skipped = preview.length - validRows.length
     if (validRows.length === 0) {
       setSaveError(
-        'Nenhuma linha pode ser gravada: todo sku_fornecedor precisa existir em Produtos (cadastro sempreon_produtos). Corrija os itens em laranja ou cadastre o SKU primeiro.'
+        'Nenhuma linha pode ser gravada: todo sku_fornecedor precisa existir em Produtos.'
       )
       return
     }
@@ -142,7 +168,7 @@ export function AdminInsightsDeParaProdutos() {
       await upsert.mutateAsync({ rows: validRows })
       if (skipped > 0) {
         setSaveNotice(
-          `Gravados ${validRows.length} mapeamento(s). ${skipped} linha(s) com SKU inexistente em Produtos ficaram de fora (importação bloqueia FK).`
+          `Gravados ${validRows.length} mapeamento(s). ${skipped} linha(s) com SKU inexistente no cadastro permanecem na lista abaixo.`
         )
         setPreview(preview.filter((r) => !skuEstaNoCatalogo(r.sku_fornecedor)))
       } else {
@@ -157,7 +183,7 @@ export function AdminInsightsDeParaProdutos() {
           : 'Erro ao gravar'
       setSaveError(
         /foreign key|23503/i.test(msg)
-          ? `${msg} — Confira se cada sku_fornecedor existe exatamente igual em Produtos.`
+          ? `${msg} — Confira se cada sku_fornecedor existe em Produtos.`
           : msg
       )
     }
@@ -167,123 +193,109 @@ export function AdminInsightsDeParaProdutos() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Correlação de Produtos (Insights → fábrica)"
-        description="Mapa único AlwaysOn: código da base territorial (tipicamente coluna codprod_fornecedor no export GA) para o SKU oficial em alwayson_produtos. Usado para comparativos territorial vs cadastro Vinícola."
+        description="Códigos da base territorial → SKU oficial em alwayson_produtos. Um mapa único para padronizar Insights."
       />
 
       <Card>
         <CardContent className="p-4 space-y-4">
-          <SectionTitle title="Upload do mapeamento" icon={Upload} />
-          <p className="text-xs text-muted-foreground max-w-2xl">
-            Colunas aceitas na primeira linha (detecção automática):{' '}
-            <code className="text-foreground">codigo_origem</code>,{' '}
-            <code className="text-foreground">codprod_fornecedor</code> ou{' '}
-            <code className="text-foreground">codigo_insights</code> → alinhamento ao mesmo papel de{' '}
-            <code>codigo_cliente</code> nos templates distribuidores; e{' '}
-            <code className="text-foreground">sku_fornecedor</code> igual ao cadastro de produtos. Aba{' '}
-            <strong>De_Para</strong> em .xlsx é detectada quando existir. Códigos no padrão
-            Campestre: inteiro de 6 dígitos (ex. 117004) vira <code>11.7004</code>; células numéricas
-            com decimais são arredondadas para 4 casas para bater com o cadastro.
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SectionTitle title="Importar mapeamento" icon={Upload} />
             <a
               href={templateHref}
               download
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'inline-flex gap-1.5')}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'inline-flex gap-1.5 text-xs')}
             >
               <Download className="w-3.5 h-3.5" />
-              Baixar template Insights
+              Template .xlsx
             </a>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="sr-only"
-              onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-            />
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Escolher arquivo
-            </Button>
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="sr-only"
+            onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+          />
+
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') fileRef.current?.click()
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault()
+              setDragOver(true)
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setDragOver(false)
+              const f = e.dataTransfer.files?.[0]
+              if (f) void onFile(f)
+            }}
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              'rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              dragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-muted-foreground/25 hover:border-muted-foreground/45 hover:bg-muted/30'
+            )}
+          >
+            <FileSpreadsheet className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm font-medium text-foreground">
+              Solte o arquivo aqui ou clique para escolher
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">.csv, .xlsx ou .xls</p>
             {fileName && (
-              <span className="text-xs text-muted-foreground">{fileName}</span>
+              <p className="text-xs font-mono text-primary mt-3">{fileName}</p>
             )}
           </div>
-          {parseError && (
-            <p className="text-xs text-destructive">{parseError}</p>
-          )}
-          {saveError && (
-            <p className="text-xs text-destructive">{saveError}</p>
-          )}
+
+          <details className="text-xs text-muted-foreground max-w-2xl">
+            <summary className="cursor-pointer select-none text-foreground/80 hover:text-foreground">
+              Colunas esperadas no arquivo
+            </summary>
+            <p className="mt-2 leading-relaxed">
+              Esquerda: <code className="text-foreground">codigo_origem</code>,{' '}
+              <code className="text-foreground">codprod_fornecedor</code> ou{' '}
+              <code className="text-foreground">codigo_insights</code>. Direita:{' '}
+              <code className="text-foreground">sku_fornecedor</code> (igual ao cadastro de produtos).
+              Aba De_Para no Excel é usada se existir. Números no padrão Campestre (ex.{' '}
+              <code className="text-foreground">117004</code> → <code className="text-foreground">11.7004</code>)
+              são normalizados automaticamente.
+            </p>
+          </details>
+
+          {parseError && <p className="text-xs text-destructive">{parseError}</p>}
+          {saveError && <p className="text-xs text-destructive">{saveError}</p>}
           {saveNotice && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">{saveNotice}</p>
           )}
+
           {preview.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Pré-visualização: <strong>{preview.length}</strong> entradas únicas por{' '}
-                <code>codigo_origem</code>
-              </p>
-              {skusDesconhecidos.length > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-500">
-                  SKUs ainda não cadastrados em Produtos (amostra):{' '}
-                  {skusDesconhecidos.join(', ')}
-                  {(preview.some((r) => !skuEstaNoCatalogo(r.sku_fornecedor)) &&
-                    skusDesconhecidos.length === 50 &&
-                    ' …') ||
-                    ''}{' '}
-                  <span className="font-medium">
-                    Ao gravar, só entram linhas cujo sku_fornecedor existir no cadastro; as demais serão ignoradas.
-                  </span>
-                </p>
-              )}
-              {previewForaDoCatalogo.length > 0 && (
-                <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
-                  <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                    Mapeamentos que não batem com Produtos ({previewForaDoCatalogo.length} linha(s))
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Valores já normalizados (Excel como número, texto &quot;117004&quot;, vírgula decimal,
-                    etc.). Se o SKU existir no cadastro com outro texto, cadastre ou ajuste a planilha.
-                  </p>
-                  <div className="border rounded-md max-h-40 overflow-auto bg-background">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-xs">codigo_origem</TableHead>
-                          <TableHead className="text-xs">sku_fornecedor (interpretado)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {previewForaDoCatalogo.slice(0, 30).map((r) => (
-                          <TableRow key={`${r.codigo_origem}-${r.sku_fornecedor}`}>
-                            <TableCell className="text-xs font-mono">{r.codigo_origem}</TableCell>
-                            <TableCell className="text-xs font-mono">{r.sku_fornecedor}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {previewForaDoCatalogo.length > 30 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      … e mais {previewForaDoCatalogo.length - 30} linha(s); use a lista resumida
-                      acima ou exporte os SKU distintos.
-                    </p>
-                  )}
-                </div>
-              )}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  <strong>{contagem.total}</strong> linhas ·{' '}
+                  <span className="text-emerald-700 dark:text-emerald-600">{contagem.ok}</span> com SKU
+                  no catálogo ·{' '}
+                  <span className="text-amber-700 dark:text-amber-500">{contagem.bad}</span> SKU alvo
+                  ausente
+                </span>
+              </div>
+
               {preview.length > 0 && !loadingProdutos && skuValidos.size === 0 && (
                 <p className="text-xs text-destructive">
-                  Não há produtos no cadastro (ou a lista não carregou). Sem SKUs em{' '}
-                  <code className="text-foreground">alwayson_produtos</code> a gravação fica bloqueada
-                  pela regra de integridade.
+                  Lista de produtos vazia ou não carregou — não é possível validar SKUs.
                 </p>
               )}
+
               <Button
                 size="sm"
                 disabled={
@@ -300,28 +312,45 @@ export function AdminInsightsDeParaProdutos() {
                   'Gravar no Supabase'
                 )}
               </Button>
-              <div className="border rounded-md max-h-56 overflow-auto">
+
+              <div className="border rounded-md max-h-[min(28rem,55vh)] overflow-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
+                      <TableHead className="text-xs w-[110px]">Status</TableHead>
                       <TableHead className="text-xs">codigo_origem</TableHead>
                       <TableHead className="text-xs">sku_fornecedor</TableHead>
+                      <TableHead className="text-xs hidden md:table-cell">Produto (cadastro)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {preview.slice(0, 40).map((r) => (
+                    {previewLinhas.map((r) => (
                       <TableRow key={r.codigo_origem}>
-                        <TableCell className="text-xs font-mono">{r.codigo_origem}</TableCell>
-                        <TableCell className="text-xs font-mono">{r.sku_fornecedor}</TableCell>
+                        <TableCell className="align-top py-2">
+                          {!r.okCatalogo ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] border-amber-600/50 text-amber-800 dark:text-amber-400"
+                            >
+                              SKU não cadastrado
+                            </Badge>
+                          ) : r.jaNoMapa ? (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Catálogo OK · mapa existente
+                            </Badge>
+                          ) : (
+                            <Badge className="text-[10px]">Catálogo OK · novo</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono align-top py-2">{r.codigo_origem}</TableCell>
+                        <TableCell className="text-xs font-mono align-top py-2">{r.skuNorm}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[220px] truncate align-top py-2 hidden md:table-cell">
+                          {r.descricaoCadastro || '—'}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-                {preview.length > 40 && (
-                  <p className="text-[11px] text-muted-foreground p-2 border-t">
-                    … e mais {preview.length - 40} linhas
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -335,8 +364,8 @@ export function AdminInsightsDeParaProdutos() {
             <Skeleton className="h-32 w-full mt-2" />
           ) : !existentes || existentes.length === 0 ? (
             <p className="text-xs text-muted-foreground py-6 text-center">
-              Ainda não há correlação de produtos Insights — importe pelo upload acima ou aplique a migration{' '}
-              <code className="text-foreground">011_insights_produto_de_para.sql</code> no Supabase.
+              Nenhum mapeamento gravado ainda — importe acima (ou migration{' '}
+              <code className="text-foreground">011_insights_produto_de_para.sql</code>).
             </p>
           ) : (
             <div className="border rounded-md max-h-72 overflow-auto mt-2">

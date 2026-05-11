@@ -61,9 +61,19 @@ function ProdutoRow({
             <span className="font-mono text-xs">{row.sku}</span>
           </span>
         </TableCell>
-        <TableCell className="font-medium max-w-[220px] truncate">{row.descricao}</TableCell>
+        <TableCell className="font-medium max-w-[200px] truncate">{row.descricao}</TableCell>
         <TableCell className="hidden sm:table-cell">
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">{row.categoria}</Badge>
+        </TableCell>
+        <TableCell className="hidden lg:table-cell max-w-[100px] truncate text-xs text-muted-foreground">
+          {row.marca !== '—' ? row.marca : <span className="text-muted-foreground/70">—</span>}
+        </TableCell>
+        <TableCell className="hidden xl:table-cell max-w-[120px] truncate text-xs text-muted-foreground">
+          {row.detalhamento_categoria !== '—' ? (
+            row.detalhamento_categoria
+          ) : (
+            <span className="text-muted-foreground/70">—</span>
+          )}
         </TableCell>
         <TableCell className="text-right tabular-nums font-medium">
           {formatCurrency(row.faturamento_total)}
@@ -83,7 +93,7 @@ function ProdutoRow({
 
       {expanded && (
         <TableRow className="bg-muted/20 hover:bg-muted/20">
-          <TableCell colSpan={8} className="p-0">
+          <TableCell colSpan={10} className="p-0">
             <div className="px-8 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
               {drillPending && (
                 <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground py-6">
@@ -280,6 +290,8 @@ export function InsightsAbaProdutos() {
                 <TableHead>SKU</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead className="hidden sm:table-cell">Categoria</TableHead>
+                <TableHead className="hidden lg:table-cell">Marca</TableHead>
+                <TableHead className="hidden xl:table-cell">Detalhe</TableHead>
                 <TableHead className="text-right">Faturamento</TableHead>
                 <TableHead className="hidden md:table-cell text-right">Qtd Total</TableHead>
                 <TableHead className="hidden lg:table-cell text-right">Clientes</TableHead>
@@ -290,7 +302,7 @@ export function InsightsAbaProdutos() {
             <TableBody>
               {produtosFiltrados.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-8">
                     Nenhum produto encontrado para os filtros selecionados.
                   </TableCell>
                 </TableRow>
