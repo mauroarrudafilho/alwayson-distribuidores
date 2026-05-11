@@ -11,6 +11,9 @@ import {
   ArrowLeft,
   ShoppingCart,
   Loader2,
+  Archive,
+  TrendingDown,
+  LineChart as LineChartIcon,
 } from 'lucide-react'
 import {
   Bar,
@@ -71,6 +74,7 @@ import { usePagination } from '@/hooks/usePagination'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { TopAcionaveis } from '@/components/insights/TopAcionaveis'
 import {
+  clienteGapMeses,
   topCidadesPrioritarias,
   topClientesPrioritarios,
 } from '@/lib/insights-priority'
@@ -117,14 +121,19 @@ function MixRow({ row, maxFat }: { row: import('@/types/insights').InsightsClien
 function ClienteDetalheDrawer({
   cliente,
   onClose,
+  periodo,
 }: {
   cliente: InsightsTopCliente
   onClose: () => void
+  periodo: { inicio: string; fim: string }
 }) {
   const { data: historico = [], isPending: loadHist } = useInsightsClienteHistorico(cliente.cnpj_cliente)
   const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
   const maxFat = Math.max(...(mix.map((m) => m.faturamento_total)), 1)
   const sumNfsMes = historico.reduce((s, h) => s + h.total_nfs, 0)
+  const gapMeses = clienteGapMeses(cliente, periodo.fim)
+  const anoInicio = periodo.inicio?.slice(0, 4) ?? '—'
+  const anoFim = periodo.fim?.slice(0, 4) ?? '—'
 
   const historicoChart = useMemo(
     () =>
@@ -183,6 +192,16 @@ function ClienteDetalheDrawer({
         </div>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Archive className="w-3.5 h-3.5 text-muted-foreground/70" />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+          Histórico Arruda fechado · {anoInicio} – {anoFim}
+        </span>
+        <span className="text-[11px] text-muted-foreground/60">
+          referência estática · sem atualizações neste dataset
+        </span>
+      </div>
+
       <div className="mb-4">
         <h2 className="text-base font-semibold text-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span>
@@ -229,14 +248,15 @@ function ClienteDetalheDrawer({
               ? new Date(`${cliente.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
               : '—'
           }
-          icon={ShoppingCart}
+          icon={gapMeses > 6 ? TrendingDown : ShoppingCart}
+          badge={gapMeses > 0 ? `${gapMeses}m antes do fim` : 'até o fim do período'}
         />
       </KPIGrid>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
         <InsightsChartCard
           title="Evolução mensal"
-          description="Faturamento em barras · NFs no eixo direito"
+          description={`Faturamento em barras · NFs no eixo direito · janela Arruda ${anoInicio}–${anoFim}`}
           height={268}
         >
           {historico.length === 0 ? (
@@ -396,6 +416,18 @@ function ClienteDetalheDrawer({
           </CardContent>
         </Card>
       </div>
+
+      <section className="mt-6 rounded-md border border-dashed border-border/60 bg-muted/15 px-4 py-3.5">
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+          <LineChartIcon className="w-3.5 h-3.5" />
+          Próxima camada · Comparativo com distribuidor atual
+        </p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Quando as vendas do distribuidor para este cliente forem ingeridas, esta área renderiza
+          a curva atual sobreposta ao histórico Arruda — destacando o gap entre o fim do período
+          fechado ({anoFim}) e hoje.
+        </p>
+      </section>
     </div>
   )
 }
@@ -650,6 +682,7 @@ export function InsightsPanel() {
         />
         <ClienteDetalheDrawer
           cliente={clienteDetalhe}
+          periodo={periodo}
           onClose={() => {
             setClienteDetalhe(null)
             setInsightsTab(tabBeforeDetail)
