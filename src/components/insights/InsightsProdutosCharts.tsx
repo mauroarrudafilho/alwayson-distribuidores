@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Info } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -15,8 +16,12 @@ import {
 import type { InsightsProdutoDetalhe, InsightsProdutoRow } from '@/types/insights'
 import { formatCurrency } from '@/lib/format'
 import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   InsightsChartCard,
-  InsightsCallout,
   formatCurrencyCompact,
   formatPercent,
   formatInt,
@@ -80,7 +85,7 @@ export function InsightsProdutosCharts({ produtosFiltrados, fatTotalFiltrado }: 
       .sort((a, b) => b.faturamento_total - a.faturamento_total)
       .slice(0, 15)
       .map((p) => ({
-        name: skuNome(p, 36),
+        name: skuNome(p, 44),
         full: `${p.sku} — ${p.descricao}`,
         fat: p.faturamento_total,
       }))
@@ -116,19 +121,33 @@ export function InsightsProdutosCharts({ produtosFiltrados, fatTotalFiltrado }: 
     )
   }
 
+  const topSkusInfo = (
+    <UITooltip>
+      <TooltipTrigger
+        type="button"
+        aria-label="Detalhes da concentração de SKUs"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/70 hover:bg-muted/40 hover:text-foreground transition-colors"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[320px] p-3 text-left">
+        <div className="space-y-1.5 text-xs leading-relaxed">
+          <p>
+            Apenas <strong>{formatInt(callouts.n80)}</strong> SKU(s) de{' '}
+            <strong>{formatInt(callouts.nProd)}</strong> acumulam{' '}
+            <strong>80%</strong> do faturamento filtrado.
+          </p>
+          <p>
+            As <strong>3 maiores categorias</strong> somam{' '}
+            <strong>{formatPercent(callouts.top3Pct)}</strong> do total.
+          </p>
+        </div>
+      </TooltipContent>
+    </UITooltip>
+  )
+
   return (
     <div className="space-y-4 mb-6">
-      <InsightsCallout>
-        <p>
-          As <strong>3 maiores categorias</strong> somam{' '}
-          <strong>{formatPercent(callouts.top3Pct)}</strong> do faturamento filtrado.
-        </p>
-        <p>
-          Apenas <strong>{formatInt(callouts.n80)}</strong> SKU(s) (de {formatInt(callouts.nProd)}) acumulam{' '}
-          <strong>80%</strong> desse faturamento.
-        </p>
-      </InsightsCallout>
-
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <InsightsChartCard title="Mix por categoria" description="Faturamento total no filtro">
           <ResponsiveContainer width="100%" height="100%">
@@ -156,12 +175,31 @@ export function InsightsProdutosCharts({ produtosFiltrados, fatTotalFiltrado }: 
           </ResponsiveContainer>
         </InsightsChartCard>
 
-        <InsightsChartCard title="Top SKUs — faturamento" description="Até 15 maiores">
+        <InsightsChartCard
+          title="Top SKUs — faturamento"
+          description={`Até 15 maiores · ${produtosFiltrados.length.toLocaleString('pt-BR')} SKUs no filtro`}
+          headerAction={topSkusInfo}
+          height={460}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart layout="vertical" data={topSkus} margin={{ left: 4, right: 12, top: 8 }}>
+            <BarChart
+              layout="vertical"
+              data={topSkus}
+              margin={{ left: 4, right: 16, top: 4, bottom: 4 }}
+            >
               <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" tick={CHART_AXIS_TICK} tickFormatter={(v) => formatCurrencyCompact(v)} />
-              <YAxis type="category" dataKey="name" width={148} tick={CHART_AXIS_TICK} interval={0} />
+              <XAxis
+                type="number"
+                tick={CHART_AXIS_TICK}
+                tickFormatter={(v) => formatCurrencyCompact(v)}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={240}
+                tick={CHART_AXIS_TICK}
+                interval={0}
+              />
               <Tooltip
                 formatter={((v: unknown) => formatCurrency(coerceTooltipNumber(v))) as never}
                 labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ''}
