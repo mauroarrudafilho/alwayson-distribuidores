@@ -94,6 +94,15 @@ export interface InsightsCidadeRow {
   unidade_predominante?: string
 }
 
+/** Sell-out Insights agregado por mês (view `alwayson_insights_v_mes_global`). */
+export interface InsightsMesGlobalRow {
+  ano_mes: string
+  faturamento_total: number
+  total_nfs: number
+  total_clientes: number
+  total_skus: number
+}
+
 /** Snapshot BrasilAPI / Receita na dimensão cliente (migrate 021). */
 export type InsightsClienteBrasilStatus =
   | 'pending'
