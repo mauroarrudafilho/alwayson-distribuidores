@@ -16,6 +16,7 @@
     "insights:enrich-geo": "node scripts/enrich-insights-nf-geo.mjs",
     "insights:process-clientes": "node scripts/process-insights-clientes-pendentes.mjs",
     "insights:deploy-process-worker": "supabase functions deploy process-insights-pendentes --project-ref osukbalwykbqvoumddxz",
+    "admin:deploy-invite-fn": "supabase functions deploy admin-invite-user --project-ref osukbalwykbqvoumddxz",
     "insights:enrich-geo:cidades": "node scripts/enrich-insights-nf-geo.mjs --last-upload --no-nominatim",
     "insights:delete-cliente": "node scripts/delete-insights-cliente.mjs",
     "insights:delete-upload-arquivo": "node scripts/delete-insights-upload-by-arquivo.mjs",
