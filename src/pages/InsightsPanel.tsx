@@ -67,6 +67,13 @@ import {
   useInsightsMesGlobal,
   insightsCnpjKey,
 } from '@/hooks/useInsightsQueries'
+import { usePagination } from '@/hooks/usePagination'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import { TopAcionaveis } from '@/components/insights/TopAcionaveis'
+import {
+  topCidadesPrioritarias,
+  topClientesPrioritarios,
+} from '@/lib/insights-priority'
 
 function cidadeTerritorioKey(cidade: string | undefined | null, estado: string | undefined | null) {
   const c = (cidade ?? '').trim() || '— sem cidade —'
@@ -612,6 +619,27 @@ export function InsightsPanel() {
     })
   }, [buscaCliente, estadoCliente, clientes])
 
+  // ─── Top acionáveis + paginação ───────────────────────────────────────────
+  const cidadesTopAcionaveis = useMemo(
+    () => topCidadesPrioritarias(cidadesFiltradas, 10),
+    [cidadesFiltradas]
+  )
+  const cidadesPag = usePagination({
+    items: cidadesFiltradas,
+    initialPageSize: 25,
+    resetKey: `${busca}|${estadoFilter}`,
+  })
+
+  const clientesTopAcionaveis = useMemo(
+    () => topClientesPrioritarios(clientesListaFiltrada, periodo.fim, 10),
+    [clientesListaFiltrada, periodo.fim]
+  )
+  const clientesPag = usePagination({
+    items: clientesListaFiltrada,
+    initialPageSize: 25,
+    resetKey: `${buscaCliente}|${estadoCliente}`,
+  })
+
   // ─── Detalhe de cliente ───────────────────────────────────────────────────
   if (clienteDetalhe) {
     return (
@@ -744,6 +772,34 @@ export function InsightsPanel() {
             mesGlobal={mesGlobalQ.data ?? []}
           />
 
+          {cidadesFiltradas.length > cidadesPag.pageSize && (
+            <TopAcionaveis
+              eyebrow="Prioridade · Mercados foco"
+              description="Top 10 por faturamento × penetração de clientes — onde o sell-out histórico foi mais relevante."
+              items={cidadesTopAcionaveis}
+              getKey={(row) => cidadeTerritorioKey(row.cidade, row.estado)}
+              onItemClick={(row) => setBusca(row.cidade)}
+              renderItem={(row) => (
+                <div>
+                  <p className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-medium text-foreground truncate">{row.cidade}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {row.estado}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
+                    <span className="font-semibold text-foreground">
+                      {formatCurrency(row.faturamento_total)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {row.total_clientes} clientes · {row.total_nfs} NFs
+                    </span>
+                  </p>
+                </div>
+              )}
+            />
+          )}
+
           <SectionTitle title="Cidades" icon={MapPin} />
           <Card>
             <CardContent className="p-0">
@@ -766,7 +822,7 @@ export function InsightsPanel() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {cidadesFiltradas.map((row) => {
+                  {cidadesPag.paginated.map((row) => {
                     const k = cidadeTerritorioKey(row.cidade, row.estado)
                     const topClientes = topPorCidade.get(k) ?? []
                     return (
@@ -781,6 +837,13 @@ export function InsightsPanel() {
                   })}
                 </TableBody>
               </Table>
+              <PaginationBar
+                page={cidadesPag.page}
+                pageSize={cidadesPag.pageSize}
+                total={cidadesPag.total}
+                onPageChange={cidadesPag.setPage}
+                onPageSizeChange={cidadesPag.setPageSize}
+              />
             </CardContent>
           </Card>
 
@@ -853,6 +916,49 @@ export function InsightsPanel() {
 
           <InsightsClientesCharts clientes={clientesListaFiltrada} />
 
+          {clientesListaFiltrada.length > clientesPag.pageSize && (
+            <TopAcionaveis
+              eyebrow="Prioridade · Clientes a recuperar"
+              description={`Top 10 por faturamento histórico × gap até o fim do período (${periodo.fim}). Clientes que pararam mais cedo dentro do histórico Arruda — candidatos para reativação via distribuidor.`}
+              items={clientesTopAcionaveis}
+              getKey={(c) => c.cnpj_cliente}
+              onItemClick={(c) => openClienteDetalhe(c)}
+              renderItem={(c) => {
+                const ultimaCompra = c.ultima_compra
+                  ? new Date(`${c.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR', {
+                      month: 'short',
+                      year: '2-digit',
+                    })
+                  : '—'
+                return (
+                  <div>
+                    <p className="flex items-baseline gap-2 flex-wrap">
+                      <span className="font-medium text-foreground truncate">
+                        {c.nome_cliente}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {c.cidade}/{c.estado}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(c.faturamento_total)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        última {ultimaCompra}
+                        {c.__gapMeses > 0 && (
+                          <span className="ml-1 text-amber-700 dark:text-amber-500">
+                            · {c.__gapMeses}m antes do fim
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                )
+              }}
+            />
+          )}
+
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -875,7 +981,7 @@ export function InsightsPanel() {
                       </TableCell>
                     </TableRow>
                   )}
-                  {clientesListaFiltrada.map((c) => (
+                  {clientesPag.paginated.map((c) => (
                     <TableRow
                       key={c.cnpj_cliente}
                       className="cursor-pointer"
@@ -905,6 +1011,13 @@ export function InsightsPanel() {
                   ))}
                 </TableBody>
               </Table>
+              <PaginationBar
+                page={clientesPag.page}
+                pageSize={clientesPag.pageSize}
+                total={clientesPag.total}
+                onPageChange={clientesPag.setPage}
+                onPageSizeChange={clientesPag.setPageSize}
+              />
             </CardContent>
           </Card>
         </TabsContent>
