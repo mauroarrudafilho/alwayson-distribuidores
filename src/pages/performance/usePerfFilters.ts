@@ -8,6 +8,16 @@ function getCurrentMonth(): string {
   return `${y}-${m}`
 }
 
+/** Mês corrente menos N meses, formato 'YYYY-MM'. */
+function getMonthOffset(monthsBack: number): string {
+  const d = new Date()
+  d.setDate(1) // evita rollover quando o dia atual não existe no mês alvo
+  d.setMonth(d.getMonth() - monthsBack)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}`
+}
+
 export type PerfTab = 'distribuidor' | 'gerencia' | 'supervisao' | 'vendas' | 'cliente'
 
 export const TAB_ORDER: PerfTab[] = ['distribuidor', 'gerencia', 'supervisao', 'vendas', 'cliente']
@@ -53,7 +63,10 @@ export function usePerfFilters() {
     gerenteId: searchParams.get('gerente') || undefined,
     supervisorId: searchParams.get('supervisor') || undefined,
     vendedorId: searchParams.get('vendedor') || undefined,
-    periodoInicio: searchParams.get('periodo_inicio') || getCurrentMonth(),
+    // Default: janela de 3 meses (mês corrente − 2 → mês corrente).
+    // Períodos de 1 mês podiam aparecer vazios se a base ainda não tem dados
+    // do mês em curso; 3 meses cobre o trimestre rolling sem mascarar mês recente.
+    periodoInicio: searchParams.get('periodo_inicio') || getMonthOffset(2),
     periodoFim: searchParams.get('periodo_fim') || getCurrentMonth(),
   }
 
