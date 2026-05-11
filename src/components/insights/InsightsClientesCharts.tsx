@@ -3,13 +3,11 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  ComposedChart,
-  Line,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  Cell,
 } from 'recharts'
 import type { InsightsTopCliente } from '@/types/insights'
 import { formatCurrency } from '@/lib/format'
@@ -25,7 +23,7 @@ import {
   coerceTooltipNumber,
 } from '@/components/insights/charts'
 
-function clienteLabel(c: InsightsTopCliente, maxLen = 22) {
+function clienteLabel(c: InsightsTopCliente, maxLen = 28) {
   const n = (c.nome_cliente && c.nome_cliente !== '—' ? c.nome_cliente : c.razao_social) ?? '—'
   return n.length > maxLen ? `${n.slice(0, maxLen - 1)}…` : n
 }
@@ -57,35 +55,15 @@ export function InsightsClientesCharts({ clientes }: Props) {
     [clientes]
   )
 
-  const pareto = useMemo(() => {
+  const top20 = useMemo(() => {
     const sorted = [...clientes].sort((a, b) => b.faturamento_total - a.faturamento_total)
-    const denom = totalFat > 0 ? totalFat : 1
-    const topN = 20
-    const head = sorted.slice(0, topN)
-    const tail = sorted.slice(topN)
-    const rows: { name: string; full: string; fat: number; cumPct: number }[] = []
-    let cum = 0
-    for (const c of head) {
-      cum += c.faturamento_total
-      rows.push({
-        name: clienteLabel(c, 16),
-        full: `${clienteLabel(c, 80)} · ${c.cnpj_cliente}`,
-        fat: c.faturamento_total,
-        cumPct: (cum / denom) * 100,
-      })
-    }
-    if (tail.length > 0) {
-      const rest = tail.reduce((s, c) => s + c.faturamento_total, 0)
-      cum += rest
-      rows.push({
-        name: `Demais (${tail.length})`,
-        full: `${tail.length} clientes no restante`,
-        fat: rest,
-        cumPct: (cum / denom) * 100,
-      })
-    }
-    return rows
-  }, [clientes, totalFat])
+    return sorted.slice(0, 20).map((c, idx) => ({
+      rank: idx + 1,
+      name: clienteLabel(c, 28),
+      full: `${clienteLabel(c, 80)} · ${c.cnpj_cliente}`,
+      fat: c.faturamento_total,
+    }))
+  }, [clientes])
 
   const byUf = useMemo(() => {
     const m = new Map<string, { ufs: number; fat: number }>()
@@ -124,7 +102,8 @@ export function InsightsClientesCharts({ clientes }: Props) {
   const callouts = useMemo(() => {
     const sorted = [...clientes].sort((a, b) => b.faturamento_total - a.faturamento_total)
     const denom = totalFat > 0 ? totalFat : 1
-    const top10 = sorted.slice(0, 10).reduce((s, c) => s + c.faturamento_total, 0)
+    const sumN = (n: number) =>
+      sorted.slice(0, n).reduce((s, c) => s + c.faturamento_total, 0)
     const now = new Date()
     const ms180 = 180 * 24 * 60 * 60 * 1000
     const stale = clientes.filter((c) => {
@@ -137,7 +116,8 @@ export function InsightsClientesCharts({ clientes }: Props) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 3)
     return {
-      top10Pct: (top10 / denom) * 100,
+      top10Pct: (sumN(10) / denom) * 100,
+      top20Pct: (sumN(20) / denom) * 100,
       staleCount: stale,
       top3CatLabel: top3Cat.map((x) => x.key).join(', '),
     }
@@ -167,7 +147,8 @@ export function InsightsClientesCharts({ clientes }: Props) {
       <InsightsCallout>
         <p>
           Os <strong>10 maiores</strong> clientes respondem por{' '}
-          <strong>{formatPercent(callouts.top10Pct)}</strong> do faturamento da lista filtrada.
+          <strong>{formatPercent(callouts.top10Pct)}</strong> do faturamento da lista filtrada;
+          os <strong>20 maiores</strong>, <strong>{formatPercent(callouts.top20Pct)}</strong>.
         </p>
         <p>
           <strong>{formatInt(callouts.staleCount)}</strong> cliente(s) sem compra nos últimos{' '}
@@ -182,31 +163,31 @@ export function InsightsClientesCharts({ clientes }: Props) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <InsightsChartCard
-          title="Pareto — clientes"
-          description="Até 20 maiores + agregado “Demais”; linha = % acumulado do faturamento"
+          title="Top 20 clientes por faturamento"
+          description={`Da lista filtrada — ${clientes.length.toLocaleString('pt-BR')} clientes; ver callout acima para concentração acumulada`}
+          height={520}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={pareto} margin={{ left: 4, right: 12, top: 8, bottom: 28 }}>
-              <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={CHART_AXIS_TICK} interval={0} angle={-24} textAnchor="end" height={72} />
-              <YAxis
-                yAxisId="left"
+            <BarChart
+              data={top20}
+              layout="vertical"
+              margin={{ left: 4, right: 16, top: 4, bottom: 4 }}
+            >
+              <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" horizontal={false} />
+              <XAxis
+                type="number"
                 tick={CHART_AXIS_TICK}
                 tickFormatter={(v: number) => formatCurrencyCompact(v)}
               />
               <YAxis
-                yAxisId="right"
-                orientation="right"
-                domain={[0, 100]}
+                type="category"
+                dataKey="name"
+                width={200}
                 tick={CHART_AXIS_TICK}
-                tickFormatter={(v: number) => `${v}%`}
+                interval={0}
               />
               <Tooltip
-                formatter={((value: unknown, name: unknown) => {
-                  const v = coerceTooltipNumber(value)
-                  const n = String(name)
-                  return n.includes('%') || n.includes('acum') ? `${v.toFixed(1)}%` : formatCurrency(v)
-                }) as never}
+                formatter={((v: unknown) => formatCurrency(coerceTooltipNumber(v))) as never}
                 labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ''}
                 contentStyle={{
                   borderRadius: 8,
@@ -215,22 +196,12 @@ export function InsightsClientesCharts({ clientes }: Props) {
                 }}
               />
               <Bar
-                yAxisId="left"
                 dataKey="fat"
                 fill="var(--color-primary)"
-                radius={[4, 4, 0, 0]}
+                radius={[0, 4, 4, 0]}
                 name="Faturamento"
               />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="cumPct"
-                stroke={INSIGHTS_CHART_COLORS[1]}
-                strokeWidth={2}
-                dot={false}
-                name="% acumulado"
-              />
-            </ComposedChart>
+            </BarChart>
           </ResponsiveContainer>
         </InsightsChartCard>
 

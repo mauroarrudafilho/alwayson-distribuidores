@@ -83,17 +83,53 @@ export type InsightsBootstrap = {
   periodo: { inicio: string; fim: string }
 }
 
+/**
+ * Busca todos os clientes da view paginando pelo cap do PostgREST (db.max-rows).
+ * Sem isso o Pareto, ranking e KPIs ficavam restritos a 1000 de ~8.5k clientes
+ * — distorcendo os charts da aba Clientes do Insights.
+ *
+ * Estratégia: primeira página com count exact + páginas restantes em paralelo.
+ */
+const CLIENTES_PAGE_SIZE = 1000
+async function fetchAllInsightsClientes(): Promise<Record<string, unknown>[]> {
+  const first = await supabase
+    .from('alwayson_insights_v_clientes')
+    .select('*', { count: 'exact' })
+    .range(0, CLIENTES_PAGE_SIZE - 1)
+  if (first.error) throw first.error
+  const rows = (first.data ?? []) as Record<string, unknown>[]
+  const total = first.count ?? rows.length
+  if (rows.length >= total) return rows
+
+  const remainingPages = Math.ceil(total / CLIENTES_PAGE_SIZE) - 1
+  if (remainingPages <= 0) return rows
+
+  const rest = await Promise.all(
+    Array.from({ length: remainingPages }, (_, i) =>
+      supabase
+        .from('alwayson_insights_v_clientes')
+        .select('*')
+        .range((i + 1) * CLIENTES_PAGE_SIZE, (i + 2) * CLIENTES_PAGE_SIZE - 1)
+    )
+  )
+  for (const r of rest) {
+    if (r.error) throw r.error
+    if (r.data) rows.push(...(r.data as Record<string, unknown>[]))
+  }
+  return rows
+}
+
 export function useInsightsBootstrap() {
   return useQuery({
     queryKey: ['insights', 'bootstrap'],
     staleTime: 60_000,
     queryFn: async (): Promise<InsightsBootstrap> => {
-      const [cidadesRes, clientesRes, uploadsRes, skuHeadRes, resumoGlobalRes] = await Promise.all([
+      const [cidadesRes, clientesAll, uploadsRes, skuHeadRes, resumoGlobalRes] = await Promise.all([
         supabase
           .from('alwayson_insights_v_cidades')
           .select('*')
           .order('faturamento_total', { ascending: false }),
-        supabase.from('alwayson_insights_v_clientes').select('*'),
+        fetchAllInsightsClientes(),
         supabase
           .from('alwayson_insights_uploads')
           .select('periodo_inicio, periodo_fim, status, criado_em')
@@ -121,13 +157,13 @@ export function useInsightsBootstrap() {
       }
 
       const miss =
-        [cidadesRes.error, clientesRes.error].find((e) =>
+        ([cidadesRes.error].find((e) =>
           String(e?.message ?? '').includes('does not exist')
         ) ??
-        ([cidadesRes.error, clientesRes.error].find((e) =>
-          String(e?.message ?? '').includes('schema cache')
-        ) ??
-          null)
+          [cidadesRes.error].find((e) =>
+            String(e?.message ?? '').includes('schema cache')
+          )) ??
+        null
 
       if (miss) {
         throw new Error(
@@ -135,7 +171,7 @@ export function useInsightsBootstrap() {
         )
       }
       if (cidadesRes.error) throw cidadesRes.error
-      if (clientesRes.error) throw clientesRes.error
+      // clientesAll já vem com erros propagados via fetchAllInsightsClientes
 
       const cidadeRows = (cidadesRes.data ?? []) as Record<string, unknown>[]
       const cidades: InsightsCidadeRow[] = cidadeRows.map((row) => ({
@@ -153,7 +189,7 @@ export function useInsightsBootstrap() {
             : undefined,
       }))
 
-      const clienteRows = (clientesRes.data ?? []) as Record<string, unknown>[]
+      const clienteRows = clientesAll
       const clientes: InsightsTopCliente[] = clienteRows
         .map((row) => ({
           cnpj_cliente: String(row.cnpj_cliente ?? ''),
