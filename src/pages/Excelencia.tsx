@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatCurrency } from '@/lib/format'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useExcelenciaConfigs, useExcelenciaClientes } from '@/hooks/useExcelenciaConfig'
 import type { ExcelenciaConfig } from '@/types/excelencia'
@@ -293,17 +294,26 @@ export function Excelencia() {
                         {row.cliente_nome}
                       </Link>
                     </TableCell>
-                    {row.criterios.map((cel) => (
-                      <TableCell
-                        key={cel.criterio_nome}
-                        className={cn(
-                          'text-center font-medium tabular-nums',
-                          STATUS_CELL_CLASSES[cel.status]
-                        )}
-                      >
-                        {cel.realizado !== null ? cel.realizado : '—'}
-                      </TableCell>
-                    ))}
+                    {row.criterios.map((cel) => {
+                      const isMoeda = cel.criterio_nome.includes('R$')
+                      const display =
+                        cel.realizado === null
+                          ? '—'
+                          : isMoeda
+                            ? formatCurrency(cel.realizado)
+                            : cel.realizado.toLocaleString('pt-BR')
+                      return (
+                        <TableCell
+                          key={cel.criterio_nome}
+                          className={cn(
+                            'text-center font-medium tabular-nums',
+                            STATUS_CELL_CLASSES[cel.status]
+                          )}
+                        >
+                          {display}
+                        </TableCell>
+                      )
+                    })}
                     <TableCell className="text-center font-bold tabular-nums">
                       {row.score}%
                     </TableCell>
