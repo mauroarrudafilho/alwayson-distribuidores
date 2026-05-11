@@ -25,7 +25,7 @@ import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { KPICard } from '@/components/distribuidor/KPICard'
-import { formatCurrency } from '@/lib/format'
+import { formatCidadeUf, formatCurrency } from '@/lib/format'
 import type { InsightsProdutoDetalhe, InsightsProdutoRow } from '@/types/insights'
 import { useInsightsProdutoExpandido, useInsightsProdutos } from '@/hooks/useInsightsQueries'
 import { usePagination } from '@/hooks/usePagination'
@@ -134,7 +134,7 @@ function ProdutoRow({
                             <TableRow key={c.cnpj_cliente} className="border-border/30">
                               <TableCell className="font-medium text-sm">{c.nome_cliente}</TableCell>
                               <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                                {c.cidade}/{c.estado}
+                                {formatCidadeUf(c.cidade, c.estado)}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-sm">
                                 {c.quantidade_total.toLocaleString('pt-BR')}
