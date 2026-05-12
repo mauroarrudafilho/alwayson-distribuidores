@@ -32,6 +32,12 @@ function mapClienteRow(row: Record<string, unknown>): InsightsTopCliente {
     total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
     ultima_compra: isoDateOnly(row.ultima_compra),
     total_skus: Math.trunc(Number(row.total_skus)) || 0,
+    nome_rede: (() => {
+      const g = row.grupo_label
+      if (g == null) return undefined
+      const t = String(g).trim()
+      return t || undefined
+    })(),
     brasil_enriquecimento_status: parseInsightsClienteBrasilStatus(
       row.brasil_enriquecimento_status
     ),
@@ -51,7 +57,7 @@ export function useClienteEmInsights(cnpj: string | null | undefined) {
     enabled,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('alwayson_insights_v_clientes')
+        .from('alwayson_insights_v_clientes_com_rede')
         .select('*')
         .eq('cnpj_cliente', key)
         .maybeSingle()

@@ -7,7 +7,7 @@ const adminTabs = [
   { path: '/admin/produtos', label: 'Produtos', prefix: false },
   { path: '/admin/excelencia', label: 'Excelência', prefix: false },
   { path: '/admin/usuarios', label: 'Usuários', prefix: false },
-  { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro', prefix: false },
+  { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro', prefix: true },
 ]
 
 function tabActive(pathname: string, path: string, prefix: boolean) {

@@ -115,3 +115,23 @@ export function shouldExcludeInsightsRowCnpj(raw: unknown): boolean {
   const r = parseInsightsCnpj(raw)
   return !r.ok
 }
+
+/** Raiz CNPJ (8 dígitos; trecho antes de `/` na máscara XX.XXX.XXX/XXXX-XX). */
+export function cnpjRaiz8(cnpj14Raw: string | null | undefined): string {
+  const p = parseInsightsCnpj(cnpj14Raw ?? '')
+  const d = p.ok
+    ? p.cnpj14
+    : String(cnpj14Raw ?? '')
+        .replace(/\D/g, '')
+        .padStart(14, '0')
+        .slice(-14)
+  if (d.length !== 14 || !/^\d{14}$/.test(d)) return ''
+  return d.slice(0, 8)
+}
+
+/** Ex.: `98521909` → `98.521.909` (raiz formatada). */
+export function formatCnpjRaizDisplay(raiz8: string): string {
+  const s = raiz8.replace(/\D/g, '').slice(0, 8).padStart(8, '0')
+  if (s.length !== 8) return raiz8.trim() || '—'
+  return `${s.slice(0, 2)}.${s.slice(2, 5)}.${s.slice(5, 8)}`
+}

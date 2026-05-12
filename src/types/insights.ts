@@ -122,7 +122,45 @@ export interface InsightsTopCliente {
   total_nfs: number
   ultima_compra: string
   total_skus: number
+  nome_rede?: string
   brasil_enriquecimento_status?: InsightsClienteBrasilStatus
+}
+
+/** Agrupamento Insights: rede manual (admin) ou raiz CNPJ automática. */
+export type InsightsGrupoKind = 'manual' | 'raiz'
+
+/** Uma linha de `alwayson_insights_v_rede_resumo`. */
+export interface InsightsRedeResumoRow {
+  grupo_kind: InsightsGrupoKind
+  grupo_id: string
+  grupo_label: string
+  /** Nome de exibição: cadastro admin (manual) ou agrupado das NFs (raiz: prioriza razão social, depois fantasia). */
+  nome_rede: string | null
+  total_lojas: number
+  faturamento_total: number
+  total_nfs: number
+  ultima_compra: string
+  total_skus: number
+  ticket_medio_loja: number
+}
+
+/** Cliente na view `alwayson_insights_v_clientes_com_rede`. */
+export interface InsightsClienteComRedeRow {
+  cnpj_cliente: string
+  nome_cliente: string
+  razao_social?: string
+  cidade?: string
+  estado?: string
+  faturamento_total: number
+  total_nfs: number
+  ultima_compra: string
+  total_skus: number
+  cnpj_raiz: string
+  rede_id: string | null
+  rede_nome: string | null
+  grupo_kind: InsightsGrupoKind
+  grupo_id: string
+  grupo_label: string
 }
 
 /** Histórico mensal de um cliente — evolução ao longo do tempo. */
