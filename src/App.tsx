@@ -22,9 +22,12 @@ import { AdminMetas } from '@/pages/admin/AdminMetas'
 import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
+import { AdminAjustesLayout } from '@/pages/admin/AdminAjustesLayout'
 import { AdminDeParaProdutos } from '@/pages/admin/AdminDeParaProdutos'
 import { AdminInsightsDeParaProdutos } from '@/pages/admin/AdminInsightsDeParaProdutos'
 import { AdminInsightsCadastroClientes } from '@/pages/admin/AdminInsightsCadastroClientes'
+import { AdminInsightsRedes } from '@/pages/admin/AdminInsightsRedes'
+import { AdminAjustesRedesTemplateVendas } from '@/pages/admin/AdminAjustesRedesTemplateVendas'
 import { AdminDistribuidorLayout } from '@/pages/admin/AdminDistribuidorLayout'
 import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
 import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
@@ -96,6 +99,7 @@ function App() {
                         path="cadastro-clientes"
                         element={<AdminInsightsCadastroClientes />}
                       />
+                      <Route path="redes" element={<AdminInsightsRedes />} />
                       <Route
                         path="excluir-clientes"
                         element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
@@ -104,7 +108,19 @@ function App() {
                     <Route path="produtos" element={<AdminProdutos />} />
                     <Route path="excelencia" element={<AdminExcelencia />} />
                     <Route path="usuarios" element={<AdminUsuarios />} />
-                    <Route path="ajustes-cadastro" element={<AdminAjustesCadastro />} />
+                    <Route path="ajustes-cadastro" element={<AdminAjustesLayout />}>
+                      <Route index element={<AdminAjustesCadastro />} />
+                      <Route
+                        path="redes-template-vendas"
+                        element={<AdminAjustesRedesTemplateVendas />}
+                      />
+                      <Route
+                        path="redes-insights"
+                        element={
+                          <Navigate to="/admin/ajustes-cadastro/redes-template-vendas" replace />
+                        }
+                      />
+                    </Route>
                     <Route path="de-para-produtos" element={<AdminLegacyDeParaProdutos />} />
                     <Route
                       path="de-para-insights-produtos"

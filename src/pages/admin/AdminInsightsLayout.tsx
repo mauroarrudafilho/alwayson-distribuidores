@@ -15,8 +15,14 @@ export function AdminInsightsLayout() {
   return (
     <div className="space-y-4 animate-fade-in">
       <p className="text-xs text-muted-foreground max-w-2xl">
-        Parâmetros globais do módulo Insights: correlação de produtos e acompanhamento do cadastro territorial
-        (Receita / BrasilAPI) dos clientes na dimensão Insights.
+        Parâmetros globais do módulo Insights.{' '}
+        <NavLink
+          to="/admin/ajustes-cadastro/redes-template-vendas"
+          className="text-primary underline-offset-2 hover:underline font-medium"
+        >
+          Ajuste de Redes
+        </NavLink>{' '}
+        está em Ajustes de cadastro.
       </p>
 
       <div className="flex flex-wrap gap-1 border-b border-border/50">
@@ -25,6 +31,9 @@ export function AdminInsightsLayout() {
         </NavLink>
         <NavLink to={`${base}/cadastro-clientes`} className={subTabClass}>
           Cadastro clientes
+        </NavLink>
+        <NavLink to={`${base}/redes`} className={subTabClass}>
+          Redes manuais
         </NavLink>
       </div>
 

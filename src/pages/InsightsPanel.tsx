@@ -14,6 +14,7 @@ import {
   Archive,
   TrendingDown,
   LineChart as LineChartIcon,
+  Building2,
 } from 'lucide-react'
 import {
   CartesianGrid,
@@ -47,7 +48,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCidadeUf, formatCnpj, formatCurrency } from '@/lib/format'
-import type { InsightsCidadeRow, InsightsTopCliente } from '@/types/insights'
+import type {
+  InsightsCidadeRow,
+  InsightsClienteComRedeRow,
+  InsightsRedeResumoRow,
+  InsightsTopCliente,
+} from '@/types/insights'
 import {
   InsightsChartCard,
   formatCurrencyCompact,
@@ -67,6 +73,9 @@ import {
   useInsightsClienteHistorico,
   useInsightsClienteMix,
   useInsightsMesGlobal,
+  useInsightsRedeResumo,
+  useInsightsFiliaisGrupo,
+  clienteComRedeToTopCliente,
   insightsCnpjKey,
   formatPeriodoLabel,
 } from '@/hooks/useInsightsQueries'
@@ -229,6 +238,14 @@ function ClienteDetalheDrawer({
           </span>
           <InsightsClienteBrasilBadge status={cliente.brasil_enriquecimento_status} />
         </p>
+        {cliente.nome_rede && (
+          <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 shrink-0 opacity-70" />
+            <span>
+              Rede <span className="text-foreground font-medium">{cliente.nome_rede}</span>
+            </span>
+          </p>
+        )}
         <div className="mt-2">
           <InsightsAcaoMenu cnpj={cliente.cnpj_cliente} acao={acao} prefixLabel="Ação:" />
         </div>
@@ -558,6 +575,98 @@ function CidadeRow({
   )
 }
 
+function RedeGrupoDetalhePanel({
+  row,
+  periodo,
+  onBack,
+  onSelectFilial,
+}: {
+  row: InsightsRedeResumoRow
+  periodo: { inicio: string; fim: string }
+  onBack: () => void
+  onSelectFilial: (c: InsightsClienteComRedeRow) => void
+}) {
+  const { data: filiais = [], isPending } = useInsightsFiliaisGrupo(row.grupo_id)
+
+  return (
+    <div className="animate-fade-in">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Voltar
+      </button>
+      <PageHeader
+        title={row.nome_rede?.trim() || row.grupo_label}
+        description={
+          row.grupo_kind === 'raiz'
+            ? `Raiz ${row.grupo_label} · ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`
+            : `Rede manual · ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`
+        }
+      />
+      {isPending && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Carregando lojas…
+        </div>
+      )}
+      <KPIGrid columns={4} className="mb-6">
+        <KPICard label="Lojas" value={row.total_lojas} icon={Building2} />
+        <KPICard label="Faturamento" value={formatCurrency(row.faturamento_total)} icon={DollarSign} />
+        <KPICard label="NFs" value={row.total_nfs} icon={Receipt} />
+        <KPICard label="SKUs" value={row.total_skus} icon={Package} />
+      </KPIGrid>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Loja</TableHead>
+                <TableHead className="hidden sm:table-cell">Cidade / UF</TableHead>
+                <TableHead className="hidden md:table-cell font-mono text-xs">CNPJ</TableHead>
+                <TableHead className="text-right">Faturamento</TableHead>
+                <TableHead className="w-8" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filiais.length === 0 && !isPending && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
+                    Nenhuma loja neste grupo.
+                  </TableCell>
+                </TableRow>
+              )}
+              {filiais.map((c) => (
+                <TableRow
+                  key={c.cnpj_cliente}
+                  className="cursor-pointer"
+                  onClick={() => onSelectFilial(c)}
+                >
+                  <TableCell className="font-medium max-w-[220px] truncate">{c.nome_cliente}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                    {formatCidadeUf(c.cidade, c.estado)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
+                    {formatCnpj(c.cnpj_cliente)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">
+                    {formatCurrency(c.faturamento_total)}
+                  </TableCell>
+                  <TableCell>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export function InsightsPanel() {
@@ -584,6 +693,12 @@ export function InsightsPanel() {
   const [acaoFilter, setAcaoFilter] = useState<'todos' | InsightsAcaoEstado>('todos')
   const [searchParams, setSearchParams] = useSearchParams()
   const acoesByCnpj = useInsightsAcoesByCnpj()
+  const redeResumo = useInsightsRedeResumo()
+
+  const [clientesSubTab, setClientesSubTab] = useState<'lojas' | 'redes'>('lojas')
+  const [redeGrupoDetalhe, setRedeGrupoDetalhe] = useState<InsightsRedeResumoRow | null>(null)
+  const [redeGrupoReturn, setRedeGrupoReturn] = useState<InsightsRedeResumoRow | null>(null)
+  const [buscaRede, setBuscaRede] = useState('')
 
   const topPorCidade = useMemo(() => {
     const m = new Map<string, InsightsTopCliente[]>()
@@ -663,7 +778,8 @@ export function InsightsPanel() {
       const matchNome = c.nome_cliente?.toLowerCase().includes(nameQ) ?? false
       const matchCidade = c.cidade?.toLowerCase().includes(nameQ) ?? false
       const matchUfText = c.estado?.toLowerCase() === nameQ
-      return matchUf && (matchCnpj || matchNome || matchCidade || matchUfText)
+      const matchRede = c.nome_rede?.toLowerCase().includes(nameQ) ?? false
+      return matchUf && (matchCnpj || matchNome || matchCidade || matchUfText || matchRede)
     })
   }, [buscaCliente, estadoCliente, clientes, acoesByCnpj, acaoFilter])
 
@@ -705,6 +821,25 @@ export function InsightsPanel() {
     resetKey: `${buscaCliente}|${estadoCliente}|${acaoFilter}`,
   })
 
+  const redesFiltradas = useMemo(() => {
+    const raw = buscaRede.trim().toLowerCase()
+    const rows = redeResumo.data ?? []
+    if (!raw) return rows
+    const digits = raw.replace(/\D/g, '')
+    return rows.filter(
+      (r) =>
+        r.grupo_label.toLowerCase().includes(raw) ||
+        (r.nome_rede?.toLowerCase().includes(raw) ?? false) ||
+        (digits.length > 0 && r.grupo_id.replace(/\D/g, '').includes(digits))
+    )
+  }, [redeResumo.data, buscaRede])
+
+  const redePag = usePagination({
+    items: redesFiltradas,
+    initialPageSize: 25,
+    resetKey: buscaRede,
+  })
+
   // ─── Detalhe de cliente ───────────────────────────────────────────────────
   if (clienteDetalhe) {
     return (
@@ -719,7 +854,14 @@ export function InsightsPanel() {
           acao={acoesByCnpj.get(insightsCnpjKey(clienteDetalhe.cnpj_cliente))}
           onClose={() => {
             setClienteDetalhe(null)
-            setInsightsTab(tabBeforeDetail)
+            if (redeGrupoReturn) {
+              setRedeGrupoDetalhe(redeGrupoReturn)
+              setRedeGrupoReturn(null)
+              setInsightsTab('clientes')
+              setClientesSubTab('redes')
+            } else {
+              setInsightsTab(tabBeforeDetail)
+            }
           }}
         />
       </div>
@@ -741,6 +883,23 @@ export function InsightsPanel() {
     return (
       <div className="animate-fade-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
         {msg}
+      </div>
+    )
+  }
+
+  if (redeGrupoDetalhe && !clienteDetalhe) {
+    return (
+      <div className="animate-fade-in">
+        <RedeGrupoDetalhePanel
+          row={redeGrupoDetalhe}
+          periodo={periodo}
+          onBack={() => setRedeGrupoDetalhe(null)}
+          onSelectFilial={(c) => {
+            setRedeGrupoReturn(redeGrupoDetalhe)
+            setRedeGrupoDetalhe(null)
+            openClienteDetalhe(clienteComRedeToTopCliente(c))
+          }}
+        />
       </div>
     )
   }
@@ -916,13 +1075,32 @@ export function InsightsPanel() {
         </TabsContent>
 
         <TabsContent value="clientes" className="mt-0">
-          <p className="text-sm text-muted-foreground mb-4">
-            Consulta por CNPJ, razão social ou cidade. Clique em uma linha para ver histórico e mix.
-          </p>
+          <Tabs
+            value={clientesSubTab}
+            onValueChange={(v) => setClientesSubTab(v as 'lojas' | 'redes')}
+          >
+            <TabsList
+              variant="line"
+              className="mb-4 w-fit max-w-full h-auto gap-6 border-0 border-b border-border/40 bg-transparent p-0"
+            >
+              <TabsTrigger
+                value="lojas"
+                className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+              >
+                Lojas
+              </TabsTrigger>
+              <TabsTrigger
+                value="redes"
+                className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+              >
+                Redes
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="lojas" className="mt-0">
           <FilterBar columns={2}>
             <FilterField label="Buscar CNPJ, nome ou cidade">
               <Input
-                placeholder="07891234…, Supermercado, Recife…"
+                placeholder="07891234…, nome, cidade ou rede…"
                 value={buscaCliente}
                 onChange={(e) => setBuscaCliente(e.target.value)}
                 className="h-8 text-sm"
@@ -1030,6 +1208,7 @@ export function InsightsPanel() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cliente</TableHead>
+                    <TableHead className="hidden lg:table-cell max-w-[140px]">Rede</TableHead>
                     <TableHead className="hidden sm:table-cell">Cidade / UF</TableHead>
                     <TableHead className="hidden md:table-cell font-mono text-xs">CNPJ</TableHead>
                     <TableHead className="text-right">Faturamento</TableHead>
@@ -1041,7 +1220,7 @@ export function InsightsPanel() {
                 <TableBody>
                   {clientesListaFiltrada.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
                         Nenhum cliente encontrado.
                       </TableCell>
                     </TableRow>
@@ -1056,6 +1235,11 @@ export function InsightsPanel() {
                         <span className="flex items-center gap-2">
                           <span className="truncate">{c.nome_cliente}</span>
                           <InsightsClienteBrasilBadge status={c.brasil_enriquecimento_status} />
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[160px]">
+                        <span className="truncate block" title={c.nome_rede}>
+                          {c.nome_rede ?? '—'}
                         </span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
@@ -1091,6 +1275,102 @@ export function InsightsPanel() {
               />
             </CardContent>
           </Card>
+            </TabsContent>
+            <TabsContent value="redes" className="mt-0 space-y-4">
+              <div>
+                <FilterField label="Buscar">
+                  <Input
+                    placeholder="Raiz, nome da rede…"
+                    value={buscaRede}
+                    onChange={(e) => setBuscaRede(e.target.value)}
+                    className="h-8 text-sm max-w-md"
+                  />
+                </FilterField>
+              </div>
+              {redeResumo.isError && (
+                <p className="text-sm text-destructive">
+                  {redeResumo.error instanceof Error
+                    ? redeResumo.error.message
+                    : 'Não foi possível carregar redes.'}
+                </p>
+              )}
+              {redeResumo.isPending && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando redes…
+                </div>
+              )}
+              {!redeResumo.isPending && !redeResumo.isError && (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-mono text-xs whitespace-nowrap">Raiz CNPJ</TableHead>
+                          <TableHead className="min-w-[120px] max-w-[220px]">Nome rede</TableHead>
+                          <TableHead className="w-24">Tipo</TableHead>
+                          <TableHead className="text-right">Lojas</TableHead>
+                          <TableHead className="text-right">Faturamento</TableHead>
+                          <TableHead className="hidden md:table-cell text-right">NFs</TableHead>
+                          <TableHead className="w-8" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {redesFiltradas.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                              Nenhuma rede encontrada.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {redePag.paginated.map((r) => (
+                          <TableRow
+                            key={`${r.grupo_kind}-${r.grupo_id}`}
+                            className="cursor-pointer"
+                            onClick={() => setRedeGrupoDetalhe(r)}
+                          >
+                            <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
+                              {r.grupo_kind === 'raiz' ? r.grupo_label : '—'}
+                            </TableCell>
+                            <TableCell className="font-medium max-w-[220px]">
+                              <span className="flex items-center gap-2">
+                                <Building2 className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                <span className="truncate" title={r.nome_rede ?? undefined}>
+                                  {r.nome_rede?.trim() || '—'}
+                                </span>
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={r.grupo_kind === 'manual' ? 'default' : 'secondary'} className="text-[10px]">
+                                {r.grupo_kind === 'manual' ? 'Manual' : 'Raiz'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">{r.total_lojas}</TableCell>
+                            <TableCell className="text-right tabular-nums font-medium">
+                              {formatCurrency(r.faturamento_total)}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-right tabular-nums">
+                              {r.total_nfs}
+                            </TableCell>
+                            <TableCell>
+                              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <PaginationBar
+                      page={redePag.page}
+                      pageSize={redePag.pageSize}
+                      total={redePag.total}
+                      onPageChange={redePag.setPage}
+                      onPageSizeChange={redePag.setPageSize}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="produtos" className="mt-0">
