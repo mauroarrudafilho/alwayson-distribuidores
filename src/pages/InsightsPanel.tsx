@@ -7,35 +7,26 @@ import {
   Receipt,
   Package,
   ChevronRight,
-  ChevronDown,
   ArrowLeft,
-  ShoppingCart,
   Loader2,
-  Archive,
-  TrendingDown,
-  LineChart as LineChartIcon,
   Building2,
+  Target,
+  Layers,
+  ClipboardList,
+  BarChart3,
+  TrendingUp,
 } from 'lucide-react'
-import {
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
-import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
+import { InsightsExplorarCard } from '@/components/insights/InsightsExplorarCard'
+import {
+  TopAcionaveis,
+  insightsListMetaClass,
+  insightsListTitleClass,
+} from '@/components/insights/TopAcionaveis'
 import {
   Table,
   TableBody,
@@ -44,49 +35,64 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { InsightsCidadeDrawer } from '@/components/insights/InsightsCidadeDrawer'
+import { InsightsSortableTh } from '@/components/insights/InsightsSortableTh'
+import { useInsightsTableSort } from '@/hooks/useInsightsTableSort'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { InsightsSearchField } from '@/components/insights/InsightsSearchField'
+import { InsightsTerritorioMap } from '@/components/insights/InsightsTerritorioMap'
+import { formatPerCapitaCurrency } from '@/lib/insights-per-capita'
+import { lookupCidadeGap } from '@/lib/insights-gap-per-capita'
+import { InsightsGapStatus } from '@/components/insights/InsightsGapStatus'
+import { InsightsParametrizacaoDialog } from '@/components/insights/InsightsParametrizacaoDialog'
+import { useInsightsPotencialExclusions } from '@/hooks/useInsightsPotencialExclusions'
+import {
+  INSIGHTS_FILTRO_TODOS,
+  insightsSelectOnChange,
+  insightsSelectValue,
+} from '@/lib/insights-filters'
 import { formatCidadeUf, formatCnpj, formatCurrency } from '@/lib/format'
+import { insightsCicloVivoPeriodo } from '@/lib/periodo'
 import type {
   InsightsCidadeRow,
   InsightsClienteComRedeRow,
   InsightsRedeResumoRow,
   InsightsTopCliente,
 } from '@/types/insights'
-import {
-  InsightsChartCard,
-  formatCurrencyCompact,
-  formatInt,
-  CHART_AXIS_TICK,
-  CHART_GRID_STROKE,
-  INSIGHTS_CHART_COLORS,
-  coerceTooltipNumber,
-} from '@/components/insights/charts'
 import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
+import { InsightsBateOlhoModal } from '@/components/insights/InsightsBateOlhoModal'
 import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
-import { InsightsClientesCharts } from '@/components/insights/InsightsClientesCharts'
-import { InsightsTerritoryCharts } from '@/components/insights/InsightsTerritoryCharts'
-import { buildYoySeries } from '@/lib/insights-yoy'
+import { InsightsContextKpis } from '@/components/insights/InsightsContextKpis'
+import { InsightsOticaIntro } from '@/components/insights/InsightsOticaIntro'
+import { InsightsTerritorioLens } from '@/components/insights/InsightsTerritorioLens'
+import {
+  buildClientesKpis,
+  buildTerritorioKpis,
+} from '@/lib/insights-contextual-kpis'
+import { enriquecerCidadesPerCapita } from '@/lib/insights-per-capita'
+import { useInsightsPopulacao } from '@/hooks/useInsightsPopulacao'
+import { useAuth } from '@/contexts/auth'
 import {
   useInsightsBootstrap,
-  useInsightsClienteHistorico,
-  useInsightsClienteMix,
   useInsightsMesGlobal,
   useInsightsRedeResumo,
   useInsightsFiliaisGrupo,
   clienteComRedeToTopCliente,
   insightsCnpjKey,
   formatPeriodoLabel,
+  queryErrorMessage,
 } from '@/hooks/useInsightsQueries'
 import { usePagination } from '@/hooks/usePagination'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { TopAcionaveis } from '@/components/insights/TopAcionaveis'
-import {
-  clienteGapMeses,
-  topCidadesPrioritarias,
-  topClientesPrioritarios,
-} from '@/lib/insights-priority'
+import { topClientesPrioritarios } from '@/lib/insights-priority'
 import {
   useInsightsAcoesByCnpj,
   type InsightsAcaoEstado,
@@ -97,482 +103,6 @@ function cidadeTerritorioKey(cidade: string | undefined | null, estado: string |
   const c = (cidade ?? '').trim() || '— sem cidade —'
   const e = (estado ?? '').trim() || '—'
   return `${c}\t${e}`
-}
-
-// ─── Subcomponentes ──────────────────────────────────────────────────────────
-
-function MixRow({ row, maxFat }: { row: import('@/types/insights').InsightsClienteMixRow; maxFat: number }) {
-  const pct = maxFat > 0 ? (row.faturamento_total / maxFat) * 100 : 0
-  return (
-    <TableRow>
-      <TableCell className="font-mono text-xs">{row.sku}</TableCell>
-      <TableCell className="max-w-[180px] truncate">{row.descricao}</TableCell>
-      <TableCell className="text-right tabular-nums">
-        {row.quantidade_total.toLocaleString('pt-BR')}
-        <span className="ml-1 text-muted-foreground text-xs">{row.unidade}</span>
-      </TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground tabular-nums">{row.meses_ativos}m</TableCell>
-      <TableCell className="w-40">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
-            <div className="h-full bg-primary/70 rounded" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="text-xs tabular-nums w-20 text-right font-medium">{formatCurrency(row.faturamento_total)}</span>
-        </div>
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function ClienteDetalheDrawer({
-  cliente,
-  onClose,
-  periodo,
-  acao,
-}: {
-  cliente: InsightsTopCliente
-  onClose: () => void
-  periodo: { inicio: string; fim: string }
-  acao?: import('@/hooks/useInsightsAcoes').InsightsAcao
-}) {
-  const { data: historico = [], isPending: loadHist } = useInsightsClienteHistorico(cliente.cnpj_cliente)
-  const { data: mix = [], isPending: loadMix } = useInsightsClienteMix(cliente.cnpj_cliente)
-  const maxFat = Math.max(...(mix.map((m) => m.faturamento_total)), 1)
-  const sumNfsMes = historico.reduce((s, h) => s + h.total_nfs, 0)
-  const gapMeses = clienteGapMeses(cliente, periodo.fim)
-  const anoInicio = periodo.inicio?.slice(0, 4) ?? '—'
-  const anoFim = periodo.fim?.slice(0, 4) ?? '—'
-
-  const historicoYoyFat = useMemo(
-    () => buildYoySeries(historico, 'faturamento'),
-    [historico]
-  )
-  const historicoYoySkus = useMemo(
-    () => buildYoySeries(historico, 'total_skus'),
-    [historico]
-  )
-
-  const mixPie = useMemo(() => {
-    const sorted = [...mix].sort((a, b) => b.faturamento_total - a.faturamento_total)
-    const head = sorted.slice(0, 7)
-    const tail = sorted.slice(7)
-    const outros = tail.reduce((s, r) => s + r.faturamento_total, 0)
-    const rows = head.map((r) => {
-      const lbl = (r.descricao?.trim() || r.sku) as string
-      const short = lbl.length > 18 ? `${lbl.slice(0, 17)}…` : lbl
-      return {
-        name: short,
-        full: `${r.descricao?.trim() || '—'} (${r.sku})`,
-        value: r.faturamento_total,
-      }
-    })
-    if (outros > 0) {
-      rows.push({
-        name: `Outros (${tail.length})`,
-        full: `${tail.length} SKUs adicionais`,
-        value: outros,
-      })
-    }
-    return rows
-  }, [mix])
-
-  const totalNfsCliente = cliente.total_nfs
-  const totalFaturamento = cliente.faturamento_total
-  const maxSkusMes = historico.length > 0 ? Math.max(...historico.map((h) => h.total_skus)) : 0
-
-  return (
-    <div className="animate-page-in">
-      <button
-        onClick={onClose}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Voltar ao Insights
-      </button>
-
-      {(loadHist || loadMix) && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Carregando histórico e mix…
-        </div>
-      )}
-
-      <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Archive className="w-3.5 h-3.5 text-muted-foreground/70" />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-          Histórico Arruda fechado · {anoInicio} – {anoFim}
-        </span>
-        <span className="text-[11px] text-muted-foreground/60">
-          referência estática · sem atualizações neste dataset
-        </span>
-      </div>
-
-      <div className="mb-4">
-        <h2 className="text-base font-semibold text-foreground flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span>
-            {(() => {
-              const fantasia =
-                cliente.nome_cliente && cliente.nome_cliente !== '—'
-                  ? cliente.nome_cliente
-                  : null
-              const razao = cliente.razao_social?.trim()
-              if (fantasia) return fantasia
-              return razao ?? '—'
-            })()}
-          </span>
-          {cliente.razao_social?.trim() &&
-            cliente.nome_cliente &&
-            cliente.nome_cliente !== '—' &&
-            cliente.razao_social.trim() !== cliente.nome_cliente.trim() && (
-              <span className="text-sm font-normal text-muted-foreground">
-                · {cliente.razao_social.trim()}
-              </span>
-            )}
-        </h2>
-        <p className="text-xs text-muted-foreground font-mono mt-0.5 flex flex-wrap items-center gap-2">
-          <span>
-            {formatCnpj(cliente.cnpj_cliente)}
-            {formatCidadeUf(cliente.cidade, cliente.estado) && (
-              <> · {formatCidadeUf(cliente.cidade, cliente.estado)}</>
-            )}
-          </span>
-          <InsightsClienteBrasilBadge status={cliente.brasil_enriquecimento_status} />
-        </p>
-        {cliente.nome_rede && (
-          <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 shrink-0 opacity-70" />
-            <span>
-              Rede <span className="text-foreground font-medium">{cliente.nome_rede}</span>
-            </span>
-          </p>
-        )}
-        <div className="mt-2">
-          <InsightsAcaoMenu cnpj={cliente.cnpj_cliente} acao={acao} prefixLabel="Ação:" />
-        </div>
-      </div>
-
-      <KPIGrid columns={4}>
-        <KPICard label="Faturamento Total"  value={formatCurrency(totalFaturamento)} icon={DollarSign} />
-        <KPICard label="NFs Emitidas"       value={totalNfsCliente}                         icon={Receipt} />
-        <KPICard
-          label="SKUs no Mix"
-          value={mix.length}
-          icon={Package}
-          badge={`${maxSkusMes} máx/mês`}
-        />
-        <KPICard
-          label="Última Compra"
-          value={
-            cliente.ultima_compra
-              ? new Date(`${cliente.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
-              : '—'
-          }
-          icon={gapMeses > 6 ? TrendingDown : ShoppingCart}
-          badge={gapMeses > 0 ? `${gapMeses}m antes do fim` : 'até o fim do período'}
-        />
-      </KPIGrid>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <InsightsChartCard
-          title="Faturamento mensal · ano-sobre-ano"
-          description={`Jan–Dez · uma linha por ano · janela Arruda ${anoInicio}–${anoFim}`}
-          height={268}
-        >
-          {historico.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Sem histórico disponível.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historicoYoyFat.data} margin={{ left: 4, right: 8, top: 8 }}>
-                <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval={0} />
-                <YAxis
-                  tick={CHART_AXIS_TICK}
-                  tickFormatter={(v: number) => formatCurrencyCompact(v)}
-                />
-                <Tooltip
-                  formatter={((value: unknown) =>
-                    formatCurrency(coerceTooltipNumber(value))
-                  ) as never}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    fontSize: 12,
-                  }}
-                />
-                <Legend
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
-                  formatter={(value) => (
-                    <span className="text-xs text-muted-foreground">{value}</span>
-                  )}
-                />
-                {historicoYoyFat.years.map((year, idx) => (
-                  <Line
-                    key={year}
-                    type="monotone"
-                    dataKey={String(year)}
-                    stroke={INSIGHTS_CHART_COLORS[idx % INSIGHTS_CHART_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    name={String(year)}
-                    connectNulls={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </InsightsChartCard>
-
-        <InsightsChartCard
-          title="SKUs distintos · ano-sobre-ano"
-          description="Quantidade de SKUs com venda · uma linha por ano"
-        >
-          {historico.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Sem dados.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historicoYoySkus.data} margin={{ left: 4, right: 8, top: 8 }}>
-                <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" />
-                <XAxis dataKey="mes" tick={CHART_AXIS_TICK} interval={0} />
-                <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} />
-                <Tooltip
-                  formatter={((value: unknown) => formatInt(coerceTooltipNumber(value))) as never}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    fontSize: 12,
-                  }}
-                />
-                <Legend
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
-                  formatter={(value) => (
-                    <span className="text-xs text-muted-foreground">{value}</span>
-                  )}
-                />
-                {historicoYoySkus.years.map((year, idx) => (
-                  <Line
-                    key={year}
-                    type="monotone"
-                    dataKey={String(year)}
-                    stroke={INSIGHTS_CHART_COLORS[idx % INSIGHTS_CHART_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    name={String(year)}
-                    connectNulls={false}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </InsightsChartCard>
-      </div>
-
-      {historico.length > 0 && sumNfsMes !== totalNfsCliente && (
-        <p className="text-[11px] text-amber-700 dark:text-amber-500 mt-4">
-          Soma de NFs nos meses ({sumNfsMes}) difere do total do cliente ({totalNfsCliente}). Pode haver datas
-          incorretas na carga ou NFs fora do período agregado.
-        </p>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-        <InsightsChartCard title="Participação no mix — faturamento" description="Até 7 SKUs · demais agrupados">
-          {mix.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Sem itens para o gráfico.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={mixPie}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={86}
-                  paddingAngle={1}
-                >
-                  {mixPie.map((_, i) => (
-                    <Cell key={`${mixPie[i].name}-${i}`} fill={INSIGHTS_CHART_COLORS[i % INSIGHTS_CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={((v: unknown) => formatCurrency(coerceTooltipNumber(v))) as never}
-                  labelFormatter={(_, payload) => String(payload?.[0]?.payload?.full ?? '')}
-                  contentStyle={{
-                    borderRadius: 8,
-                    border: '1px solid var(--color-border)',
-                    fontSize: 12,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </InsightsChartCard>
-
-        <Card className="border-border/70">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Package className="w-4 h-4 text-muted-foreground" />
-              Mix cadastrado (detalhe)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {mix.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Sem itens.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right">Qtd Total</TableHead>
-                    <TableHead className="text-right">Meses</TableHead>
-                    <TableHead>Faturamento</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mix.map((row) => (
-                    <MixRow key={row.sku} row={row} maxFat={maxFat} />
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <section className="mt-6 rounded-md border border-dashed border-border/60 bg-muted/15 px-4 py-3.5">
-        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-          <LineChartIcon className="w-3.5 h-3.5" />
-          Próxima camada · Comparativo com distribuidor atual
-        </p>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Quando as vendas do distribuidor para este cliente forem ingeridas, esta área renderiza
-          a curva atual sobreposta ao histórico Arruda — destacando o gap entre o fim do período
-          fechado ({anoFim}) e hoje.
-        </p>
-      </section>
-    </div>
-  )
-}
-
-// ─── Visão por cidade ────────────────────────────────────────────────────────
-
-function CidadeRow({
-  row,
-  maxFat,
-  onSelectCliente,
-  topClientes,
-}: {
-  row: InsightsCidadeRow
-  maxFat: number
-  onSelectCliente: (c: InsightsTopCliente) => void
-  topClientes: InsightsTopCliente[]
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <TableRow
-        className="cursor-pointer"
-        onClick={() => setOpen(!open)}
-      >
-        <TableCell>
-          <span className="flex items-center gap-1.5">
-            {open ? (
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            )}
-            <span className="font-medium">{row.cidade}</span>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0">{row.estado}</Badge>
-          </span>
-        </TableCell>
-        <TableCell className="text-right tabular-nums font-medium">{formatCurrency(row.faturamento_total)}</TableCell>
-        <TableCell className="hidden sm:table-cell text-right tabular-nums">{row.total_nfs}</TableCell>
-        <TableCell className="hidden md:table-cell text-right tabular-nums">{row.total_clientes}</TableCell>
-        <TableCell className="hidden lg:table-cell text-right tabular-nums">{row.total_skus}</TableCell>
-        <TableCell className="hidden lg:table-cell">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
-              <div
-                className="h-full bg-primary/70 rounded"
-                style={{ width: `${(row.faturamento_total / maxFat) * 100}%` }}
-              />
-            </div>
-          </div>
-        </TableCell>
-      </TableRow>
-
-      {open && (
-        <TableRow className="bg-muted/20 hover:bg-muted/20">
-          <TableCell colSpan={6} className="p-0">
-            <div className="px-8 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Top Clientes — {row.cidade}
-              </p>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/30">
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="hidden sm:table-cell font-mono text-xs">CNPJ</TableHead>
-                    <TableHead className="text-right">Faturamento</TableHead>
-                    <TableHead className="hidden md:table-cell text-right">NFs</TableHead>
-                    <TableHead className="hidden md:table-cell text-right">SKUs</TableHead>
-                    <TableHead className="hidden lg:table-cell text-right">Última Compra</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topClientes.map((c) => (
-                    <TableRow
-                      key={c.cnpj_cliente}
-                      className="cursor-pointer border-border/30"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelectCliente(c)
-                      }}
-                    >
-                      <TableCell className="font-medium">
-                        <span className="flex items-center gap-2 flex-wrap">
-                          <span>{c.nome_cliente}</span>
-                          <InsightsClienteBrasilBadge status={c.brasil_enriquecimento_status} />
-                        </span>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
-                        {formatCnpj(c.cnpj_cliente)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums font-medium">
-                        {formatCurrency(c.faturamento_total)}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-right tabular-nums">{c.total_nfs}</TableCell>
-                      <TableCell className="hidden md:table-cell text-right tabular-nums">{c.total_skus}</TableCell>
-                      <TableCell className="hidden lg:table-cell text-right text-xs text-muted-foreground">
-                        {c.ultima_compra
-                          ? new Date(`${c.ultima_compra}T12:00:00`).toLocaleDateString('pt-BR')
-                          : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {topClientes.length === 0 && (
-                    <TableRow className="border-border/30">
-                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-3">
-                        Sem dados de clientes para esta cidade
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </TableCell>
-        </TableRow>
-      )}
-    </>
-  )
 }
 
 function RedeGrupoDetalhePanel({
@@ -587,6 +117,20 @@ function RedeGrupoDetalhePanel({
   onSelectFilial: (c: InsightsClienteComRedeRow) => void
 }) {
   const { data: filiais = [], isPending } = useInsightsFiliaisGrupo(row.grupo_id)
+
+  const filiaisAccessors = useMemo(
+    () => ({
+      nome: (c: InsightsClienteComRedeRow) => c.nome_cliente ?? '',
+      cidade: (c: InsightsClienteComRedeRow) => formatCidadeUf(c.cidade, c.estado),
+      cnpj: (c: InsightsClienteComRedeRow) => c.cnpj_cliente,
+      faturamento: (c: InsightsClienteComRedeRow) => c.faturamento_total,
+    }),
+    []
+  )
+  const filiaisSort = useInsightsTableSort(filiais, filiaisAccessors, {
+    key: 'faturamento',
+    dir: 'desc',
+  })
 
   return (
     <div className="animate-page-in">
@@ -625,10 +169,33 @@ function RedeGrupoDetalhePanel({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Loja</TableHead>
-                <TableHead className="hidden sm:table-cell">Cidade / UF</TableHead>
-                <TableHead className="hidden md:table-cell font-mono text-xs">CNPJ</TableHead>
-                <TableHead className="text-right">Faturamento</TableHead>
+                <InsightsSortableTh
+                  label="Loja"
+                  active={filiaisSort.sort.key === 'nome'}
+                  dir={filiaisSort.sort.dir}
+                  onClick={() => filiaisSort.toggle('nome')}
+                />
+                <InsightsSortableTh
+                  label="Cidade / UF"
+                  className="hidden sm:table-cell"
+                  active={filiaisSort.sort.key === 'cidade'}
+                  dir={filiaisSort.sort.dir}
+                  onClick={() => filiaisSort.toggle('cidade')}
+                />
+                <InsightsSortableTh
+                  label="CNPJ"
+                  className="hidden md:table-cell font-mono text-xs"
+                  active={filiaisSort.sort.key === 'cnpj'}
+                  dir={filiaisSort.sort.dir}
+                  onClick={() => filiaisSort.toggle('cnpj')}
+                />
+                <InsightsSortableTh
+                  label="Faturamento"
+                  align="right"
+                  active={filiaisSort.sort.key === 'faturamento'}
+                  dir={filiaisSort.sort.dir}
+                  onClick={() => filiaisSort.toggle('faturamento')}
+                />
                 <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
@@ -640,7 +207,7 @@ function RedeGrupoDetalhePanel({
                   </TableCell>
                 </TableRow>
               )}
-              {filiais.map((c) => (
+              {filiaisSort.sorted.map((c) => (
                 <TableRow
                   key={c.cnpj_cliente}
                   className="cursor-pointer"
@@ -672,49 +239,43 @@ function RedeGrupoDetalhePanel({
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export function InsightsPanel() {
+  const { currentTenant } = useAuth()
+  const distribuidorId =
+    currentTenant?.tipo === 'distribuidor' ? currentTenant.tenant_id : undefined
+
   const boot = useInsightsBootstrap()
-  const mesGlobalQ = useInsightsMesGlobal()
   const cidades = boot.data?.cidades ?? []
   const clientes = boot.data?.clientes ?? []
-  const kpi = boot.data?.kpiGeral ?? {
-    faturamento_total: 0,
-    total_cidades: 0,
-    total_clientes: 0,
-    total_nfs: 0,
-    total_skus: 0,
-  }
   const periodo = boot.data?.periodo ?? { inicio: '—', fim: '—' }
+  const periodoLabel = `${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`
 
   const [busca, setBusca] = useState('')
+  /** UF compartilhada entre Lojas, Território e Produtos. */
   const [estadoFilter, setEstadoFilter] = useState('')
+  const [perfilFilter, setPerfilFilter] = useState('')
   const [clienteDetalhe, setClienteDetalhe] = useState<InsightsTopCliente | null>(null)
-  const [insightsTab, setInsightsTab] = useState<'territorio' | 'clientes' | 'produtos'>('territorio')
-  const [tabBeforeDetail, setTabBeforeDetail] = useState<'territorio' | 'clientes' | 'produtos'>('territorio')
+  const [insightsTab, setInsightsTab] = useState<'territorio' | 'clientes' | 'produtos'>('clientes')
+  const [tabBeforeDetail, setTabBeforeDetail] = useState<'territorio' | 'clientes' | 'produtos'>('clientes')
   const [buscaCliente, setBuscaCliente] = useState('')
-  const [estadoCliente, setEstadoCliente] = useState('')
   const [acaoFilter, setAcaoFilter] = useState<'todos' | InsightsAcaoEstado>('todos')
   const [searchParams, setSearchParams] = useSearchParams()
   const acoesByCnpj = useInsightsAcoesByCnpj()
-  const redeResumo = useInsightsRedeResumo()
-
   const [clientesSubTab, setClientesSubTab] = useState<'lojas' | 'redes'>('lojas')
+
+  const mesGlobalQ = useInsightsMesGlobal({ enabled: insightsTab === 'territorio' })
+  const redeResumo = useInsightsRedeResumo({
+    enabled: insightsTab === 'clientes' && clientesSubTab === 'redes',
+  })
   const [redeGrupoDetalhe, setRedeGrupoDetalhe] = useState<InsightsRedeResumoRow | null>(null)
   const [redeGrupoReturn, setRedeGrupoReturn] = useState<InsightsRedeResumoRow | null>(null)
   const [buscaRede, setBuscaRede] = useState('')
+  const [cidadeDrawer, setCidadeDrawer] = useState<{ cidade: string; estado: string } | null>(
+    null
+  )
 
-  const topPorCidade = useMemo(() => {
-    const m = new Map<string, InsightsTopCliente[]>()
-    for (const c of clientes) {
-      const k = cidadeTerritorioKey(c.cidade, c.estado)
-      const arr = m.get(k) ?? []
-      arr.push(c)
-      m.set(k, arr)
-    }
-    for (const [, arr] of m) {
-      arr.sort((a, b) => b.faturamento_total - a.faturamento_total)
-    }
-    return m
-  }, [clientes])
+  const openCidadeDrawer = (cidade: string, estado: string) => {
+    setCidadeDrawer({ cidade, estado })
+  }
 
   // Deep-link: /insights?cnpj=... abre o cliente direto na aba Clientes.
   useEffect(() => {
@@ -754,36 +315,56 @@ export function InsightsPanel() {
     })
   }, [busca, estadoFilter, cidades])
 
+  /** Mapa usa todas as cidades (só busca textual), para manter o choropleth nacional. */
+  const cidadesParaMapa = useMemo(() => {
+    if (!busca.trim()) return cidades
+    const q = busca.toLowerCase()
+    return cidades.filter(
+      (c) => c.cidade.toLowerCase().includes(q) || c.estado.toLowerCase().includes(q)
+    )
+  }, [busca, cidades])
+
   const maxFat = Math.max(...cidades.map((c) => c.faturamento_total), 1)
 
   const estados = useMemo(() => [...new Set(cidades.map((c) => c.estado))].sort(), [cidades])
 
+  const perfis = useMemo(
+    () =>
+      [...new Set(clientes.map((c) => c.perfil).filter((p): p is string => !!p && p.trim() !== ''))].sort(),
+    [clientes]
+  )
+
   const faturamentoFiltrado = cidadesFiltradas.reduce((s, c) => s + c.faturamento_total, 0)
-  const clientesFiltrados = cidadesFiltradas.reduce((s, c) => s + c.total_clientes, 0)
-  const nfsFiltradas = cidadesFiltradas.reduce((s, c) => s + c.total_nfs, 0)
 
-  const clientesListaFiltrada = useMemo(() => {
-    const raw = buscaCliente.trim()
-    const q = raw.replace(/\D/g, '')
-    const nameQ = raw.toLowerCase()
+  /** Escopo da fila / KPIs — sem busca textual (desacoplado da base explorar). */
+  const clientesEscopo = useMemo(() => {
     return clientes.filter((c) => {
-      const matchUf = estadoCliente === '' || c.estado === estadoCliente
-
+      const matchUf = estadoFilter === '' || c.estado === estadoFilter
+      const matchPerfil = perfilFilter === '' || c.perfil === perfilFilter
       const acao = acoesByCnpj.get(insightsCnpjKey(c.cnpj_cliente))
       const estadoAcao: InsightsAcaoEstado = acao?.estado ?? 'pendente'
       const matchAcao = acaoFilter === 'todos' || estadoAcao === acaoFilter
-      if (!matchAcao) return false
+      return matchUf && matchPerfil && matchAcao
+    })
+  }, [estadoFilter, perfilFilter, clientes, acoesByCnpj, acaoFilter])
 
-      if (raw === '') return matchUf
+  /** Lista da base explorar — aplica busca universal local. */
+  const clientesListaFiltrada = useMemo(() => {
+    const raw = buscaCliente.trim()
+    if (!raw) return clientesEscopo
+    const q = raw.replace(/\D/g, '')
+    const nameQ = raw.toLowerCase()
+    return clientesEscopo.filter((c) => {
       const cnpjDigits = insightsCnpjKey(c.cnpj_cliente)
       const matchCnpj = q.length >= 2 && cnpjDigits.includes(q)
       const matchNome = c.nome_cliente?.toLowerCase().includes(nameQ) ?? false
       const matchCidade = c.cidade?.toLowerCase().includes(nameQ) ?? false
       const matchUfText = c.estado?.toLowerCase() === nameQ
       const matchRede = c.nome_rede?.toLowerCase().includes(nameQ) ?? false
-      return matchUf && (matchCnpj || matchNome || matchCidade || matchUfText || matchRede)
+      const matchPerfilText = c.perfil?.toLowerCase().includes(nameQ) ?? false
+      return matchCnpj || matchNome || matchCidade || matchUfText || matchRede || matchPerfilText
     })
-  }, [buscaCliente, estadoCliente, clientes, acoesByCnpj, acaoFilter])
+  }, [buscaCliente, clientesEscopo])
 
   const acaoCounts = useMemo(() => {
     const c: Record<'todos' | InsightsAcaoEstado, number> = {
@@ -803,72 +384,209 @@ export function InsightsPanel() {
   }, [clientes, acoesByCnpj])
 
   // ─── Top acionáveis + paginação ───────────────────────────────────────────
-  const cidadesTopAcionaveis = useMemo(
-    () => topCidadesPrioritarias(cidadesFiltradas, 10),
-    [cidadesFiltradas]
+  const clientesTopAcionaveis = useMemo(
+    () => topClientesPrioritarios(clientesEscopo, periodo.fim, 10),
+    [clientesEscopo, periodo.fim]
   )
-  const cidadesPag = usePagination({
-    items: cidadesFiltradas,
+
+  const clientesAccessors = useMemo(
+    () => ({
+      nome: (c: InsightsTopCliente) => c.nome_cliente ?? '',
+      perfil: (c: InsightsTopCliente) => c.perfil ?? '',
+      rede: (c: InsightsTopCliente) => c.nome_rede ?? '',
+      cidade: (c: InsightsTopCliente) => formatCidadeUf(c.cidade, c.estado),
+      faturamento: (c: InsightsTopCliente) => c.faturamento_total,
+      skus: (c: InsightsTopCliente) => c.total_skus,
+      status: (c: InsightsTopCliente) =>
+        acoesByCnpj.get(insightsCnpjKey(c.cnpj_cliente))?.estado ?? 'pendente',
+    }),
+    [acoesByCnpj]
+  )
+  const clientesSort = useInsightsTableSort(clientesListaFiltrada, clientesAccessors, {
+    key: 'faturamento',
+    dir: 'desc',
+  })
+  const clientesPag = usePagination({
+    items: clientesSort.sorted,
     initialPageSize: 25,
-    resetKey: `${busca}|${estadoFilter}`,
+    resetKey: `${buscaCliente}|${estadoFilter}|${perfilFilter}|${acaoFilter}|${clientesSort.sort.key}|${clientesSort.sort.dir}`,
   })
 
-  const clientesTopAcionaveis = useMemo(
-    () => topClientesPrioritarios(clientesListaFiltrada, periodo.fim, 10),
-    [clientesListaFiltrada, periodo.fim]
-  )
-  const clientesPag = usePagination({
-    items: clientesListaFiltrada,
-    initialPageSize: 25,
-    resetKey: `${buscaCliente}|${estadoCliente}|${acaoFilter}`,
-  })
+  const gruposComUf = useMemo(() => {
+    const byRaiz = new Map<string, Set<string>>()
+    for (const c of clientes) {
+      const raiz = insightsCnpjKey(c.cnpj_cliente).slice(0, 8)
+      if (!raiz || !c.estado) continue
+      const set = byRaiz.get(raiz) ?? new Set()
+      set.add(c.estado)
+      byRaiz.set(raiz, set)
+    }
+    return byRaiz
+  }, [clientes])
 
   const redesFiltradas = useMemo(() => {
     const raw = buscaRede.trim().toLowerCase()
-    const rows = redeResumo.data ?? []
-    if (!raw) return rows
     const digits = raw.replace(/\D/g, '')
-    return rows.filter(
-      (r) =>
+    const rows = redeResumo.data ?? []
+    return rows.filter((r) => {
+      if (estadoFilter) {
+        if (r.grupo_kind === 'raiz') {
+          const raiz = r.grupo_id.replace(/^auto:/, '')
+          const ufs = gruposComUf.get(raiz)
+          if (!ufs?.has(estadoFilter)) return false
+        } else {
+          // Rede manual: mantém se alguma loja do bootstrap com mesmo nome_rede estiver na UF
+          const hit = clientes.some(
+            (c) => c.nome_rede === r.nome_rede && c.estado === estadoFilter
+          )
+          if (!hit) return false
+        }
+      }
+      if (!raw) return true
+      return (
         r.grupo_label.toLowerCase().includes(raw) ||
         (r.nome_rede?.toLowerCase().includes(raw) ?? false) ||
         (digits.length > 0 && r.grupo_id.replace(/\D/g, '').includes(digits))
-    )
-  }, [redeResumo.data, buscaRede])
+      )
+    })
+  }, [redeResumo.data, buscaRede, estadoFilter, gruposComUf, clientes])
 
+  const redesAccessors = useMemo(
+    () => ({
+      raiz: (r: InsightsRedeResumoRow) => r.grupo_label ?? '',
+      nome: (r: InsightsRedeResumoRow) => r.nome_rede ?? '',
+      tipo: (r: InsightsRedeResumoRow) => r.grupo_kind,
+      lojas: (r: InsightsRedeResumoRow) => r.total_lojas,
+      faturamento: (r: InsightsRedeResumoRow) => r.faturamento_total,
+      nfs: (r: InsightsRedeResumoRow) => r.total_nfs,
+    }),
+    []
+  )
+  const redesSort = useInsightsTableSort(redesFiltradas, redesAccessors, {
+    key: 'faturamento',
+    dir: 'desc',
+  })
   const redePag = usePagination({
-    items: redesFiltradas,
+    items: redesSort.sorted,
     initialPageSize: 25,
-    resetKey: buscaRede,
+    resetKey: `${buscaRede}|${estadoFilter}|${redesSort.sort.key}|${redesSort.sort.dir}`,
   })
 
-  // ─── Detalhe de cliente ───────────────────────────────────────────────────
-  if (clienteDetalhe) {
+  const clientesKpis = useMemo(
+    () => buildClientesKpis(clientesEscopo, periodo.fim, acaoCounts),
+    [clientesEscopo, periodo.fim, acaoCounts]
+  )
+
+  const popTerritorioQ = useInsightsPopulacao(
+    useMemo(
+      () => cidadesFiltradas.map((c) => ({ cidade: c.cidade, estado: c.estado })),
+      [cidadesFiltradas]
+    ),
+    insightsTab === 'territorio' && cidadesFiltradas.length > 0
+  )
+
+  const perCapitaFiltrado = useMemo(
+    () => enriquecerCidadesPerCapita(cidadesFiltradas, popTerritorioQ.data ?? new Map()),
+    [cidadesFiltradas, popTerritorioQ.data]
+  )
+
+  const perCapitaByKey = useMemo(() => {
+    const m = new Map<string, (typeof perCapitaFiltrado)[number]>()
+    for (const c of perCapitaFiltrado) {
+      m.set(cidadeTerritorioKey(c.cidade, c.estado), c)
+    }
+    return m
+  }, [perCapitaFiltrado])
+
+  const potencialExclusions = useInsightsPotencialExclusions(perCapitaFiltrado, clientes)
+  const gapsCtx = potencialExclusions.gapsCtx
+
+  type CidadeTabelaRow = InsightsCidadeRow & {
+    fat_pc: number | null
+    populacao: number | null
+    gap_faturamento: number | null
+    atingido_pct: number | null
+    gap_nivel: string | null
+  }
+
+  const cidadesTabela = useMemo((): CidadeTabelaRow[] => {
+    return cidadesFiltradas.map((row) => {
+      const pc = perCapitaByKey.get(cidadeTerritorioKey(row.cidade, row.estado))
+      const gap = lookupCidadeGap(gapsCtx, row.cidade, row.estado)
+      return {
+        ...row,
+        fat_pc: pc?.faturamento_per_capita ?? null,
+        populacao: pc?.populacao ?? null,
+        gap_faturamento: gap?.gap_faturamento ?? null,
+        atingido_pct: gap?.atingido_pct ?? null,
+        gap_nivel: gap?.nivel ?? null,
+      }
+    })
+  }, [cidadesFiltradas, perCapitaByKey, gapsCtx])
+
+  const cidadesAccessors = useMemo(
+    () => ({
+      cidade: (r: CidadeTabelaRow) => `${r.cidade} ${r.estado}`,
+      faturamento: (r: CidadeTabelaRow) => r.faturamento_total,
+      fat_pc: (r: CidadeTabelaRow) => r.fat_pc,
+      populacao: (r: CidadeTabelaRow) => r.populacao,
+      clientes: (r: CidadeTabelaRow) => r.total_clientes,
+      gap: (r: CidadeTabelaRow) => r.gap_faturamento,
+      status: (r: CidadeTabelaRow) => r.atingido_pct,
+    }),
+    []
+  )
+  const cidadesSort = useInsightsTableSort(cidadesTabela, cidadesAccessors, {
+    key: 'faturamento',
+    dir: 'desc',
+  })
+  const cidadesPag = usePagination({
+    items: cidadesSort.sorted,
+    initialPageSize: 25,
+    resetKey: `${busca}|${estadoFilter}|${cidadesSort.sort.key}|${cidadesSort.sort.dir}`,
+  })
+
+  const cidadeDrawerRow = useMemo(() => {
+    if (!cidadeDrawer) return null
     return (
-      <div className="animate-page-in">
-        <PageHeader
-          title="Insights"
-          accent="do cliente"
-          description={`${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`}
-        />
-        <ClienteDetalheDrawer
-          cliente={clienteDetalhe}
-          periodo={periodo}
-          acao={acoesByCnpj.get(insightsCnpjKey(clienteDetalhe.cnpj_cliente))}
-          onClose={() => {
-            setClienteDetalhe(null)
-            if (redeGrupoReturn) {
-              setRedeGrupoDetalhe(redeGrupoReturn)
-              setRedeGrupoReturn(null)
-              setInsightsTab('clientes')
-              setClientesSubTab('redes')
-            } else {
-              setInsightsTab(tabBeforeDetail)
-            }
-          }}
-        />
-      </div>
+      cidades.find(
+        (c) => c.cidade === cidadeDrawer.cidade && c.estado === cidadeDrawer.estado
+      ) ?? null
     )
+  }, [cidadeDrawer, cidades])
+
+  const cidadeDrawerPc = useMemo(() => {
+    if (!cidadeDrawer) return null
+    return (
+      perCapitaByKey.get(cidadeTerritorioKey(cidadeDrawer.cidade, cidadeDrawer.estado)) ?? null
+    )
+  }, [cidadeDrawer, perCapitaByKey])
+
+  const cidadeDrawerGap = useMemo(() => {
+    if (!cidadeDrawer) return null
+    return lookupCidadeGap(gapsCtx, cidadeDrawer.cidade, cidadeDrawer.estado)
+  }, [cidadeDrawer, gapsCtx])
+
+  const territorioKpis = useMemo(
+    () => buildTerritorioKpis(cidadesFiltradas, faturamentoFiltrado, perCapitaFiltrado),
+    [cidadesFiltradas, faturamentoFiltrado, perCapitaFiltrado]
+  )
+
+  const CLIENTES_KPI_ICONS = {
+    candidatos: Target,
+    potencial: DollarSign,
+    pendentes: ClipboardList,
+    carteira: Users,
+    default: Users,
+  }
+
+  const TERRITORIO_KPI_ICONS = {
+    concentracao: BarChart3,
+    cidades: MapPin,
+    fat_pc: TrendingUp,
+    vol_pc: Layers,
+    clientes_urb: Users,
+    default: MapPin,
   }
 
   // ─── Visão principal (abas) ───────────────────────────────────────────────
@@ -882,10 +600,9 @@ export function InsightsPanel() {
   }
 
   if (boot.isError) {
-    const msg = boot.error instanceof Error ? boot.error.message : String(boot.error)
     return (
       <div className="animate-page-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-        {msg}
+        {queryErrorMessage(boot.error)}
       </div>
     )
   }
@@ -912,7 +629,20 @@ export function InsightsPanel() {
       <PageHeader
         title="Insights"
         accent="acionáveis"
-        description={`${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)} · ${kpi.total_cidades} cidades`}
+        description={`${periodoLabel} · histórico Arruda · ${cidades.length} cidades`}
+        actions={
+          <InsightsParametrizacaoDialog
+            clientes={clientes}
+            excluded={potencialExclusions.excluded}
+            excludedClientes={potencialExclusions.excludedClientes}
+            suggestions={potencialExclusions.suggestions}
+            onToggle={potencialExclusions.toggle}
+            onAddSuggested={potencialExclusions.addSuggested}
+            onClearAll={potencialExclusions.clearAll}
+            count={potencialExclusions.count}
+            onVerTerritorio={() => setInsightsTab('territorio')}
+          />
+        }
       />
 
       <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
@@ -920,12 +650,6 @@ export function InsightsPanel() {
           variant="line"
           className="mb-5 h-auto w-fit max-w-full gap-8 border-0 border-b border-border/50 bg-transparent p-0"
         >
-          <TabsTrigger
-            value="territorio"
-            className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
-          >
-            Território
-          </TabsTrigger>
           <TabsTrigger
             value="clientes"
             className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
@@ -938,147 +662,16 @@ export function InsightsPanel() {
           >
             Produtos
           </TabsTrigger>
+          <TabsTrigger
+            value="territorio"
+            className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
+          >
+            Território
+          </TabsTrigger>
         </TabsList>
 
-        <KPIGrid columns={5} className="mb-6">
-          <KPICard
-            label="Faturamento Total"
-            value={formatCurrency(kpi.faturamento_total)}
-            icon={DollarSign}
-            variant="primary"
-          />
-          <KPICard label="Cidades" value={kpi.total_cidades} icon={MapPin} />
-          <KPICard label="Clientes Únicos" value={kpi.total_clientes} icon={Users} />
-          <KPICard label="NFs Emitidas" value={kpi.total_nfs.toLocaleString('pt-BR')} icon={Receipt} />
-          <KPICard label="SKUs Ativos" value={kpi.total_skus} icon={Package} />
-        </KPIGrid>
-
-        <TabsContent value="territorio" className="mt-0">
-          <FilterBar columns={2}>
-            <FilterField label="Buscar cidade / estado">
-              <Input
-                placeholder="João Pessoa, PB…"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                className="h-8 text-sm"
-              />
-            </FilterField>
-            <FilterField label="Estado">
-              <div className="flex gap-1.5 flex-wrap">
-                <Button
-                  size="sm"
-                  variant={estadoFilter === '' ? 'default' : 'outline'}
-                  className="h-8 text-xs"
-                  onClick={() => setEstadoFilter('')}
-                >
-                  Todos
-                </Button>
-                {estados.map((uf) => (
-                  <Button
-                    key={uf}
-                    size="sm"
-                    variant={estadoFilter === uf ? 'default' : 'outline'}
-                    className="h-8 text-xs"
-                    onClick={() => setEstadoFilter(uf)}
-                  >
-                    {uf}
-                  </Button>
-                ))}
-              </div>
-            </FilterField>
-          </FilterBar>
-
-          {(busca !== '' || estadoFilter !== '') && (
-            <KPIGrid columns={3} className="mb-6">
-              <KPICard label="Faturamento (filtro)" value={formatCurrency(faturamentoFiltrado)} icon={DollarSign} />
-              <KPICard label="Clientes (filtro)" value={clientesFiltrados} icon={Users} />
-              <KPICard label="NFs (filtro)" value={nfsFiltradas} icon={Receipt} />
-            </KPIGrid>
-          )}
-
-          <InsightsTerritoryCharts
-            cidades={cidadesFiltradas}
-            faturamentoFiltrado={faturamentoFiltrado}
-            mesGlobal={mesGlobalQ.data ?? []}
-          />
-
-          {cidadesFiltradas.length > cidadesPag.pageSize && (
-            <TopAcionaveis
-              eyebrow="Prioridade · Mercados foco"
-              description="Top 10 por faturamento × penetração de clientes — onde o sell-out histórico foi mais relevante."
-              items={cidadesTopAcionaveis}
-              getKey={(row) => cidadeTerritorioKey(row.cidade, row.estado)}
-              onItemClick={(row) => setBusca(row.cidade)}
-              renderItem={(row) => (
-                <div>
-                  <p className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-medium text-foreground truncate">{row.cidade}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {row.estado}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
-                    <span className="font-semibold text-foreground">
-                      {formatCurrency(row.faturamento_total)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {row.total_clientes} clientes · {row.total_nfs} NFs
-                    </span>
-                  </p>
-                </div>
-              )}
-            />
-          )}
-
-          <SectionTitle title="Cidades" icon={MapPin} />
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cidade</TableHead>
-                    <TableHead className="text-right">Faturamento</TableHead>
-                    <TableHead className="hidden sm:table-cell text-right">NFs</TableHead>
-                    <TableHead className="hidden md:table-cell text-right">Clientes</TableHead>
-                    <TableHead className="hidden lg:table-cell text-right">SKUs</TableHead>
-                    <TableHead className="hidden lg:table-cell">Participação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cidadesFiltradas.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                        Nenhuma cidade encontrada para os filtros selecionados.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {cidadesPag.paginated.map((row) => {
-                    const k = cidadeTerritorioKey(row.cidade, row.estado)
-                    const topClientes = topPorCidade.get(k) ?? []
-                    return (
-                      <CidadeRow
-                        key={k}
-                        row={row}
-                        maxFat={maxFat}
-                        topClientes={topClientes}
-                        onSelectCliente={openClienteDetalhe}
-                      />
-                    )
-                  })}
-                </TableBody>
-              </Table>
-              <PaginationBar
-                page={cidadesPag.page}
-                pageSize={cidadesPag.pageSize}
-                total={cidadesPag.total}
-                onPageChange={cidadesPag.setPage}
-                onPageSizeChange={cidadesPag.setPageSize}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="clientes" className="mt-0">
+          <InsightsOticaIntro otica="clientes" periodoLabel={periodoLabel} compact />
           <Tabs
             value={clientesSubTab}
             onValueChange={(v) => setClientesSubTab(v as 'lojas' | 'redes')}
@@ -1102,69 +695,86 @@ export function InsightsPanel() {
             </TabsList>
             <TabsContent value="lojas" className="mt-0">
           <FilterBar columns={2}>
-            <FilterField label="Buscar CNPJ, nome ou cidade">
-              <Input
-                placeholder="07891234…, nome, cidade ou rede…"
-                value={buscaCliente}
-                onChange={(e) => setBuscaCliente(e.target.value)}
-                className="h-8 text-sm"
-              />
-            </FilterField>
             <FilterField label="Estado">
-              <div className="flex gap-1.5 flex-wrap">
-                <Button
-                  size="sm"
-                  variant={estadoCliente === '' ? 'default' : 'outline'}
-                  className="h-8 text-xs"
-                  onClick={() => setEstadoCliente('')}
-                >
-                  Todos
-                </Button>
-                {estados.map((uf) => (
-                  <Button
-                    key={uf}
-                    size="sm"
-                    variant={estadoCliente === uf ? 'default' : 'outline'}
-                    className="h-8 text-xs"
-                    onClick={() => setEstadoCliente(uf)}
-                  >
-                    {uf}
-                  </Button>
-                ))}
-              </div>
+              <Select
+                value={insightsSelectValue(estadoFilter)}
+                onValueChange={(v) => insightsSelectOnChange(v, setEstadoFilter)}
+              >
+                <SelectTrigger className="h-9 w-full text-sm min-w-0">
+                  <SelectValue placeholder="Todos">
+                    {estadoFilter || 'Todos'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todos</SelectItem>
+                  {estados.map((uf) => (
+                    <SelectItem key={uf} value={uf}>
+                      {uf}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+            <FilterField label="Perfil do cliente">
+              <Select
+                value={insightsSelectValue(perfilFilter)}
+                onValueChange={(v) => insightsSelectOnChange(v, setPerfilFilter)}
+              >
+                <SelectTrigger className="h-9 w-full text-sm min-w-0">
+                  <SelectValue placeholder="Todos os perfis">
+                    {perfilFilter || 'Todos os perfis'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todos os perfis</SelectItem>
+                  {perfis.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FilterField>
           </FilterBar>
 
-          <div className="mb-5 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+          <InsightsContextKpis
+            kpis={clientesKpis}
+            icons={CLIENTES_KPI_ICONS}
+            className="mb-5"
+          />
+
+          <div className="mb-5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mr-2">
               Status da ação
             </span>
             {(['todos', 'pendente', 'em_acao', 'resolvido', 'snooze', 'arquivado'] as const).map(
               (estado) => {
                 const label = estado === 'todos' ? 'Todos' : INSIGHTS_ACAO_LABEL[estado]
                 const count = acaoCounts[estado]
+                const active = acaoFilter === estado
                 return (
-                  <Button
+                  <button
                     key={estado}
-                    size="sm"
-                    variant={acaoFilter === estado ? 'default' : 'outline'}
-                    className="h-7 text-xs gap-1.5"
+                    type="button"
                     onClick={() => setAcaoFilter(estado)}
+                    className={
+                      active
+                        ? 'h-7 rounded-md bg-foreground px-2.5 text-xs font-medium text-background'
+                        : 'h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    }
                   >
-                    {label}
-                    <span className="opacity-60 tabular-nums">{count}</span>
-                  </Button>
+                    {label}{' '}
+                    <span className="tabular-nums opacity-70">{count}</span>
+                  </button>
                 )
               }
             )}
           </div>
 
-          <InsightsClientesCharts clientes={clientesListaFiltrada} />
-
-          {clientesListaFiltrada.length > clientesPag.pageSize && (
+          {clientesTopAcionaveis.length > 0 && (
             <TopAcionaveis
-              eyebrow="Prioridade · Clientes a recuperar"
-              description={`Top 10 por faturamento histórico × gap até o fim do período (${formatPeriodoLabel(periodo.fim)}). Clientes que pararam mais cedo dentro do histórico Arruda — candidatos para reativação via distribuidor.`}
+              eyebrow="Sua fila · Clientes a recuperar"
+              description={`Top 10 por faturamento histórico × gap até ${formatPeriodoLabel(periodo.fim)} — prioridade do plano de ação.`}
               items={clientesTopAcionaveis}
               getKey={(c) => c.cnpj_cliente}
               onItemClick={(c) => openClienteDetalhe(c)}
@@ -1177,28 +787,25 @@ export function InsightsPanel() {
                   : '—'
                 return (
                   <div>
-                    <p className="flex items-baseline gap-2 flex-wrap">
-                      <span className="font-medium text-foreground truncate">
-                        {c.nome_cliente}
-                      </span>
-                      {formatCidadeUf(c.cidade, c.estado) && (
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className={insightsListTitleClass}>
+                      {c.nome_cliente}
+                      {formatCidadeUf(c.cidade, c.estado) ? (
+                        <span className="ml-2 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
                           {formatCidadeUf(c.cidade, c.estado)}
                         </span>
-                      )}
+                      ) : null}
                     </p>
-                    <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
-                      <span className="font-semibold text-foreground">
+                    <p className={insightsListMetaClass}>
+                      <span className="font-medium text-foreground">
                         {formatCurrency(c.faturamento_total)}
                       </span>
-                      <span className="text-muted-foreground">
-                        última {ultimaCompra}
-                        {c.__gapMeses > 0 && (
-                          <span className="ml-1 text-amber-700 dark:text-amber-500">
-                            · {c.__gapMeses}m antes do fim
-                          </span>
-                        )}
-                      </span>
+                      <span className="mx-1 opacity-40">·</span>
+                      última {ultimaCompra}
+                      {c.__gapMeses > 0 && (
+                        <span className="ml-1 text-amber-700 dark:text-amber-500">
+                          · {c.__gapMeses}m sem compra
+                        </span>
+                      )}
                     </p>
                   </div>
                 )
@@ -1206,25 +813,72 @@ export function InsightsPanel() {
             />
           )}
 
-          <Card>
-            <CardContent className="p-0">
+          <InsightsExplorarCard
+            title="Base filtrada"
+            countLabel={`${clientesListaFiltrada.length.toLocaleString('pt-BR')} clientes`}
+            search={buscaCliente}
+            onSearchChange={setBuscaCliente}
+            searchPlaceholder="CNPJ, nome, cidade, rede ou perfil…"
+          >
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="hidden lg:table-cell max-w-[140px]">Rede</TableHead>
-                    <TableHead className="hidden sm:table-cell">Cidade / UF</TableHead>
-                    <TableHead className="hidden md:table-cell font-mono text-xs">CNPJ</TableHead>
-                    <TableHead className="text-right">Faturamento</TableHead>
-                    <TableHead className="hidden lg:table-cell text-right">NFs</TableHead>
-                    <TableHead className="hidden lg:table-cell text-right">SKUs</TableHead>
-                    <TableHead className="w-36 text-right">Status</TableHead>
+                    <InsightsSortableTh
+                      label="Cliente"
+                      active={clientesSort.sort.key === 'nome'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('nome')}
+                    />
+                    <InsightsSortableTh
+                      label="Perfil"
+                      className="hidden md:table-cell"
+                      active={clientesSort.sort.key === 'perfil'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('perfil')}
+                    />
+                    <InsightsSortableTh
+                      label="Rede"
+                      className="hidden lg:table-cell max-w-[140px]"
+                      active={clientesSort.sort.key === 'rede'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('rede')}
+                    />
+                    <InsightsSortableTh
+                      label="Cidade / UF"
+                      className="hidden sm:table-cell"
+                      active={clientesSort.sort.key === 'cidade'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('cidade')}
+                    />
+                    <InsightsSortableTh
+                      label="Faturamento"
+                      align="right"
+                      active={clientesSort.sort.key === 'faturamento'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('faturamento')}
+                    />
+                    <InsightsSortableTh
+                      label="SKUs"
+                      align="right"
+                      className="hidden lg:table-cell"
+                      active={clientesSort.sort.key === 'skus'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('skus')}
+                    />
+                    <InsightsSortableTh
+                      label="Status"
+                      align="right"
+                      className="w-36"
+                      active={clientesSort.sort.key === 'status'}
+                      dir={clientesSort.sort.dir}
+                      onClick={() => clientesSort.toggle('status')}
+                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {clientesListaFiltrada.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-10">
+                      <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
                         Nenhum cliente encontrado.
                       </TableCell>
                     </TableRow>
@@ -1241,6 +895,15 @@ export function InsightsPanel() {
                           <InsightsClienteBrasilBadge status={c.brasil_enriquecimento_status} />
                         </span>
                       </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {c.perfil ? (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 max-w-[140px] truncate" title={c.perfil}>
+                            {c.perfil}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[160px]">
                         <span className="truncate block" title={c.nome_rede}>
                           {c.nome_rede ?? '—'}
@@ -1249,13 +912,9 @@ export function InsightsPanel() {
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                         {formatCidadeUf(c.cidade, c.estado)}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
-                        {formatCnpj(c.cnpj_cliente)}
-                      </TableCell>
                       <TableCell className="text-right tabular-nums font-medium">
                         {formatCurrency(c.faturamento_total)}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-right tabular-nums">{c.total_nfs}</TableCell>
                       <TableCell className="hidden lg:table-cell text-right tabular-nums">{c.total_skus}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1.5">
@@ -1277,25 +936,41 @@ export function InsightsPanel() {
                 onPageChange={clientesPag.setPage}
                 onPageSizeChange={clientesPag.setPageSize}
               />
-            </CardContent>
-          </Card>
+          </InsightsExplorarCard>
             </TabsContent>
             <TabsContent value="redes" className="mt-0 space-y-4">
-              <div>
-                <FilterField label="Buscar">
-                  <Input
-                    placeholder="Raiz, nome da rede…"
+              <FilterBar columns={2}>
+                <FilterField label="Buscar rede">
+                  <InsightsSearchField
                     value={buscaRede}
-                    onChange={(e) => setBuscaRede(e.target.value)}
-                    className="h-8 text-sm max-w-md"
+                    onChange={setBuscaRede}
+                    placeholder="Raiz CNPJ ou nome da rede…"
                   />
                 </FilterField>
-              </div>
+                <FilterField label="Estado">
+                  <Select
+                    value={insightsSelectValue(estadoFilter)}
+                    onValueChange={(v) => insightsSelectOnChange(v, setEstadoFilter)}
+                  >
+                    <SelectTrigger className="h-9 w-full text-sm min-w-0">
+                      <SelectValue placeholder="Todos">
+                        {estadoFilter || 'Todos'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todos</SelectItem>
+                      {estados.map((uf) => (
+                        <SelectItem key={uf} value={uf}>
+                          {uf}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterField>
+              </FilterBar>
               {redeResumo.isError && (
                 <p className="text-sm text-destructive">
-                  {redeResumo.error instanceof Error
-                    ? redeResumo.error.message
-                    : 'Não foi possível carregar redes.'}
+                  {queryErrorMessage(redeResumo.error) || 'Não foi possível carregar redes.'}
                 </p>
               )}
               {redeResumo.isPending && (
@@ -1310,12 +985,49 @@ export function InsightsPanel() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="font-mono text-xs whitespace-nowrap">Raiz CNPJ</TableHead>
-                          <TableHead className="min-w-[120px] max-w-[220px]">Nome rede</TableHead>
-                          <TableHead className="w-24">Tipo</TableHead>
-                          <TableHead className="text-right">Lojas</TableHead>
-                          <TableHead className="text-right">Faturamento</TableHead>
-                          <TableHead className="hidden md:table-cell text-right">NFs</TableHead>
+                          <InsightsSortableTh
+                            label="Raiz CNPJ"
+                            className="font-mono text-xs whitespace-nowrap"
+                            active={redesSort.sort.key === 'raiz'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('raiz')}
+                          />
+                          <InsightsSortableTh
+                            label="Nome rede"
+                            className="min-w-[120px] max-w-[220px]"
+                            active={redesSort.sort.key === 'nome'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('nome')}
+                          />
+                          <InsightsSortableTh
+                            label="Tipo"
+                            className="w-24"
+                            active={redesSort.sort.key === 'tipo'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('tipo')}
+                          />
+                          <InsightsSortableTh
+                            label="Lojas"
+                            align="right"
+                            active={redesSort.sort.key === 'lojas'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('lojas')}
+                          />
+                          <InsightsSortableTh
+                            label="Faturamento"
+                            align="right"
+                            active={redesSort.sort.key === 'faturamento'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('faturamento')}
+                          />
+                          <InsightsSortableTh
+                            label="NFs"
+                            align="right"
+                            className="hidden md:table-cell"
+                            active={redesSort.sort.key === 'nfs'}
+                            dir={redesSort.sort.dir}
+                            onClick={() => redesSort.toggle('nfs')}
+                          />
                           <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
@@ -1377,10 +1089,260 @@ export function InsightsPanel() {
           </Tabs>
         </TabsContent>
 
+        <TabsContent value="territorio" className="mt-0">
+          <InsightsOticaIntro otica="territorio" periodoLabel={periodoLabel} compact />
+          <FilterBar columns={2}>
+            <FilterField label="Estado">
+              <Select
+                value={insightsSelectValue(estadoFilter)}
+                onValueChange={(v) => insightsSelectOnChange(v, setEstadoFilter)}
+              >
+                <SelectTrigger className="h-9 w-full text-sm min-w-0">
+                  <SelectValue placeholder="Todos">
+                    {estadoFilter || 'Todos'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todos</SelectItem>
+                  {estados.map((uf) => (
+                    <SelectItem key={uf} value={uf}>
+                      {uf}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+          </FilterBar>
+
+          <InsightsContextKpis
+            kpis={territorioKpis}
+            icons={TERRITORIO_KPI_ICONS}
+            className="mb-5"
+          />
+
+          <InsightsTerritorioMap
+            cidades={cidadesParaMapa}
+            estadoFilter={estadoFilter}
+            cidadeFilter={busca}
+            onSelectUf={(uf) => {
+              // Clique de novo na mesma UF → visão macro (Nordeste)
+              if (uf && estadoFilter === uf) {
+                setEstadoFilter('')
+                setBusca('')
+                return
+              }
+              setEstadoFilter(uf)
+              if (!uf) setBusca('')
+            }}
+            onSelectCidade={(cidade, estado) => {
+              // Clique de novo na mesma cidade → volta ao Nordeste
+              if (
+                busca.trim().toLowerCase() === cidade.trim().toLowerCase() &&
+                estadoFilter === estado
+              ) {
+                setBusca('')
+                setEstadoFilter('')
+                return
+              }
+              setBusca(cidade)
+              setEstadoFilter(estado)
+            }}
+          />
+
+          <InsightsTerritorioLens
+            cidades={cidadesFiltradas}
+            faturamentoFiltrado={faturamentoFiltrado}
+            mesGlobal={mesGlobalQ.data ?? []}
+            onOpenCidade={openCidadeDrawer}
+            gapsCtx={gapsCtx}
+          />
+
+          <InsightsExplorarCard
+            title="Explorar cidades"
+            countLabel={`${cidadesFiltradas.length.toLocaleString('pt-BR')} no recorte`}
+            search={busca}
+            onSearchChange={setBusca}
+            searchPlaceholder="Buscar cidade…"
+          >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <InsightsSortableTh
+                      label="Cidade"
+                      active={cidadesSort.sort.key === 'cidade'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('cidade')}
+                    />
+                    <InsightsSortableTh
+                      label="Faturamento"
+                      align="right"
+                      active={cidadesSort.sort.key === 'faturamento'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('faturamento')}
+                    />
+                    <InsightsSortableTh
+                      label="Fat. / hab"
+                      align="right"
+                      active={cidadesSort.sort.key === 'fat_pc'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('fat_pc')}
+                    />
+                    <InsightsSortableTh
+                      label="Habitantes"
+                      align="right"
+                      className="hidden sm:table-cell"
+                      active={cidadesSort.sort.key === 'populacao'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('populacao')}
+                    />
+                    <InsightsSortableTh
+                      label="Clientes"
+                      align="right"
+                      className="hidden md:table-cell"
+                      active={cidadesSort.sort.key === 'clientes'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('clientes')}
+                    />
+                    <InsightsSortableTh
+                      label="Status"
+                      active={cidadesSort.sort.key === 'status'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('status')}
+                    />
+                    <InsightsSortableTh
+                      label="Gap"
+                      align="right"
+                      className="hidden lg:table-cell"
+                      active={cidadesSort.sort.key === 'gap'}
+                      dir={cidadesSort.sort.dir}
+                      onClick={() => cidadesSort.toggle('gap')}
+                    />
+                    <TableHead className="hidden xl:table-cell">Participação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cidadesFiltradas.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
+                        Nenhuma cidade encontrada para os filtros selecionados.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {cidadesPag.paginated.map((row) => {
+                    const k = cidadeTerritorioKey(row.cidade, row.estado)
+                    const gap = lookupCidadeGap(gapsCtx, row.cidade, row.estado)
+                    return (
+                      <TableRow
+                        key={k}
+                        className="cursor-pointer"
+                        onClick={() => openCidadeDrawer(row.cidade, row.estado)}
+                      >
+                        <TableCell>
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-medium">{row.cidade}</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {row.estado}
+                            </Badge>
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatCurrency(row.faturamento_total)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-sm font-medium text-teal">
+                          {row.fat_pc != null ? formatPerCapitaCurrency(row.fat_pc) : '—'}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">
+                          {row.populacao != null ? row.populacao.toLocaleString('pt-BR') : '—'}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-right tabular-nums">
+                          {row.total_clientes}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <InsightsGapStatus gap={gap} />
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-right tabular-nums text-sm">
+                          {row.gap_faturamento != null
+                            ? formatCurrency(row.gap_faturamento)
+                            : '—'}
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
+                              <div
+                                className="h-full bg-primary/70 rounded"
+                                style={{
+                                  width: `${(row.faturamento_total / maxFat) * 100}%`,
+                                }}
+                              />
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+              <PaginationBar
+                page={cidadesPag.page}
+                pageSize={cidadesPag.pageSize}
+                total={cidadesPag.total}
+                onPageChange={cidadesPag.setPage}
+                onPageSizeChange={cidadesPag.setPageSize}
+              />
+          </InsightsExplorarCard>
+        </TabsContent>
+
         <TabsContent value="produtos" className="mt-0">
-          <InsightsAbaProdutos />
+          <InsightsAbaProdutos
+            periodoLabel={periodoLabel}
+            active={insightsTab === 'produtos'}
+            estadoFilter={estadoFilter}
+            onEstadoChange={setEstadoFilter}
+            estados={estados}
+          />
         </TabsContent>
       </Tabs>
+
+      <InsightsCidadeDrawer
+        open={cidadeDrawer != null}
+        onOpenChange={(open) => {
+          if (!open) setCidadeDrawer(null)
+        }}
+        target={cidadeDrawer}
+        cidadeRow={cidadeDrawerRow}
+        perCapita={cidadeDrawerPc}
+        gap={cidadeDrawerGap}
+        clientes={clientes}
+        onSelectCliente={(c) => {
+          setCidadeDrawer(null)
+          openClienteDetalhe(c)
+        }}
+      />
+
+      {clienteDetalhe && (
+        <InsightsBateOlhoModal
+          open
+          context="insights"
+          cliente={clienteDetalhe}
+          acao={acoesByCnpj.get(insightsCnpjKey(clienteDetalhe.cnpj_cliente))}
+          /** Sell-out atual: jan/2025 → mês vigente (não o arquivo Arruda 2022–2024). */
+          periodoAnalise={insightsCicloVivoPeriodo()}
+          distribuidorId={distribuidorId}
+          onOpenChange={(open) => {
+            if (open) return
+            setClienteDetalhe(null)
+            if (redeGrupoReturn) {
+              setRedeGrupoDetalhe(redeGrupoReturn)
+              setRedeGrupoReturn(null)
+              setInsightsTab('clientes')
+              setClientesSubTab('redes')
+            } else {
+              setInsightsTab(tabBeforeDetail)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

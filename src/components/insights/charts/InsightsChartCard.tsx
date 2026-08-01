@@ -7,8 +7,11 @@ type InsightsChartCardProps = {
   description?: string
   /** Slot opcional à direita do título — bom para ícones de info/help com tooltip. */
   headerAction?: ReactNode
-  /** Altura do gráfico em px (área interna) */
-  height?: number
+  /**
+   * Altura da área interna em px.
+   * Use `"auto"` quando o conteúdo define a altura (ex.: sparkline sem lista YoY).
+   */
+  height?: number | 'auto'
   className?: string
   children: ReactNode
 }
@@ -33,7 +36,10 @@ export function InsightsChartCard({
         ) : null}
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="w-full" style={{ height }}>
+        <div
+          className="w-full min-w-0"
+          style={height === 'auto' ? undefined : { height, minHeight: height }}
+        >
           {children}
         </div>
       </CardContent>

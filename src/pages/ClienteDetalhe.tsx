@@ -10,13 +10,17 @@ import {
   ChevronDown,
   ChevronRight,
   Package,
+  MapPin,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 import type { Faturamento, FaturamentoItem } from '@/types/faturamento'
 import { useFaturamento } from '@/hooks/useFaturamento'
 import { useClienteFaturamentoMensal } from '@/hooks/useFaturamento'
-import { formatCurrency, formatDate } from '@/lib/format'
+import { formatCurrency, formatDate, formatCnpj, formatCidadeUf } from '@/lib/format'
+import { resolveClienteCidadeUf } from '@/lib/cliente-cidade'
+import { useInsightsCidadesByCnpj } from '@/hooks/useInsightsCidadesByCnpj'
+import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +34,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { HistoricoAjustesCard } from '@/components/cliente/HistoricoAjustesCard'
+import { MonthlyBarChart } from '@/components/cliente/MonthlyBarChart'
+import { ClienteSinalizadores } from '@/components/cliente/ClienteSinalizadores'
+import { buildClienteFatResumoFromFaturamentos } from '@/lib/cliente-faturamento-resumo'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
 import {
   ClientTag,
@@ -157,46 +164,13 @@ function ExpandableRow({ fat, itens }: { fat: Faturamento; itens: FaturamentoIte
   )
 }
 
-function MonthlyBarChart({ data }: { data: { month: string; total: number }[] }) {
-  const maxValue = Math.max(...data.map((d) => d.total), 1)
-
-  function formatMonth(m: string) {
-    const [year, month] = m.split('-')
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    return `${months[Number(month) - 1]}/${year.slice(2)}`
-  }
-
-  return (
-    <div className="space-y-2">
-      {data.map((d) => {
-        const pct = (d.total / maxValue) * 100
-        return (
-          <div key={d.month} className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-16 shrink-0 text-right tabular-nums">
-              {formatMonth(d.month)}
-            </span>
-            <div className="flex-1 h-6 bg-muted/50 rounded overflow-hidden">
-              <div
-                className="h-full bg-primary/80 rounded transition-all"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="text-xs font-medium tabular-nums w-24 text-right">
-              {formatCurrency(d.total)}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 export function ClienteDetalhe() {
   const { id } = useParams<{ id: string }>()
   const { data: cliente, isLoading: loadingCliente } = useCliente(id)
   const { data: faturamentos, isLoading: loadingFat } = useFaturamento(id)
   const { data: mensal, isLoading: loadingMensal } = useClienteFaturamentoMensal(id)
   const { data: vendedorNome } = useVendedorNome(cliente?.vendedor_id)
+  const { cidadesMap } = useInsightsCidadesByCnpj(cliente ? [cliente.cnpj] : [])
 
   const faturamentoIds = useMemo(
     () => faturamentos?.map((f) => f.id) ?? [],
@@ -222,6 +196,12 @@ export function ClienteDetalhe() {
 
     return { total, ticketMedio, freqCompra }
   }, [faturamentos])
+
+  const resumoFat = useMemo(
+    () =>
+      faturamentos ? buildClienteFatResumoFromFaturamentos(faturamentos) : undefined,
+    [faturamentos]
+  )
 
   const produtosMaisComprados = useMemo(() => {
     if (!allItens || !faturamentos) return []
@@ -301,7 +281,11 @@ export function ClienteDetalhe() {
     )
   }
 
-  const cidadeUF = `${cliente.cidade}-${cliente.estado}`
+  const localizacao = resolveClienteCidadeUf(
+    cliente,
+    cidadesMap.get(insightsCnpjKey(cliente.cnpj))
+  )
+  const cidadeUF = formatCidadeUf(localizacao.cidade, localizacao.estado) || '—'
   const headerTags: { category: ClientTagCategory; label: string }[] = []
   if (cliente.plano_excelencia) {
     headerTags.push({ category: 'programa', label: 'Plano Excelência' })
@@ -311,13 +295,11 @@ export function ClienteDetalhe() {
   } else if (cliente.status === 'inativo') {
     headerTags.push({ category: 'flag', label: 'Inativo' })
   }
-  if (cliente.ultima_compra) {
-    const days = Math.floor(
-      (Date.now() - new Date(cliente.ultima_compra).getTime()) / 86_400_000
-    )
-    if (days > 60) {
-      headerTags.push({ category: 'flag', label: `Sem compra ${days}d` })
-    }
+  if (resumoFat?.diasSemCompra != null && resumoFat.diasSemCompra > 60) {
+    headerTags.push({
+      category: 'flag',
+      label: `Sem compra ${resumoFat.diasSemCompra}d`,
+    })
   }
   headerTags.push({ category: 'segmento', label: cidadeUF })
 
@@ -352,7 +334,18 @@ export function ClienteDetalhe() {
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           {mostrarRazaoSocial && <span>{cliente.razao_social}</span>}
-          <span className="font-mono text-xs">{cliente.cnpj}</span>
+          <span className="font-mono text-xs">{formatCnpj(cliente.cnpj)}</span>
+          {cidadeUF !== '—' && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3 shrink-0 opacity-60" />
+              {cidadeUF}
+              {localizacao.fromInsights && (
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                  · Insights
+                </span>
+              )}
+            </span>
+          )}
           {vendedorNome && (
             <span>
               <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/70 mr-1.5">
@@ -362,6 +355,13 @@ export function ClienteDetalhe() {
             </span>
           )}
         </div>
+        {cliente && (
+          <ClienteSinalizadores
+            cliente={cliente}
+            resumo={resumoFat}
+            className="mt-2"
+          />
+        )}
       </header>
 
       <HistoricoAjustesCard
@@ -375,7 +375,7 @@ export function ClienteDetalhe() {
             cliente.endereco_logradouro,
             cliente.endereco_numero,
             cliente.endereco_bairro,
-            `${cliente.cidade}/${cliente.estado}`,
+            formatCidadeUf(localizacao.cidade, localizacao.estado),
           ]
             .filter(Boolean)
             .join(', ') || undefined,
@@ -402,7 +402,7 @@ export function ClienteDetalhe() {
         />
         <KPICard
           label="Última Compra"
-          value={cliente.ultima_compra ? formatDate(cliente.ultima_compra) : '—'}
+          value={resumoFat?.ultimaCompra ? formatDate(resumoFat.ultimaCompra) : '—'}
           icon={CalendarClock}
         />
       </KPIGrid>

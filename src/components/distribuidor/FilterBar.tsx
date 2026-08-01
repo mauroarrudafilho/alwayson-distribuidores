@@ -5,9 +5,11 @@ interface FilterBarProps {
   children: ReactNode
   columns?: 2 | 3 | 4
   className?: string
+  /** Override default equal-column grid (e.g. asymmetric filter rows). */
+  gridClassName?: string
 }
 
-export function FilterBar({ children, columns = 3, className }: FilterBarProps) {
+export function FilterBar({ children, columns = 3, className, gridClassName }: FilterBarProps) {
   const gridCols = {
     2: 'grid-cols-1 sm:grid-cols-2',
     3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
@@ -21,7 +23,9 @@ export function FilterBar({ children, columns = 3, className }: FilterBarProps) 
         className
       )}
     >
-      <div className={cn('grid gap-3 sm:gap-4', gridCols[columns])}>{children}</div>
+      <div className={cn('grid gap-3 sm:gap-4', gridClassName ?? gridCols[columns])}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -29,11 +33,12 @@ export function FilterBar({ children, columns = 3, className }: FilterBarProps) 
 interface FilterFieldProps {
   label: string
   children: ReactNode
+  className?: string
 }
 
-export function FilterField({ label, children }: FilterFieldProps) {
+export function FilterField({ label, children, className }: FilterFieldProps) {
   return (
-    <div>
+    <div className={className}>
       <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </label>

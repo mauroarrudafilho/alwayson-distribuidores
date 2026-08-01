@@ -130,7 +130,7 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
       {mesGlobal.length > 0 ? (
         <InsightsChartCard
           title="Sell-out mensal · ano-sobre-ano"
-          description="Faturamento agregado (todas as NFs Insights) · Jan–Dez · uma linha por ano"
+          description="Faturamento agregado no Nordeste · Jan–Dez · uma linha por ano"
           height={260}
         >
           <ResponsiveContainer width="100%" height="100%">
@@ -269,7 +269,10 @@ export function InsightsTerritoryCharts({ cidades, faturamentoFiltrado, mesGloba
           </ResponsiveContainer>
         </InsightsChartCard>
 
-        <InsightsChartCard title="Faturamento por estado" description="Composição do filtro atual">
+        <InsightsChartCard
+          title="Faturamento por estado"
+          description="Composição por UF no Nordeste (filtro atual)"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <PieChart margin={{ top: 4, bottom: 4, left: 4, right: 4 }}>
               <Pie

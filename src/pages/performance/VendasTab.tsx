@@ -29,6 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
+import { hierarchyPersonLabel } from './hierarchyLabels'
 
 export function VendasTab() {
   const { filters, setFilter, drillDown } = usePerformanceContext()
@@ -159,8 +160,12 @@ export function VendasTab() {
                   )
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-8 w-full text-sm">
+                  <SelectValue placeholder="Todos">
+                    {gerenteId
+                      ? hierarchyPersonLabel(hierarchy, gerenteId, 'Gerente')
+                      : 'Todos'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -184,8 +189,12 @@ export function VendasTab() {
                   )
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-8 w-full text-sm">
+                  <SelectValue placeholder="Todos">
+                    {supervisorId
+                      ? hierarchyPersonLabel(hierarchy, supervisorId, 'Supervisor')
+                      : 'Todos'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>

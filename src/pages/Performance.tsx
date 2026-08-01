@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
+import { MetricaToggle } from '@/components/distribuidor/MetricaToggle'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
 import { Input } from '@/components/ui/input'
@@ -79,15 +80,15 @@ function PerformanceContent() {
         description="hierarquia comercial"
       />
 
-      <FilterBar columns={3}>
-        <FilterField label="Distribuidor">
+      <FilterBar gridClassName="grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9.5rem_auto]">
+        <FilterField label="Distribuidor" className="min-w-0">
           <Select
             value={filters.distribuidorId ?? 'todos'}
             onValueChange={(v) =>
               setFilter('distribuidorId', v === 'todos' ? undefined : (v as string))
             }
           >
-            <SelectTrigger className="h-8 text-sm">
+            <SelectTrigger className="h-8 w-full text-sm">
               <SelectValue placeholder="Selecione...">
                 {filters.distribuidorId
                   ? distribuidores?.find((d) => d.id === filters.distribuidorId)?.nome ?? 'Carregando...'
@@ -104,24 +105,20 @@ function PerformanceContent() {
             </SelectContent>
           </Select>
         </FilterField>
-        <FilterField label="Período Início">
+        <FilterField label="Mês">
           <Input
             type="month"
-            value={filters.periodoInicio ?? ''}
+            value={filters.periodoMes ?? ''}
             onChange={(e) =>
-              setFilter('periodoInicio', e.target.value || undefined)
+              setFilter('periodoMes', e.target.value || undefined)
             }
-            className="h-8 text-sm"
+            className="h-8 w-full text-sm"
           />
         </FilterField>
-        <FilterField label="Período Fim">
-          <Input
-            type="month"
-            value={filters.periodoFim ?? ''}
-            onChange={(e) =>
-              setFilter('periodoFim', e.target.value || undefined)
-            }
-            className="h-8 text-sm"
+        <FilterField label="Métrica">
+          <MetricaToggle
+            value={filters.metrica}
+            onChange={(v) => setFilter('metrica', v)}
           />
         </FilterField>
       </FilterBar>
@@ -146,24 +143,29 @@ function PerformanceContent() {
         </TabsList>
 
         {breadcrumbs.length > 0 && (
-          <div className="mb-4 flex items-center gap-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+          <nav
+            aria-label="Caminho na hierarquia"
+            className="mb-3 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted-foreground"
+          >
             {breadcrumbs.map((crumb, idx) => (
-              <span key={idx} className="flex items-center gap-1">
-                {idx > 0 && <ChevronRight className="h-3 w-3" />}
+              <span key={idx} className="inline-flex max-w-full items-center gap-1">
+                {idx > 0 && (
+                  <ChevronRight className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                )}
                 <button
                   type="button"
-                  className="transition-colors hover:text-foreground hover:underline hover:underline-offset-2"
+                  className="max-w-[14rem] truncate transition-colors hover:text-foreground hover:underline hover:underline-offset-2"
                   onClick={() => drillDown(crumb.tab, crumb.filters)}
                 >
                   {crumb.label}
                 </button>
               </span>
             ))}
-            <ChevronRight className="h-3 w-3" />
-            <span className="font-medium normal-case tracking-normal text-foreground">
+            <ChevronRight className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+            <span className="font-medium text-foreground">
               {TAB_LABELS[currentTab]}
             </span>
-          </div>
+          </nav>
         )}
 
         {availableTabs.map((tab) => (

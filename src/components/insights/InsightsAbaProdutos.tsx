@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react'
 import {
   Package,
-  ChevronDown,
   ChevronRight,
   Users,
   MapPin,
-  ShoppingCart,
-  DollarSign,
   Loader2,
+  BarChart3,
+  Layers,
+  Target,
+  ArrowLeft,
+  Percent,
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -21,225 +21,284 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { InsightsSortableTh } from '@/components/insights/InsightsSortableTh'
+import { useInsightsTableSort } from '@/hooks/useInsightsTableSort'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
-import { SectionTitle } from '@/components/distribuidor/SectionTitle'
-import { KPIGrid } from '@/components/distribuidor/KPIGrid'
-import { KPICard } from '@/components/distribuidor/KPICard'
-import { formatCidadeUf, formatCurrency } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import type { InsightsProdutoDetalhe, InsightsProdutoRow } from '@/types/insights'
-import { useInsightsProdutoExpandido, useInsightsProdutos } from '@/hooks/useInsightsQueries'
+import {
+  queryErrorMessage,
+  useInsightsProdutoExpandido,
+  useInsightsProdutos,
+} from '@/hooks/useInsightsQueries'
 import { usePagination } from '@/hooks/usePagination'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { TopAcionaveis } from '@/components/insights/TopAcionaveis'
-import { topProdutosPrioritarios } from '@/lib/insights-priority'
 import {
-  InsightsProdutoDrillCharts,
-  InsightsProdutosCharts,
-} from '@/components/insights/InsightsProdutosCharts'
+  TopAcionaveis,
+  insightsListMetaClass,
+  insightsListTitleClass,
+} from '@/components/insights/TopAcionaveis'
+import { topProdutosPrioritarios } from '@/lib/insights-priority'
+import { InsightsOticaIntro } from '@/components/insights/InsightsOticaIntro'
+import { InsightsContextKpis } from '@/components/insights/InsightsContextKpis'
+import { buildProdutosKpis, type ContextualKpi } from '@/lib/insights-contextual-kpis'
+import { InsightsExplorarCard } from '@/components/insights/InsightsExplorarCard'
+import { InsightsProdutoDetalheCharts } from '@/components/insights/InsightsProdutoDetalheCharts'
+import {
+  INSIGHTS_FILTRO_TODOS,
+  insightsSelectOnChange,
+  insightsSelectValue,
+} from '@/lib/insights-filters'
 
-function ProdutoRow({
+function formatPct(pct: number): string {
+  if (!Number.isFinite(pct) || pct <= 0) return '—'
+  if (pct < 0.1) return '<0,1%'
+  return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+}
+
+function shareOf(part: number, total: number): number {
+  if (!Number.isFinite(part) || !Number.isFinite(total) || total <= 0) return 0
+  return (part / total) * 100
+}
+
+function buildSkuDetalheKpis(
+  row: InsightsProdutoRow,
+  detalhe: InsightsProdutoDetalhe
+): ContextualKpi[] {
+  const fatSku = row.faturamento_total
+  const top3Cli = detalhe.topClientes.slice(0, 3).reduce((s, c) => s + c.faturamento_total, 0)
+  const top3Cid = detalhe.topCidades.slice(0, 3).reduce((s, c) => s + c.faturamento_total, 0)
+  const top1 = detalhe.topClientes[0]
+
+  return [
+    {
+      id: 'clientes',
+      label: 'Clientes no SKU',
+      value: row.total_clientes.toLocaleString('pt-BR'),
+      subtitle: `${row.total_cidades.toLocaleString('pt-BR')} cidades`,
+    },
+    {
+      id: 'top3cli',
+      label: 'Top 3 clientes',
+      value: formatPct(shareOf(top3Cli, fatSku)),
+      subtitle: 'Concentração de receita no SKU',
+      variant: shareOf(top3Cli, fatSku) >= 40 ? 'primary' : 'default',
+    },
+    {
+      id: 'top3cid',
+      label: 'Top 3 cidades',
+      value: formatPct(shareOf(top3Cid, fatSku)),
+      subtitle: 'Peso geográfico no histórico',
+    },
+    {
+      id: 'lider',
+      label: 'Cliente líder',
+      value: top1 ? formatPct(shareOf(top1.faturamento_total, fatSku)) : '—',
+      subtitle: top1
+        ? top1.nome_cliente.length > 36
+          ? `${top1.nome_cliente.slice(0, 35)}…`
+          : top1.nome_cliente
+        : 'Sem dados',
+    },
+  ]
+}
+
+function ProdutoDetalhePanel({
   row,
-  maxFat,
-  expanded,
-  onToggleExpanded,
+  fatTotal,
   detalhe,
-  drillPending,
-  drillError,
+  pending,
+  error,
+  onBack,
 }: {
   row: InsightsProdutoRow
-  maxFat: number
-  expanded: boolean
-  onToggleExpanded: () => void
+  fatTotal: number
   detalhe: InsightsProdutoDetalhe | null | undefined
-  drillPending: boolean
-  drillError: Error | null
+  pending: boolean
+  error: Error | null
+  onBack: () => void
 }) {
-  const pct = maxFat > 0 ? (row.faturamento_total / maxFat) * 100 : 0
+  const pct = fatTotal > 0 ? (row.faturamento_total / fatTotal) * 100 : 0
+  const fatSku = row.faturamento_total
+
+  const detalheKpis = useMemo(
+    () => (detalhe ? buildSkuDetalheKpis(row, detalhe) : []),
+    [detalhe, row]
+  )
+
+  const DETALHE_KPI_ICONS = {
+    clientes: Users,
+    top3cli: Percent,
+    top3cid: MapPin,
+    lider: Target,
+    default: Package,
+  }
 
   return (
-    <>
-      <TableRow className="cursor-pointer" onClick={onToggleExpanded}>
-        <TableCell>
-          <span className="flex items-center gap-1.5">
-            {expanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+    <div className="space-y-5">
+      <Button variant="ghost" size="sm" className="h-8 gap-1.5 -ml-2" onClick={onBack}>
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Voltar ao mix
+      </Button>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-xs text-muted-foreground">{row.sku}</p>
+          <h2 className="font-display text-lg font-normal text-foreground mt-0.5">{row.descricao}</h2>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="outline" className="text-[10px]">
+              {row.categoria}
+            </Badge>
+            {row.marca !== '—' && (
+              <Badge variant="secondary" className="text-[10px]">
+                {row.marca}
+              </Badge>
             )}
-            <span className="font-mono text-xs">{row.sku}</span>
-          </span>
-        </TableCell>
-        <TableCell className="font-medium max-w-[200px] truncate">{row.descricao}</TableCell>
-        <TableCell className="hidden sm:table-cell">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{row.categoria}</Badge>
-        </TableCell>
-        <TableCell className="hidden lg:table-cell max-w-[100px] truncate text-xs text-muted-foreground">
-          {row.marca !== '—' ? row.marca : <span className="text-muted-foreground/70">—</span>}
-        </TableCell>
-        <TableCell className="hidden xl:table-cell max-w-[120px] truncate text-xs text-muted-foreground">
-          {row.detalhamento_categoria !== '—' ? (
-            row.detalhamento_categoria
-          ) : (
-            <span className="text-muted-foreground/70">—</span>
-          )}
-        </TableCell>
-        <TableCell className="text-right tabular-nums font-medium">
-          {formatCurrency(row.faturamento_total)}
-        </TableCell>
-        <TableCell className="hidden md:table-cell text-right tabular-nums">
-          {row.quantidade_total.toLocaleString('pt-BR')}
-          <span className="ml-1 text-muted-foreground text-xs">{row.unidade}</span>
-        </TableCell>
-        <TableCell className="hidden lg:table-cell text-right tabular-nums">{row.total_clientes}</TableCell>
-        <TableCell className="hidden lg:table-cell text-right tabular-nums">{row.total_cidades}</TableCell>
-        <TableCell className="hidden xl:table-cell w-32">
-          <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
-            <div className="h-full bg-primary/70 rounded" style={{ width: `${pct}%` }} />
           </div>
-        </TableCell>
-      </TableRow>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-semibold tabular-nums">{formatCurrency(row.faturamento_total)}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {formatPct(pct)} do mix filtrado · {row.total_clientes} clientes · {row.total_cidades}{' '}
+            cidades
+          </p>
+        </div>
+      </div>
 
-      {expanded && (
-        <TableRow className="bg-muted/20 hover:bg-muted/20">
-          <TableCell colSpan={10} className="p-0">
-            <div className="px-8 py-4 space-y-6">
-              {drillPending && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando detalhes do SKU…
-                </div>
-              )}
-              {!drillPending && drillError && (
-                <div className="text-sm text-destructive py-2">{drillError.message}</div>
-              )}
-              {!drillPending && !drillError && detalhe && (
-                <>
-                  <InsightsProdutoDrillCharts detalhe={detalhe} />
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <Users className="w-3 h-3" /> Top Clientes (tabela)
-                    </p>
-                    {detalhe?.topClientes && detalhe.topClientes.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-border/30">
-                            <TableHead>Cliente</TableHead>
-                            <TableHead className="hidden sm:table-cell">Cidade</TableHead>
-                            <TableHead className="text-right">Qtd</TableHead>
-                            <TableHead className="text-right">Faturamento</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {detalhe.topClientes.map((c) => (
-                            <TableRow key={c.cnpj_cliente} className="border-border/30">
-                              <TableCell className="font-medium text-sm">{c.nome_cliente}</TableCell>
-                              <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                                {formatCidadeUf(c.cidade, c.estado)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">
-                                {c.quantidade_total.toLocaleString('pt-BR')}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm font-medium">
-                                {formatCurrency(c.faturamento_total)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <p className="text-xs text-muted-foreground py-2">Sem dados de clientes para este SKU.</p>
-                    )}
-                    </div>
-
-                    <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                      <MapPin className="w-3 h-3" /> Top Cidades (tabela)
-                    </p>
-                    {detalhe?.topCidades && detalhe.topCidades.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-border/30">
-                            <TableHead>Cidade</TableHead>
-                            <TableHead className="text-right">Clientes</TableHead>
-                            <TableHead className="text-right">Qtd</TableHead>
-                            <TableHead className="text-right">Faturamento</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {detalhe.topCidades.map((c) => (
-                            <TableRow key={`${c.cidade}-${c.estado}`} className="border-border/30">
-                              <TableCell className="font-medium text-sm">
-                                {c.cidade}{' '}
-                                <span className="text-muted-foreground text-xs">/ {c.estado}</span>
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">{c.total_clientes}</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">
-                                {c.quantidade_total.toLocaleString('pt-BR')}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-sm font-medium">
-                                {formatCurrency(c.faturamento_total)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <p className="text-xs text-muted-foreground py-2">Sem dados de cidades para este SKU.</p>
-                    )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </TableCell>
-        </TableRow>
+      {pending && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-10">
+          <Loader2 className="w-4 h-4 animate-spin" /> Carregando detalhes do SKU…
+        </div>
       )}
-    </>
+      {!pending && error && <p className="text-sm text-destructive">{error.message}</p>}
+      {!pending && !error && detalhe && (
+        <div className="space-y-5">
+          <InsightsContextKpis kpis={detalheKpis} icons={DETALHE_KPI_ICONS} />
+          <p className="text-xs text-muted-foreground -mt-1">
+            Leitura de comportamento e oportunidade do item — quem puxa volume, onde concentra e
+            onde há espaço para crescer.
+          </p>
+          <InsightsProdutoDetalheCharts
+            sku={row.sku}
+            skuDescricao={row.descricao}
+            detalhe={detalhe}
+            fatSku={fatSku}
+          />
+        </div>
+      )}
+    </div>
   )
 }
 
-export function InsightsAbaProdutos() {
+export function InsightsAbaProdutos({
+  periodoLabel = 'Histórico Arruda',
+  active = true,
+  estadoFilter = '',
+  onEstadoChange,
+  estados = [],
+}: {
+  periodoLabel?: string
+  active?: boolean
+  /** UF compartilhada com as outras óticas. */
+  estadoFilter?: string
+  onEstadoChange?: (uf: string) => void
+  estados?: string[]
+}) {
   const [busca, setBusca] = useState('')
   const [categoria, setCategoria] = useState('')
-  const [openSku, setOpenSku] = useState<string | null>(null)
+  const [selectedSku, setSelectedSku] = useState<string | null>(null)
 
-  const { data: produtos = [], isPending, isError, error } = useInsightsProdutos()
-  const drill = useInsightsProdutoExpandido(openSku)
+  const { data: produtos = [], isPending, isError, error } = useInsightsProdutos({ enabled: active })
+  const drill = useInsightsProdutoExpandido(selectedSku)
 
   const categorias = useMemo(
     () => [...new Set(produtos.map((p) => p.categoria))].sort(),
     [produtos]
   )
 
-  const produtosFiltrados = useMemo(() => {
-    return produtos.filter((p) => {
-      const matchBusca =
-        busca === '' ||
-        p.sku.toLowerCase().includes(busca.toLowerCase()) ||
-        p.descricao.toLowerCase().includes(busca.toLowerCase())
-      const matchCategoria = categoria === '' || p.categoria === categoria
-      return matchBusca && matchCategoria
-    })
-  }, [busca, categoria, produtos])
+  /** Escopo de foco/gráficos — só categoria (busca fica na base explorar). */
+  const produtosEscopo = useMemo(() => {
+    return produtos.filter((p) => categoria === '' || p.categoria === categoria)
+  }, [categoria, produtos])
 
-  const maxFat = Math.max(...produtos.map((p) => p.faturamento_total), 1)
+  const fatTotal = useMemo(
+    () => produtosEscopo.reduce((s, p) => s + p.faturamento_total, 0),
+    [produtosEscopo]
+  )
 
-  const totais = useMemo(() => {
-    const fat = produtosFiltrados.reduce((s, p) => s + p.faturamento_total, 0)
-    const qtd = produtosFiltrados.reduce((s, p) => s + p.quantidade_total, 0)
-    const nfs = produtosFiltrados.reduce((s, p) => s + p.total_nfs, 0)
-    return { fat, qtd, nfs }
-  }, [produtosFiltrados])
+  const produtosLista = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    if (!q) return produtosEscopo
+    return produtosEscopo.filter(
+      (p) => p.sku.toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q)
+    )
+  }, [busca, produtosEscopo])
+
+  type ProdutoComPct = InsightsProdutoRow & { pct: number; cumPct: number }
+
+  const produtosComPct = useMemo((): ProdutoComPct[] => {
+    let cum = 0
+    return [...produtosLista]
+      .sort((a, b) => b.faturamento_total - a.faturamento_total)
+      .map((p) => {
+        const pct = fatTotal > 0 ? (p.faturamento_total / fatTotal) * 100 : 0
+        cum += pct
+        return { ...p, pct, cumPct: cum }
+      })
+  }, [produtosLista, fatTotal])
+
+  const produtosAccessors = useMemo(
+    () => ({
+      sku: (p: ProdutoComPct) => p.sku,
+      descricao: (p: ProdutoComPct) => p.descricao,
+      categoria: (p: ProdutoComPct) => p.categoria,
+      faturamento: (p: ProdutoComPct) => p.faturamento_total,
+      pct: (p: ProdutoComPct) => p.pct,
+      cum: (p: ProdutoComPct) => p.cumPct,
+      clientes: (p: ProdutoComPct) => p.total_clientes,
+    }),
+    []
+  )
+  const produtosSort = useInsightsTableSort(produtosComPct, produtosAccessors, {
+    key: 'faturamento',
+    dir: 'desc',
+  })
 
   const produtosTopAcionaveis = useMemo(
-    () => topProdutosPrioritarios(produtosFiltrados, 10),
-    [produtosFiltrados]
+    () => topProdutosPrioritarios(produtosEscopo, 10),
+    [produtosEscopo]
   )
+
+  const produtosKpis = useMemo(
+    () => buildProdutosKpis(produtosEscopo, fatTotal),
+    [produtosEscopo, fatTotal]
+  )
+
+  const PRODUTOS_KPI_ICONS = {
+    skus: Package,
+    pareto: BarChart3,
+    estrategicos: Target,
+    alcance: Layers,
+    default: Package,
+  }
+
   const produtosPag = usePagination({
-    items: produtosFiltrados,
+    items: produtosSort.sorted,
     initialPageSize: 25,
-    resetKey: `${busca}|${categoria}`,
+    resetKey: `${busca}|${categoria}|${estadoFilter}|${produtosSort.sort.key}|${produtosSort.sort.dir}`,
   })
+
+  const selectedRow = selectedSku
+    ? produtosComPct.find((p) => p.sku === selectedSku) ??
+      produtos.find((p) => p.sku === selectedSku)
+    : null
 
   if (isPending && produtos.length === 0) {
     return (
@@ -253,122 +312,213 @@ export function InsightsAbaProdutos() {
   if (isError) {
     return (
       <p className="text-sm text-destructive py-4">
-        {error instanceof Error ? error.message : String(error)}
+        {queryErrorMessage(error)}
       </p>
+    )
+  }
+
+  if (selectedSku && selectedRow) {
+    return (
+      <ProdutoDetalhePanel
+        row={selectedRow}
+        fatTotal={fatTotal}
+        detalhe={drill.data}
+        pending={drill.isPending}
+        error={drill.isError ? (drill.error as Error) : null}
+        onBack={() => setSelectedSku(null)}
+      />
     )
   }
 
   return (
     <div className="mt-0">
+      <InsightsOticaIntro otica="produtos" periodoLabel={periodoLabel} compact />
       <FilterBar columns={2}>
-        <FilterField label="Buscar SKU ou descrição">
-          <Input
-            placeholder="CAMP-001, Manteiga…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="h-8 text-sm"
-          />
-        </FilterField>
         <FilterField label="Categoria">
-          <div className="flex gap-1.5 flex-wrap">
-            <Button
-              size="sm"
-              variant={categoria === '' ? 'default' : 'outline'}
-              className="h-8 text-xs"
-              onClick={() => setCategoria('')}
-            >
-              Todas
-            </Button>
-            {categorias.map((c) => (
-              <Button
-                key={c}
-                size="sm"
-                variant={categoria === c ? 'default' : 'outline'}
-                className="h-8 text-xs"
-                onClick={() => setCategoria(c)}
-              >
-                {c}
-              </Button>
-            ))}
-          </div>
+          <Select
+            value={insightsSelectValue(categoria)}
+            onValueChange={(v) => insightsSelectOnChange(v, setCategoria)}
+          >
+            <SelectTrigger className="h-9 w-full text-sm min-w-0">
+              <SelectValue placeholder="Todas">{categoria || 'Todas'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todas</SelectItem>
+              {categorias.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+        <FilterField label="Estado">
+          <Select
+            value={insightsSelectValue(estadoFilter)}
+            onValueChange={(v) => {
+              if (onEstadoChange) insightsSelectOnChange(v, onEstadoChange)
+            }}
+          >
+            <SelectTrigger className="h-9 w-full text-sm min-w-0">
+              <SelectValue placeholder="Todos">{estadoFilter || 'Todos'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={INSIGHTS_FILTRO_TODOS}>Todos</SelectItem>
+              {estados.map((uf) => (
+                <SelectItem key={uf} value={uf}>
+                  {uf}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FilterField>
       </FilterBar>
+      <p className="mb-4 -mt-2 text-xs text-muted-foreground tabular-nums">
+        {formatCurrency(fatTotal)} no mix · {produtosEscopo.length.toLocaleString('pt-BR')} SKUs
+        {estadoFilter ? ` · UF ${estadoFilter} sincronizada com Clientes/Território` : ''}
+      </p>
 
-      {(busca !== '' || categoria !== '') && (
-        <KPIGrid columns={3} className="mb-6">
-          <KPICard label="Faturamento (filtro)" value={formatCurrency(totais.fat)} icon={DollarSign} />
-          <KPICard label="Quantidade (filtro)" value={totais.qtd.toLocaleString('pt-BR')} icon={Package} />
-          <KPICard label="NFs (filtro)" value={totais.nfs.toLocaleString('pt-BR')} icon={ShoppingCart} />
-        </KPIGrid>
-      )}
+      <InsightsContextKpis kpis={produtosKpis} icons={PRODUTOS_KPI_ICONS} className="mb-5" />
 
-      <InsightsProdutosCharts produtosFiltrados={produtosFiltrados} fatTotalFiltrado={totais.fat} />
-
-      {produtosFiltrados.length > produtosPag.pageSize && (
+      {produtosTopAcionaveis.length > 0 && (
         <TopAcionaveis
-          eyebrow="Prioridade · SKUs estratégicos"
-          description="Top 10 por faturamento × penetração de clientes — produtos que combinam volume e adoção ampla."
+          eyebrow="Foco no mix"
+          description="SKUs com maior peso e adoção — prioridade de argumento de venda."
           items={produtosTopAcionaveis}
           getKey={(p) => p.sku}
-          onItemClick={(p) => setBusca(p.sku)}
-          renderItem={(p) => (
-            <div>
-              <p className="flex items-baseline gap-2 flex-wrap">
-                <span className="font-mono text-xs text-muted-foreground">{p.sku}</span>
-                <span className="font-medium text-foreground truncate">{p.descricao}</span>
-              </p>
-              <p className="mt-0.5 flex items-baseline gap-2 text-xs tabular-nums">
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(p.faturamento_total)}
-                </span>
-                <span className="text-muted-foreground">
-                  {p.total_clientes} clientes · {p.total_cidades} cidades
-                </span>
-              </p>
-            </div>
-          )}
+          onItemClick={(p) => setSelectedSku(p.sku)}
+          renderItem={(p) => {
+            const pct = fatTotal > 0 ? (p.faturamento_total / fatTotal) * 100 : 0
+            return (
+              <div>
+                <p className={insightsListTitleClass}>
+                  <span className="mr-2 font-mono text-xs font-normal text-muted-foreground">
+                    {p.sku}
+                  </span>
+                  {p.descricao}
+                </p>
+                <p className={insightsListMetaClass}>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(p.faturamento_total)}
+                  </span>
+                  <span className="mx-1 text-teal font-medium">{formatPct(pct)}</span>
+                  <span>· {p.total_clientes} clientes</span>
+                </p>
+              </div>
+            )
+          }}
         />
       )}
 
-      <SectionTitle title="Produtos" icon={Package} />
-      <Card>
-        <CardContent className="p-0">
+      <InsightsExplorarCard
+        title="Mix detalhado"
+        countLabel={`${produtosComPct.length.toLocaleString('pt-BR')} SKUs`}
+        search={busca}
+        onSearchChange={setBusca}
+        searchPlaceholder="Buscar SKU ou descrição…"
+      >
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead className="hidden sm:table-cell">Categoria</TableHead>
-                <TableHead className="hidden lg:table-cell">Marca</TableHead>
-                <TableHead className="hidden xl:table-cell">Detalhe</TableHead>
-                <TableHead className="text-right">Faturamento</TableHead>
-                <TableHead className="hidden md:table-cell text-right">Qtd Total</TableHead>
-                <TableHead className="hidden lg:table-cell text-right">Clientes</TableHead>
-                <TableHead className="hidden lg:table-cell text-right">Cidades</TableHead>
-                <TableHead className="hidden xl:table-cell">Participação</TableHead>
+                <InsightsSortableTh
+                  label="SKU"
+                  active={produtosSort.sort.key === 'sku'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('sku')}
+                />
+                <InsightsSortableTh
+                  label="Descrição"
+                  active={produtosSort.sort.key === 'descricao'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('descricao')}
+                />
+                <InsightsSortableTh
+                  label="Categoria"
+                  className="hidden sm:table-cell"
+                  active={produtosSort.sort.key === 'categoria'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('categoria')}
+                />
+                <InsightsSortableTh
+                  label="Faturamento"
+                  align="right"
+                  active={produtosSort.sort.key === 'faturamento'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('faturamento')}
+                />
+                <InsightsSortableTh
+                  label="% mix"
+                  align="right"
+                  className="w-20"
+                  active={produtosSort.sort.key === 'pct'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('pct')}
+                />
+                <InsightsSortableTh
+                  label="% acum."
+                  align="right"
+                  className="hidden md:table-cell"
+                  active={produtosSort.sort.key === 'cum'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('cum')}
+                />
+                <InsightsSortableTh
+                  label="Clientes"
+                  align="right"
+                  className="hidden lg:table-cell"
+                  active={produtosSort.sort.key === 'clientes'}
+                  dir={produtosSort.sort.dir}
+                  onClick={() => produtosSort.toggle('clientes')}
+                />
+                <TableHead className="hidden xl:table-cell w-28">Concentração</TableHead>
+                <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {produtosFiltrados.length === 0 && (
+              {produtosComPct.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
                     Nenhum produto encontrado para os filtros selecionados.
                   </TableCell>
                 </TableRow>
               )}
               {produtosPag.paginated.map((row) => (
-                <ProdutoRow
+                <TableRow
                   key={row.sku}
-                  row={row}
-                  maxFat={maxFat}
-                  expanded={openSku === row.sku}
-                  onToggleExpanded={() => setOpenSku((cur) => (cur === row.sku ? null : row.sku))}
-                  detalhe={drill.data}
-                  drillPending={openSku === row.sku && drill.isPending}
-                  drillError={
-                    openSku === row.sku && drill.isError ? (drill.error as Error) : null
-                  }
-                />
+                  className="cursor-pointer"
+                  onClick={() => setSelectedSku(row.sku)}
+                >
+                  <TableCell className="font-mono text-xs">{row.sku}</TableCell>
+                  <TableCell className="font-medium max-w-[200px] truncate">{row.descricao}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                      {row.categoria}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">
+                    {formatCurrency(row.faturamento_total)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-medium text-teal">
+                    {formatPct(row.pct)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-right tabular-nums text-xs text-muted-foreground">
+                    {formatPct(row.cumPct)}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-right tabular-nums">
+                    {row.total_clientes}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell">
+                    <div className="h-2.5 bg-muted/50 rounded overflow-hidden">
+                      <div
+                        className="h-full bg-primary/70 rounded"
+                        style={{ width: `${Math.min(row.pct * 4, 100)}%` }}
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  </TableCell>
+                </TableRow>
               ))}
             </TableBody>
           </Table>
@@ -379,8 +529,7 @@ export function InsightsAbaProdutos() {
             onPageChange={produtosPag.setPage}
             onPageSizeChange={produtosPag.setPageSize}
           />
-        </CardContent>
-      </Card>
+      </InsightsExplorarCard>
     </div>
   )
 }

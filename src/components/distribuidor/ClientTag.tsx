@@ -1,11 +1,12 @@
 import { cn } from '@/lib/utils'
 
-export type ClientTagCategory = 'programa' | 'fonte' | 'segmento' | 'flag' | 'risk'
+export type ClientTagCategory = 'programa' | 'fonte' | 'segmento' | 'flag' | 'risk' | 'destaque'
 
 interface ClientTagProps {
   category: ClientTagCategory
   label: string
   className?: string
+  title?: string
 }
 
 const categoryClass: Record<ClientTagCategory, string> = {
@@ -14,6 +15,7 @@ const categoryClass: Record<ClientTagCategory, string> = {
   segmento: 'text-muted-foreground border-border bg-muted',
   flag: 'text-warning border-warning/30 bg-warning/8',
   risk: 'text-destructive border-destructive/30 bg-destructive/8',
+  destaque: 'text-amber-700 border-amber-500/35 bg-amber-500/10 dark:text-amber-400',
 }
 
 const dotClass: Record<ClientTagCategory, string> = {
@@ -22,11 +24,13 @@ const dotClass: Record<ClientTagCategory, string> = {
   segmento: 'bg-muted-foreground/60',
   flag: 'bg-warning',
   risk: 'bg-destructive',
+  destaque: 'bg-amber-500',
 }
 
-export function ClientTag({ category, label, className }: ClientTagProps) {
+export function ClientTag({ category, label, className, title }: ClientTagProps) {
   return (
     <span
+      title={title}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold leading-tight tracking-wide tabular-nums',
         categoryClass[category],

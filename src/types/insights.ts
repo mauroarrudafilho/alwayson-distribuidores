@@ -12,6 +12,17 @@ export interface InsightsProdutoDePara {
   atualizado_em: string
 }
 
+/** Código na base Insights sem SKU no cadastro alwayson_produtos. */
+export interface InsightsProdutoNaoMapeado {
+  codigo_origem: string
+  sku_exemplo: string
+  descricao: string
+  sku_resolvido_atual: string
+  faturamento_total: number
+  quantidade_total: number
+  total_linhas: number
+}
+
 export interface InsightsUpload {
   id: string
   nome: string
@@ -91,6 +102,8 @@ export interface InsightsCidadeRow {
   total_skus: number
   /** Itens agregados na unidade predominante (volume). */
   quantidade_total: number
+  /** Soma de quantidades em litros (L/LT/LITRO…). */
+  quantidade_litros?: number
   unidade_predominante?: string
 }
 
@@ -123,6 +136,8 @@ export interface InsightsTopCliente {
   ultima_compra: string
   total_skus: number
   nome_rede?: string
+  /** Canal predominante na origem (ex.: VAREJO LOCAL, HORECA). */
+  perfil?: string
   brasil_enriquecimento_status?: InsightsClienteBrasilStatus
 }
 
@@ -155,6 +170,7 @@ export interface InsightsClienteComRedeRow {
   total_nfs: number
   ultima_compra: string
   total_skus: number
+  perfil?: string
   cnpj_raiz: string
   rede_id: string | null
   rede_nome: string | null
@@ -202,7 +218,7 @@ export interface InsightsProdutoRow {
   ultima_venda: string
 }
 
-/** Drill-down de um SKU: top clientes e top cidades. */
+/** Drill-down de um SKU: ranking, série mensal e corte por UF. */
 export interface InsightsProdutoDetalhe {
   topClientes: Array<{
     cnpj_cliente: string
@@ -211,6 +227,8 @@ export interface InsightsProdutoDetalhe {
     estado: string
     quantidade_total: number
     faturamento_total: number
+    total_nfs?: number
+    ultima_venda?: string
   }>
   topCidades: Array<{
     cidade: string
@@ -218,5 +236,25 @@ export interface InsightsProdutoDetalhe {
     quantidade_total: number
     faturamento_total: number
     total_clientes: number
+  }>
+  porUf: Array<{
+    estado: string
+    faturamento_total: number
+    total_clientes: number
+    total_cidades: number
+  }>
+  serieMensal: Array<{
+    ano_mes: string
+    faturamento_total: number
+    quantidade_total: number
+    total_clientes: number
+  }>
+  /** Cidades com muitos clientes e baixo fat./cliente — pista de oportunidade. */
+  oportunidadesCidade: Array<{
+    cidade: string
+    estado: string
+    faturamento_total: number
+    total_clientes: number
+    fat_por_cliente: number
   }>
 }

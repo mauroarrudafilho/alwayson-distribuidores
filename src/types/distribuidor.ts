@@ -64,6 +64,8 @@ export interface ClienteDistribuidor {
   frequencia_compra_dias?: number
   ticket_medio?: number
   status: 'ativo' | 'inativo' | 'em_risco'
+  criado_em?: string
+  atualizado_em?: string
 }
 
 export interface ExcelenciaCriterio {

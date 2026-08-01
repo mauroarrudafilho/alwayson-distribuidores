@@ -1,17 +1,11 @@
 import { useSearchParams } from 'react-router-dom'
 import { useCallback } from 'react'
-
-function getCurrentMonth(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  return `${y}-${m}`
-}
+import type { MetricaAnalise } from '@/lib/metrica-analise'
 
 /** Mês corrente menos N meses, formato 'YYYY-MM'. */
 function getMonthOffset(monthsBack: number): string {
   const d = new Date()
-  d.setDate(1) // evita rollover quando o dia atual não existe no mês alvo
+  d.setDate(1)
   d.setMonth(d.getMonth() - monthsBack)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -36,7 +30,13 @@ export interface PerfFilters {
   gerenteId?: string
   supervisorId?: string
   vendedorId?: string
+  /** Mês de análise (YYYY-MM) — início e fim são sempre iguais. */
+  periodoMes?: string
+  /** Métrica exibida nos modais e detalhes (R$ ou unidade). */
+  metrica: MetricaAnalise
+  /** @deprecated Use periodoMes — mantido igual para hooks existentes. */
   periodoInicio?: string
+  /** @deprecated Use periodoMes — mantido igual para hooks existentes. */
   periodoFim?: string
 }
 
@@ -45,8 +45,10 @@ const PARAM_MAP: Record<keyof Omit<PerfFilters, 'tab'>, string> = {
   gerenteId: 'gerente',
   supervisorId: 'supervisor',
   vendedorId: 'vendedor',
+  periodoMes: 'periodo',
   periodoInicio: 'periodo_inicio',
   periodoFim: 'periodo_fim',
+  metrica: 'metrica',
 }
 
 function toParamName(key: keyof PerfFilters): string {
@@ -54,8 +56,30 @@ function toParamName(key: keyof PerfFilters): string {
   return PARAM_MAP[key]
 }
 
+function readPeriodoMes(searchParams: URLSearchParams): string {
+  return (
+    searchParams.get('periodo') ||
+    searchParams.get('periodo_inicio') ||
+    getMonthOffset(2)
+  )
+}
+
+function applyPeriodoMes(next: URLSearchParams, value: string | undefined) {
+  if (value) {
+    next.set('periodo', value)
+    next.set('periodo_inicio', value)
+    next.set('periodo_fim', value)
+  } else {
+    next.delete('periodo')
+    next.delete('periodo_inicio')
+    next.delete('periodo_fim')
+  }
+}
+
 export function usePerfFilters() {
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const periodoMes = readPeriodoMes(searchParams)
 
   const filters: PerfFilters = {
     tab: (searchParams.get('tab') as PerfTab) || 'distribuidor',
@@ -63,17 +87,21 @@ export function usePerfFilters() {
     gerenteId: searchParams.get('gerente') || undefined,
     supervisorId: searchParams.get('supervisor') || undefined,
     vendedorId: searchParams.get('vendedor') || undefined,
-    // Default: janela de 3 meses (mês corrente − 2 → mês corrente).
-    // Períodos de 1 mês podiam aparecer vazios se a base ainda não tem dados
-    // do mês em curso; 3 meses cobre o trimestre rolling sem mascarar mês recente.
-    periodoInicio: searchParams.get('periodo_inicio') || getMonthOffset(2),
-    periodoFim: searchParams.get('periodo_fim') || getCurrentMonth(),
+    periodoMes,
+    periodoInicio: periodoMes,
+    periodoFim: periodoMes,
+    metrica:
+      searchParams.get('metrica') === 'unidade' ? 'unidade' : 'faturamento',
   }
 
   const setFilter = useCallback(
     (key: keyof PerfFilters, value: string | undefined) => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
+        if (key === 'periodoMes' || key === 'periodoInicio' || key === 'periodoFim') {
+          applyPeriodoMes(next, value)
+          return next
+        }
         const paramName = toParamName(key)
         if (value) {
           next.set(paramName, value)
@@ -93,6 +121,14 @@ export function usePerfFilters() {
         next.set('tab', tab)
         for (const [key, value] of Object.entries(newFilters)) {
           if (key === 'tab') continue
+          if (
+            key === 'periodoMes' ||
+            key === 'periodoInicio' ||
+            key === 'periodoFim'
+          ) {
+            applyPeriodoMes(next, value as string | undefined)
+            continue
+          }
           const paramName = toParamName(key as keyof PerfFilters)
           if (value) {
             next.set(paramName, value as string)

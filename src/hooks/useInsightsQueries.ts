@@ -16,10 +16,35 @@ import type {
   InsightsUpload,
 } from '@/types/insights'
 import { parseInsightsClienteBrasilStatus } from '@/lib/insightsClienteBrasilStatus'
+import { filterInsightsByNordeste } from '@/lib/insights-territorio'
 
 function n(x: unknown): number {
   const v = Number(x)
   return Number.isFinite(v) ? v : 0
+}
+
+/** PostgREST devolve objeto `{ message, code, details }` — não é `Error`. */
+export function queryErrorMessage(err: unknown): string {
+  if (err == null) return 'Erro desconhecido'
+  if (err instanceof Error) return err.message || 'Erro desconhecido'
+  if (typeof err === 'string') return err
+  if (typeof err === 'object') {
+    const o = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }
+    const parts = [o.message, o.details, o.hint]
+      .map((x) => (x != null && String(x).trim() !== '' ? String(x) : ''))
+      .filter(Boolean)
+    if (parts.length) return parts.join(' — ')
+    if (o.code != null) return `Erro ${String(o.code)}`
+  }
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return 'Erro desconhecido'
+  }
+}
+
+function throwQueryError(err: unknown): never {
+  throw new Error(queryErrorMessage(err))
 }
 
 export function isoDateOnly(d: unknown): string {
@@ -94,30 +119,36 @@ export type InsightsBootstrap = {
  * Estratégia: primeira página com count exact + páginas restantes em paralelo.
  */
 const CLIENTES_PAGE_SIZE = 1000
+const CLIENTES_SELECT =
+  'cnpj_cliente,nome_cliente,razao_social,cidade,estado,faturamento_total,total_nfs,ultima_compra,total_skus,brasil_enriquecimento_status,perfil,grupo_label'
+
+/**
+ * View pesada (~1s/página). Paginação em paralelo estourava timeout do PostgREST (500).
+ * Sequencial + order estável evita [object Object] / falha do bootstrap.
+ */
 async function fetchAllInsightsClientes(): Promise<Record<string, unknown>[]> {
   const first = await supabase
     .from('alwayson_insights_v_clientes_com_rede')
-    .select('*', { count: 'exact' })
+    .select(CLIENTES_SELECT, { count: 'exact' })
+    .order('cnpj_cliente', { ascending: true })
     .range(0, CLIENTES_PAGE_SIZE - 1)
-  if (first.error) throw first.error
+  if (first.error) throwQueryError(first.error)
   const rows = (first.data ?? []) as Record<string, unknown>[]
   const total = first.count ?? rows.length
   if (rows.length >= total) return rows
 
-  const remainingPages = Math.ceil(total / CLIENTES_PAGE_SIZE) - 1
-  if (remainingPages <= 0) return rows
-
-  const rest = await Promise.all(
-    Array.from({ length: remainingPages }, (_, i) =>
-      supabase
-        .from('alwayson_insights_v_clientes_com_rede')
-        .select('*')
-        .range((i + 1) * CLIENTES_PAGE_SIZE, (i + 2) * CLIENTES_PAGE_SIZE - 1)
-    )
-  )
-  for (const r of rest) {
-    if (r.error) throw r.error
-    if (r.data) rows.push(...(r.data as Record<string, unknown>[]))
+  let offset = CLIENTES_PAGE_SIZE
+  while (offset < total) {
+    const page = await supabase
+      .from('alwayson_insights_v_clientes_com_rede')
+      .select(CLIENTES_SELECT)
+      .order('cnpj_cliente', { ascending: true })
+      .range(offset, offset + CLIENTES_PAGE_SIZE - 1)
+    if (page.error) throwQueryError(page.error)
+    const chunk = (page.data ?? []) as Record<string, unknown>[]
+    if (chunk.length === 0) break
+    rows.push(...chunk)
+    offset += CLIENTES_PAGE_SIZE
   }
   return rows
 }
@@ -173,28 +204,31 @@ export function useInsightsBootstrap() {
           'Views de Insights não encontradas. Execute as migrations Insights no SQL Editor (≥012 e 015_insights_clientes_dim.sql quando aplicável).'
         )
       }
-      if (cidadesRes.error) throw cidadesRes.error
+      if (cidadesRes.error) throwQueryError(cidadesRes.error)
       // clientesAll já vem com erros propagados via fetchAllInsightsClientes
 
       const cidadeRows = (cidadesRes.data ?? []) as Record<string, unknown>[]
-      const cidades: InsightsCidadeRow[] = cidadeRows.map((row) => ({
-        cidade: String(row.cidade ?? ''),
-        estado: String(row.estado ?? ''),
-        faturamento_total: n(row.faturamento_total),
-        total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
-        total_clientes: Math.trunc(Number(row.total_clientes)) || 0,
-        ticket_medio_cliente: n(row.ticket_medio_cliente),
-        total_skus: Math.trunc(Number(row.total_skus)) || 0,
-        quantidade_total: n(row.quantidade_total),
-        unidade_predominante:
-          row.unidade_predominante != null && String(row.unidade_predominante).trim() !== ''
-            ? String(row.unidade_predominante).trim()
-            : undefined,
-      }))
+      const cidades: InsightsCidadeRow[] = filterInsightsByNordeste(
+        cidadeRows.map((row) => ({
+          cidade: String(row.cidade ?? ''),
+          estado: String(row.estado ?? ''),
+          faturamento_total: n(row.faturamento_total),
+          total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
+          total_clientes: Math.trunc(Number(row.total_clientes)) || 0,
+          ticket_medio_cliente: n(row.ticket_medio_cliente),
+          total_skus: Math.trunc(Number(row.total_skus)) || 0,
+          quantidade_total: n(row.quantidade_total),
+          quantidade_litros: n(row.quantidade_litros),
+          unidade_predominante:
+            row.unidade_predominante != null && String(row.unidade_predominante).trim() !== ''
+              ? String(row.unidade_predominante).trim()
+              : undefined,
+        }))
+      )
 
       const clienteRows = clientesAll
-      const clientes: InsightsTopCliente[] = clienteRows
-        .map((row) => ({
+      const clientes: InsightsTopCliente[] = filterInsightsByNordeste(
+        clienteRows.map((row) => ({
           cnpj_cliente: String(row.cnpj_cliente ?? ''),
           nome_cliente: String(row.nome_cliente ?? '—').trim() || '—',
           razao_social: (() => {
@@ -215,11 +249,17 @@ export function useInsightsBootstrap() {
             const t = String(g).trim()
             return t || undefined
           })(),
+          perfil: (() => {
+            const p = row.perfil
+            if (p == null) return undefined
+            const t = String(p).trim()
+            return t || undefined
+          })(),
           brasil_enriquecimento_status: parseInsightsClienteBrasilStatus(
             row.brasil_enriquecimento_status
           ),
         }))
-        .sort((a, b) => b.faturamento_total - a.faturamento_total)
+      ).sort((a, b) => b.faturamento_total - a.faturamento_total)
 
       const uploads = (uploadsRes.data ?? []) as InsightsUpload[]
       const periodo = periodoFromUploads(uploads)
@@ -264,7 +304,7 @@ export function useInsightsClienteHistorico(cnpjRaw: string | undefined) {
         .select('*')
         .eq('cnpj_cliente', key)
         .order('ano_mes', { ascending: true })
-      if (error) throw error
+      if (error) throwQueryError(error)
       return (data ?? []).map((row) => ({
         ano_mes: String((row as { ano_mes: string }).ano_mes),
         faturamento: n((row as { faturamento: unknown }).faturamento),
@@ -287,7 +327,7 @@ export function useInsightsClienteMix(cnpjRaw: string | undefined) {
         .select('*')
         .eq('cnpj_cliente', key)
         .order('faturamento_total', { ascending: false })
-      if (error) throw error
+      if (error) throwQueryError(error)
       return (data ?? []).map((row) => ({
         sku: String((row as { sku: string }).sku),
         descricao: String((row as { descricao: string | null }).descricao ?? ''),
@@ -302,16 +342,17 @@ export function useInsightsClienteMix(cnpjRaw: string | undefined) {
   })
 }
 
-export function useInsightsProdutos() {
+export function useInsightsProdutos(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['insights', 'produtos'],
     staleTime: 60_000,
+    enabled: options?.enabled !== false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('alwayson_insights_v_produtos')
         .select('*')
         .order('faturamento_total', { ascending: false })
-      if (error) throw error
+      if (error) throwQueryError(error)
       return (data ?? []).map((row) => ({
         sku: String((row as { sku: string }).sku),
         descricao:
@@ -335,21 +376,22 @@ export function useInsightsProdutos() {
   })
 }
 
-export function useInsightsMesGlobal() {
+export function useInsightsMesGlobal(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['insights', 'mes-global'],
     staleTime: 60_000,
+    enabled: options?.enabled !== false,
     queryFn: async (): Promise<InsightsMesGlobalRow[]> => {
       const { data, error } = await supabase
         .from('alwayson_insights_v_mes_global')
         .select('*')
         .order('ano_mes', { ascending: true })
       if (error) {
-        const msg = String(error.message ?? '')
+        const msg = queryErrorMessage(error)
         if (msg.includes('does not exist') || msg.includes('schema cache')) {
           return []
         }
-        throw error
+        throwQueryError(error)
       }
       return (data ?? []).map((row) => ({
         ano_mes: String((row as { ano_mes: string }).ano_mes),
@@ -362,191 +404,102 @@ export function useInsightsMesGlobal() {
   })
 }
 
-type ItemNfRow = {
-  id: string
-  sku: string
-  codprod_fornecedor?: string | null
-  quantidade: string | number | null
-  valor_total: string | number | null
-  alwayson_insights_nf: {
-    cnpj_cliente: string
-    nome_cliente: string | null
-  } | null
-}
-
-/** Resolve SKU fábrica alinhado à view v_produtos (codprod no mapa, senão sku da linha). */
-function insightsItemSkuFabrica(
-  row: Pick<ItemNfRow, 'sku' | 'codprod_fornecedor'>,
-  depMap: Map<string, string>
-): string {
-  const c = (row.codprod_fornecedor ?? '').trim()
-  const s = (row.sku ?? '').trim()
-  if (c) {
-    const hit = depMap.get(c)
-    if (hit) return hit.trim()
-  }
-  const hitSku = depMap.get(s)
-  if (hitSku) return hitSku.trim()
-  return s
-}
-
-function aggregateProdutoDetalhe(
-  rows: ItemNfRow[],
-  cidadeByCnpj: Map<string, { cidade: string | null; estado: string | null }>
-): InsightsProdutoDetalhe {
-  type AccC = {
-    nome: string
-    cidade: string
-    estado: string
-    qtd: number
-    fat: number
-  }
-  type AccCity = {
-    qtd: number
-    fat: number
-    clientes: Set<string>
-  }
-
-  const byCliente = new Map<string, AccC>()
-  const byCity = new Map<string, AccCity>()
-
-  for (const r of rows) {
-    const nf = r.alwayson_insights_nf
-    if (!nf) continue
-    const cnpj = insightsCnpjKey(nf.cnpj_cliente)
-    const nome = (nf.nome_cliente && nf.nome_cliente.trim()) || '—'
-    const ic = cidadeByCnpj.get(cnpj)
-    const cidade = (ic?.cidade && ic.cidade.trim()) || '—'
-    const estado = (ic?.estado && ic.estado.trim()) || '—'
-    const qtd = n(r.quantidade)
-    const fat = n(r.valor_total)
-
-    const prev = byCliente.get(cnpj)
-    if (prev) {
-      prev.qtd += qtd
-      prev.fat += fat
-    } else {
-      byCliente.set(cnpj, { nome, cidade, estado, qtd, fat })
-    }
-
-    const ck = `${cidade}|${estado}`
-    const cPrev = byCity.get(ck)
-    if (cPrev) {
-      cPrev.qtd += qtd
-      cPrev.fat += fat
-      cPrev.clientes.add(cnpj)
-    } else {
-      byCity.set(ck, { qtd, fat, clientes: new Set([cnpj]) })
-    }
-  }
-
-  const topClientes = [...byCliente.entries()]
-    .map(([cnpj_cliente, v]) => ({
-      cnpj_cliente,
-      nome_cliente: v.nome,
-      cidade: v.cidade,
-      estado: v.estado,
-      quantidade_total: v.qtd,
-      faturamento_total: v.fat,
-    }))
-    .sort((a, b) => b.faturamento_total - a.faturamento_total)
-    .slice(0, 12)
-
-  const topCidades = [...byCity.entries()]
-    .map(([key, v]) => {
-      const [cidade, estado] = key.split('|')
-      return {
-        cidade: cidade ?? '—',
-        estado: estado ?? '—',
-        quantidade_total: v.qtd,
-        faturamento_total: v.fat,
-        total_clientes: v.clientes.size,
-      }
-    })
-    .sort((a, b) => b.faturamento_total - a.faturamento_total)
-    .slice(0, 12)
-
-  return { topClientes, topCidades }
-}
+const PRODUTO_DRILL_TOP = 15
+/** Praças na tabela rankeável do detalhe do SKU (ordenado por fat. no banco). */
+const PRODUTO_DRILL_CIDADES = 250
 
 export function useInsightsProdutoExpandido(sku: string | null) {
   return useQuery({
     queryKey: ['insights', 'produto-expand', sku],
     enabled: !!sku && sku.length > 0,
-    queryFn: async () => {
+    staleTime: 60_000,
+    queryFn: async (): Promise<InsightsProdutoDetalhe> => {
       const resolved = sku!.trim()
 
-      const { data: allDep, error: allErr } = await supabase
-        .from('alwayson_insights_produto_de_para')
-        .select('codigo_origem, sku_fornecedor')
-      if (allErr) throw allErr
-
-      const depMap = new Map<string, string>()
-      for (const r of allDep ?? []) {
-        const o = String((r as { codigo_origem: string }).codigo_origem ?? '').trim()
-        const sf = String((r as { sku_fornecedor: string }).sku_fornecedor ?? '').trim()
-        if (o && sf) depMap.set(o, sf)
-      }
-
-      const originKeys = new Set<string>([resolved])
-      for (const [o, sf] of depMap) {
-        if (sf === resolved) originKeys.add(o)
-      }
-      const keyList = [...originKeys].filter(Boolean)
-
-      const select = `
-          id,
-          sku,
-          codprod_fornecedor,
-          quantidade,
-          valor_total,
-          alwayson_insights_nf!inner (
-            cnpj_cliente,
-            nome_cliente
+      const [cliRes, cidRes, ufRes, mesRes] = await Promise.all([
+        supabase
+          .from('alwayson_insights_v_produto_clientes')
+          .select(
+            'cnpj_cliente, nome_cliente, cidade, estado, quantidade_total, faturamento_total, total_nfs, ultima_venda'
           )
-        `
-
-      const [resSku, resCod] = await Promise.all([
-        supabase.from('alwayson_insights_nf_itens').select(select).in('sku', keyList),
-        supabase.from('alwayson_insights_nf_itens').select(select).in('codprod_fornecedor', keyList),
+          .eq('sku', resolved)
+          .order('faturamento_total', { ascending: false })
+          .limit(PRODUTO_DRILL_TOP),
+        supabase
+          .from('alwayson_insights_v_produto_cidades')
+          .select('cidade, estado, quantidade_total, faturamento_total, total_clientes')
+          .eq('sku', resolved)
+          .order('faturamento_total', { ascending: false })
+          .limit(PRODUTO_DRILL_CIDADES),
+        supabase
+          .from('alwayson_insights_v_produto_uf')
+          .select('estado, faturamento_total, total_clientes, total_cidades')
+          .eq('sku', resolved)
+          .order('faturamento_total', { ascending: false }),
+        supabase
+          .from('alwayson_insights_v_produto_mes')
+          .select('ano_mes, faturamento_total, quantidade_total, total_clientes')
+          .eq('sku', resolved)
+          .order('ano_mes', { ascending: true }),
       ])
-      if (resSku.error) throw resSku.error
-      if (resCod.error) throw resCod.error
 
-      const byId = new Map<string, ItemNfRow>()
-      for (const row of resSku.data ?? []) {
-        byId.set(String((row as { id: string }).id), row as unknown as ItemNfRow)
-      }
-      for (const row of resCod.data ?? []) {
-        byId.set(String((row as { id: string }).id), row as unknown as ItemNfRow)
-      }
+      if (cliRes.error) throwQueryError(cliRes.error)
+      if (cidRes.error) throwQueryError(cidRes.error)
+      if (ufRes.error) throwQueryError(ufRes.error)
+      if (mesRes.error) throwQueryError(mesRes.error)
 
-      const rows = [...byId.values()].filter(
-        (row) => insightsItemSkuFabrica(row, depMap) === resolved
-      )
-      const keys = [
-        ...new Set(
-          rows
-            .map((x) => insightsCnpjKey(x.alwayson_insights_nf?.cnpj_cliente ?? ''))
-            .filter((k) => k.length === 14)
-        ),
-      ]
-      const cidadeByCnpj = new Map<string, { cidade: string | null; estado: string | null }>()
-      if (keys.length) {
-        const { data: geoData, error: geoErr } = await supabase
-          .from('alwayson_insights_clientes')
-          .select('cnpj_14, cidade, estado')
-          .in('cnpj_14', keys)
-        if (geoErr) throw geoErr
-        for (const g of geoData ?? []) {
-          const k = insightsCnpjKey((g as { cnpj_14: string }).cnpj_14)
-          cidadeByCnpj.set(k, {
-            cidade: (g as { cidade: string | null }).cidade ?? null,
-            estado: (g as { estado: string | null }).estado ?? null,
-          })
-        }
+      const topClientes = (cliRes.data ?? []).map((row) => ({
+        cnpj_cliente: insightsCnpjKey(String((row as { cnpj_cliente: string }).cnpj_cliente)),
+        nome_cliente: String((row as { nome_cliente: string | null }).nome_cliente ?? '—'),
+        cidade: String((row as { cidade: string | null }).cidade ?? '—'),
+        estado: String((row as { estado: string | null }).estado ?? '—'),
+        quantidade_total: n((row as { quantidade_total: unknown }).quantidade_total),
+        faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
+        total_nfs: Math.trunc(Number((row as { total_nfs: unknown }).total_nfs)) || 0,
+        ultima_venda: isoDateOnly((row as { ultima_venda: unknown }).ultima_venda),
+      }))
+
+      const topCidadesAll = (cidRes.data ?? []).map((row) => ({
+        cidade: String((row as { cidade: string | null }).cidade ?? '—'),
+        estado: String((row as { estado: string | null }).estado ?? '—'),
+        quantidade_total: n((row as { quantidade_total: unknown }).quantidade_total),
+        faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
+        total_clientes: Math.trunc(Number((row as { total_clientes: unknown }).total_clientes)) || 0,
+      }))
+
+      const porUf = (ufRes.data ?? []).map((row) => ({
+        estado: String((row as { estado: string | null }).estado ?? '—'),
+        faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
+        total_clientes: Math.trunc(Number((row as { total_clientes: unknown }).total_clientes)) || 0,
+        total_cidades: Math.trunc(Number((row as { total_cidades: unknown }).total_cidades)) || 0,
+      }))
+
+      const serieMensal = (mesRes.data ?? []).map((row) => ({
+        ano_mes: String((row as { ano_mes: string }).ano_mes),
+        faturamento_total: n((row as { faturamento_total: unknown }).faturamento_total),
+        quantidade_total: n((row as { quantidade_total: unknown }).quantidade_total),
+        total_clientes: Math.trunc(Number((row as { total_clientes: unknown }).total_clientes)) || 0,
+      }))
+
+      const oportunidadesCidade = topCidadesAll
+        .filter((c) => c.total_clientes >= 8 && c.faturamento_total > 0)
+        .map((c) => ({
+          cidade: c.cidade,
+          estado: c.estado,
+          faturamento_total: c.faturamento_total,
+          total_clientes: c.total_clientes,
+          fat_por_cliente: c.faturamento_total / Math.max(c.total_clientes, 1),
+        }))
+        .sort((a, b) => a.fat_por_cliente - b.fat_por_cliente)
+        .slice(0, 40)
+
+      return {
+        topClientes,
+        topCidades: topCidadesAll,
+        porUf,
+        serieMensal,
+        oportunidadesCidade,
       }
-      return aggregateProdutoDetalhe(rows, cidadeByCnpj)
     },
   })
 }
@@ -583,35 +536,35 @@ async function fetchAllInsightsRedeResumo(): Promise<InsightsRedeResumoRow[]> {
     .select('*', { count: 'exact' })
     .order('faturamento_total', { ascending: false })
     .range(0, REDE_RESUMO_PAGE - 1)
-  if (first.error) throw first.error
+  if (first.error) throwQueryError(first.error)
   const rows = (first.data ?? []) as Record<string, unknown>[]
   const total = first.count ?? rows.length
   const out: InsightsRedeResumoRow[] = rows.map(mapRedeResumoRow)
   if (rows.length >= total) return out
 
-  const remaining = Math.ceil(total / REDE_RESUMO_PAGE) - 1
-  const rest = await Promise.all(
-    Array.from({ length: remaining }, (_, i) =>
-      supabase
-        .from('alwayson_insights_v_rede_resumo')
-        .select('*')
-        .order('faturamento_total', { ascending: false })
-        .range((i + 1) * REDE_RESUMO_PAGE, (i + 2) * REDE_RESUMO_PAGE - 1)
-    )
-  )
-  for (const r of rest) {
-    if (r.error) throw r.error
-    for (const row of r.data ?? []) {
+  let offset = REDE_RESUMO_PAGE
+  while (offset < total) {
+    const page = await supabase
+      .from('alwayson_insights_v_rede_resumo')
+      .select('*')
+      .order('faturamento_total', { ascending: false })
+      .range(offset, offset + REDE_RESUMO_PAGE - 1)
+    if (page.error) throwQueryError(page.error)
+    const chunk = page.data ?? []
+    if (chunk.length === 0) break
+    for (const row of chunk) {
       out.push(mapRedeResumoRow(row as Record<string, unknown>))
     }
+    offset += REDE_RESUMO_PAGE
   }
   return out
 }
 
-export function useInsightsRedeResumo() {
+export function useInsightsRedeResumo(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['insights', 'rede-resumo'],
     staleTime: 60_000,
+    enabled: options?.enabled !== false,
     queryFn: fetchAllInsightsRedeResumo,
   })
 }
@@ -632,6 +585,12 @@ function mapClienteComRedeRow(row: Record<string, unknown>): InsightsClienteComR
     total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
     ultima_compra: isoDateOnly(row.ultima_compra),
     total_skus: Math.trunc(Number(row.total_skus)) || 0,
+    perfil: (() => {
+      const p = row.perfil
+      if (p == null) return undefined
+      const t = String(p).trim()
+      return t || undefined
+    })(),
     cnpj_raiz: String(row.cnpj_raiz ?? ''),
     rede_id: row.rede_id != null ? String(row.rede_id) : null,
     rede_nome: row.rede_nome != null ? String(row.rede_nome) : null,
@@ -651,7 +610,7 @@ export function useInsightsFiliaisGrupo(grupoId: string | undefined) {
         .select('*')
         .eq('grupo_id', grupoId!)
         .order('faturamento_total', { ascending: false })
-      if (error) throw error
+      if (error) throwQueryError(error)
       return (data ?? []).map((row) => mapClienteComRedeRow(row as Record<string, unknown>))
     },
   })
@@ -668,6 +627,7 @@ export function clienteComRedeToTopCliente(row: InsightsClienteComRedeRow): Insi
     total_nfs: row.total_nfs,
     ultima_compra: row.ultima_compra,
     total_skus: row.total_skus,
+    perfil: row.perfil,
     nome_rede: row.grupo_label?.trim() || undefined,
   }
 }

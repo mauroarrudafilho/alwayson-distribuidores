@@ -20,7 +20,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useClientesBusca } from '@/hooks/useClientesBusca'
-import { usePagination } from '@/hooks/usePagination'
+import { useInsightsCidadesByCnpj } from '@/hooks/useInsightsCidadesByCnpj'
+import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
+import { resolveClienteCidadeUf } from '@/lib/cliente-cidade'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
 import { formatCnpj } from '@/lib/format'
 
@@ -28,49 +30,29 @@ export function ClientesBusca() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [ufFilter, setUfFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300)
     return () => clearTimeout(timer)
   }, [search])
 
-  const { data: clientes, isLoading } = useClientesBusca(debouncedSearch)
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, ufFilter])
 
-  const ufs = useMemo(() => {
-    const set = new Set<string>()
-    for (const c of clientes ?? []) {
-      const uf = (c.estado ?? '').trim()
-      if (uf) set.add(uf)
-    }
-    return [...set].sort()
-  }, [clientes])
+  const { data, isLoading } = useClientesBusca(debouncedSearch, ufFilter, page, pageSize)
+  const rows = data?.rows ?? []
+  const total = data?.total ?? 0
+  const kpi = data?.kpi ?? { clientes: 0, ufs: 0, distribuidores: 0 }
+  const ufOptions = data?.ufOptions ?? []
 
-  const filtered = useMemo(() => {
-    if (!clientes) return []
-    if (!ufFilter) return clientes
-    return clientes.filter((c) => c.estado === ufFilter)
-  }, [clientes, ufFilter])
+  const rowCnpjs = useMemo(() => rows.map((c) => c.cnpj), [rows])
+  const { cidadesMap } = useInsightsCidadesByCnpj(rowCnpjs)
 
-  const kpis = useMemo(() => {
-    const distribuidores = new Set<string>()
-    for (const c of filtered) {
-      if (c.distribuidor_id) distribuidores.add(c.distribuidor_id)
-    }
-    return {
-      total: filtered.length,
-      ufs: new Set(filtered.map((c) => c.estado).filter(Boolean)).size,
-      distribuidores: distribuidores.size,
-    }
-  }, [filtered])
-
-  const pag = usePagination({
-    items: filtered,
-    initialPageSize: 25,
-    resetKey: `${debouncedSearch}|${ufFilter}`,
-  })
-
-  const showEmptyState = !isLoading && filtered.length === 0
-  const showResults = isLoading || filtered.length > 0
+  const showEmptyState = !isLoading && total === 0
+  const showResults = isLoading || total > 0
 
   return (
     <div className="animate-page-in">
@@ -103,7 +85,7 @@ export function ClientesBusca() {
             >
               Todos
             </Button>
-            {ufs.map((uf) => (
+            {ufOptions.map((uf) => (
               <Button
                 key={uf}
                 size="sm"
@@ -118,11 +100,11 @@ export function ClientesBusca() {
         </FilterField>
       </FilterBar>
 
-      {(filtered.length > 0 || isLoading) && (
+      {(total > 0 || isLoading) && (
         <KPIGrid columns={3} className="mb-6">
-          <KPICard label="Clientes encontrados" value={kpis.total} icon={Users} />
-          <KPICard label="Estados" value={kpis.ufs} icon={MapPin} />
-          <KPICard label="Distribuidores" value={kpis.distribuidores} icon={Building2} />
+          <KPICard label="Clientes cadastrados" value={kpi.clientes} icon={Users} />
+          <KPICard label="Estados" value={kpi.ufs} icon={MapPin} />
+          <KPICard label="Distribuidores" value={kpi.distribuidores} icon={Building2} />
         </KPIGrid>
       )}
 
@@ -162,47 +144,53 @@ export function ClientesBusca() {
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       </TableRow>
                     ))
-                  : pag.paginated.map((c) => (
-                      <TableRow
-                        key={c.id}
-                        className="cursor-pointer"
-                      >
-                        <TableCell>
-                          <span className="inline-flex items-center gap-1.5">
-                            <Link
-                              to={`/clientes/${c.id}`}
-                              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                            >
-                              {c.nome_fantasia || '—'}
-                            </Link>
-                            <InsightsBadge cnpj={c.cnpj} />
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {c.razao_social}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
-                          {formatCnpj(c.cnpj)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            {c.estado}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {c.cidade}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                  : rows.map((c) => {
+                      const local = resolveClienteCidadeUf(
+                        c,
+                        cidadesMap.get(insightsCnpjKey(c.cnpj))
+                      )
+                      return (
+                        <TableRow key={c.id} className="cursor-pointer">
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5">
+                              <Link
+                                to={`/clientes/${c.id}`}
+                                className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                              >
+                                {c.nome_fantasia || '—'}
+                              </Link>
+                              <InsightsBadge cnpj={c.cnpj} />
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {c.razao_social}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
+                            {formatCnpj(c.cnpj)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                              {local.estado !== '—' ? local.estado : '—'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {local.cidade !== '—' ? local.cidade : '—'}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
               </TableBody>
             </Table>
-            {!isLoading && filtered.length > 0 && (
+            {!isLoading && total > 0 && (
               <PaginationBar
-                page={pag.page}
-                pageSize={pag.pageSize}
-                total={pag.total}
-                onPageChange={pag.setPage}
-                onPageSizeChange={pag.setPageSize}
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size)
+                  setPage(1)
+                }}
               />
             )}
           </CardContent>

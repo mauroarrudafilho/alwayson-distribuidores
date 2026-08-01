@@ -8,6 +8,11 @@ import {
   pick,
   readSheetRows,
 } from './sheet.mjs'
+import {
+  isCidadeVazia,
+  normalizeCnpjDigits,
+  resolveClienteCidadesBatch,
+} from './resolve-cliente-cidade.mjs'
 
 const REQUIRED = [
   'data_venda',
@@ -272,12 +277,22 @@ export async function processVendas(supabase, { buffer, distribuidorId }) {
   const cnpjs = [...new Set([...groups.values()].map((g) => g.cnpj))]
   const { data: existingClientes, error: cliLoadErr } = await supabase
     .from('alwayson_clientes_distribuidor')
-    .select('id, cnpj')
+    .select('id, cnpj, cidade, estado')
     .eq('distribuidor_id', distribuidorId)
     .in('cnpj', cnpjs)
   if (cliLoadErr) throw cliLoadErr
 
   const clienteByCnpj = new Map((existingClientes ?? []).map((c) => [c.cnpj, c.id]))
+  const existingByCnpj = new Map((existingClientes ?? []).map((c) => [c.cnpj, c]))
+
+  const cnpjsSemCidade = cnpjs.filter((cnpj) => {
+    const ex = existingByCnpj.get(cnpj)
+    return !ex || isCidadeVazia(ex.cidade, ex.estado)
+  })
+
+  const cidadesResolvidas = await resolveClienteCidadesBatch(supabase, cnpjsSemCidade, {
+    onWarning: (msg) => warnings.push(msg),
+  })
 
   /** @type {Map<string, any>} */
   const clientePayloadByCnpj = new Map()
@@ -287,13 +302,14 @@ export async function processVendas(supabase, { buffer, distribuidorId }) {
       warnings.push(`Vendedor ${g.cod_vend} não resolvido`)
       continue
     }
+    const resolved = cidadesResolvidas.get(normalizeCnpjDigits(g.cnpj))
     clientePayloadByCnpj.set(g.cnpj, {
       distribuidor_id: distribuidorId,
       cnpj: g.cnpj,
       razao_social: g.razao,
       nome_fantasia: g.nome,
-      cidade: '—',
-      estado: '—',
+      cidade: resolved?.cidade ?? '—',
+      estado: resolved?.estado ?? '—',
       vendedor_id: vendedorId,
       status: 'ativo',
       atualizado_em: new Date().toISOString(),
@@ -302,15 +318,29 @@ export async function processVendas(supabase, { buffer, distribuidorId }) {
 
   const toUpdateCli = []
   const toInsertCli = []
+  const toBackfillCidade = []
   for (const [cnpj, payload] of clientePayloadByCnpj) {
-    if (clienteByCnpj.has(cnpj)) {
-      toUpdateCli.push({ id: clienteByCnpj.get(cnpj), ...payload })
+    const existing = existingByCnpj.get(cnpj)
+    if (existing) {
+      const { cidade, estado, ...rest } = payload
+      toUpdateCli.push({ id: existing.id, ...rest })
+      if (isCidadeVazia(existing.cidade, existing.estado) && !isCidadeVazia(cidade, estado)) {
+        toBackfillCidade.push({ id: existing.id, cidade, estado, geo_enriquecido_em: new Date().toISOString() })
+      }
     } else {
       toInsertCli.push(payload)
     }
   }
 
   for (const chunk of chunkArr(toUpdateCli, 40)) {
+    await Promise.all(
+      chunk.map(({ id, ...payload }) =>
+        supabase.from('alwayson_clientes_distribuidor').update(payload).eq('id', id)
+      )
+    )
+  }
+
+  for (const chunk of chunkArr(toBackfillCidade, 40)) {
     await Promise.all(
       chunk.map(({ id, ...payload }) =>
         supabase.from('alwayson_clientes_distribuidor').update(payload).eq('id', id)

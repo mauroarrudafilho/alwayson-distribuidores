@@ -78,7 +78,8 @@ function ClientePicker({
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading } = useClientesBusca(debounced)
+  const { data, isLoading } = useClientesBusca(debounced, '', 1, 8)
+  const results = data?.rows ?? []
   const showResults = debounced.length >= 2
 
   return (
@@ -99,13 +100,13 @@ function ClientePicker({
         <div className="border rounded-md max-h-60 overflow-y-auto bg-popover">
           {isLoading ? (
             <p className="text-xs text-muted-foreground px-3 py-3 text-center">Carregando…</p>
-          ) : !data || data.length === 0 ? (
+          ) : results.length === 0 ? (
             <p className="text-xs text-muted-foreground px-3 py-3 text-center">
               Nenhum cliente encontrado para "{debounced}".
             </p>
           ) : (
             <ul className="divide-y">
-              {data.slice(0, 8).map((c) => (
+              {results.map((c) => (
                 <li key={c.id}>
                   <button
                     type="button"

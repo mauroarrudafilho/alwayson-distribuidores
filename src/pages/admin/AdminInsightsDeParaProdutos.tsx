@@ -1,10 +1,19 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react'
+import {
+  ArrowRight,
+  Download,
+  FileSpreadsheet,
+  Link2,
+  Loader2,
+  Unlink,
+  Upload,
+} from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -15,7 +24,13 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   useInsightsProdutoDePara,
+  useInsightsProdutosNaoMapeados,
   useUpsertInsightsProdutoDePara,
 } from '@/hooks/useInsightsProdutoDePara'
 import { useProdutos } from '@/hooks/useProdutos'
@@ -24,8 +39,10 @@ import {
   parseDeParaCsv,
   parseDeParaXlsx,
 } from '@/lib/parseDeParaProdutoUpload'
+import { formatCurrency } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { InsightsSearchField } from '@/components/insights/InsightsSearchField'
 
 const templateHref = `${import.meta.env.BASE_URL}templates/template-de-para-insights-produtos.xlsx`.replace(
   /\/+/g,
@@ -57,8 +74,15 @@ export function AdminInsightsDeParaProdutos() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [buscaNaoMap, setBuscaNaoMap] = useState('')
+  /** SKU alvo digitado por codigo_origem (vínculo manual). */
+  const [skuDraft, setSkuDraft] = useState<Record<string, string>>({})
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [linkNotice, setLinkNotice] = useState<string | null>(null)
+  const [linkingOrigem, setLinkingOrigem] = useState<string | null>(null)
 
   const { data: existentes, isLoading: loadingMap } = useInsightsProdutoDePara()
+  const { data: naoMapeados = [], isPending: loadingNaoMap } = useInsightsProdutosNaoMapeados()
   const { data: produtos, isPending: loadingProdutos } = useProdutos()
   const upsert = useUpsertInsightsProdutoDePara()
 
@@ -148,6 +172,49 @@ export function AdminInsightsDeParaProdutos() {
 
   const skuEstaNoCatalogo = (sku: string) => skuValidos.has(normalizeDeParaCellValue(sku))
 
+  const naoMapeadosFiltrados = useMemo(() => {
+    const q = buscaNaoMap.trim().toLowerCase()
+    if (!q) return naoMapeados
+    return naoMapeados.filter((r) => {
+      return (
+        r.codigo_origem.toLowerCase().includes(q) ||
+        r.sku_exemplo.toLowerCase().includes(q) ||
+        r.descricao.toLowerCase().includes(q)
+      )
+    })
+  }, [naoMapeados, buscaNaoMap])
+
+  const handleVincularManual = async (codigoOrigem: string) => {
+    setLinkError(null)
+    setLinkNotice(null)
+    const raw = (skuDraft[codigoOrigem] ?? '').trim()
+    const sku = normalizeDeParaCellValue(raw)
+    if (!sku) {
+      setLinkError('Informe o SKU do cadastro indústria.')
+      return
+    }
+    if (!skuEstaNoCatalogo(sku)) {
+      setLinkError(`SKU ${sku} não existe em Produtos — cadastre antes ou corrija o código.`)
+      return
+    }
+    setLinkingOrigem(codigoOrigem)
+    try {
+      await upsert.mutateAsync({
+        rows: [{ codigo_origem: codigoOrigem, sku_fornecedor: sku }],
+      })
+      setSkuDraft((prev) => {
+        const next = { ...prev }
+        delete next[codigoOrigem]
+        return next
+      })
+      setLinkNotice(`Vinculado ${codigoOrigem} → ${sku}. O fat. passa a entrar no mix Insights.`)
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Falha ao vincular')
+    } finally {
+      setLinkingOrigem(null)
+    }
+  }
+
   const handleGravar = async () => {
     setSaveError(null)
     setSaveNotice(null)
@@ -193,8 +260,180 @@ export function AdminInsightsDeParaProdutos() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Correlação de Produtos (Insights → fábrica)"
-        description="Códigos da base territorial → SKU oficial em alwayson_produtos. Um mapa único para padronizar Insights."
+        description="Só entra no mix Insights o que resolve para alwayson_produtos. Códigos sem vínculo ficam abaixo para mapear na mão ou via planilha."
       />
+
+      <Card>
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <SectionTitle title="Não mapeados" icon={Unlink} />
+              <p className="mt-1 text-xs text-muted-foreground max-w-2xl">
+                Sell-out Nordeste cujo código ainda não bate no catálogo indústria — fora dos gráficos
+                até o vínculo. Informe o SKU oficial e vincule.
+              </p>
+            </div>
+            <Badge variant="secondary" className="tabular-nums">
+              {naoMapeados.length.toLocaleString('pt-BR')} códigos
+            </Badge>
+          </div>
+
+          <InsightsSearchField
+            value={buscaNaoMap}
+            onChange={setBuscaNaoMap}
+            placeholder="Buscar código, SKU ou descrição…"
+          />
+
+          {linkError && <p className="text-xs text-destructive">{linkError}</p>}
+          {linkNotice && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">{linkNotice}</p>
+          )}
+
+          {loadingNaoMap ? (
+            <Skeleton className="mt-2 h-40 w-full" />
+          ) : naoMapeadosFiltrados.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">
+              {naoMapeados.length === 0
+                ? 'Nenhum código pendente — todo o sell-out Nordeste resolve para o catálogo.'
+                : 'Nenhum resultado para a busca.'}
+            </p>
+          ) : (
+            <div className="max-h-[min(28rem,55vh)] overflow-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs">Código origem</TableHead>
+                    <TableHead className="hidden text-xs md:table-cell">Descrição</TableHead>
+                    <TableHead className="text-right text-xs">Faturamento</TableHead>
+                    <TableHead className="min-w-[240px] text-xs">SKU indústria</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {naoMapeadosFiltrados.map((r) => {
+                    const draft = skuDraft[r.codigo_origem] ?? ''
+                    const draftNorm = normalizeDeParaCellValue(draft)
+                    const ok = draftNorm ? skuEstaNoCatalogo(draftNorm) : false
+                    const busy = linkingOrigem === r.codigo_origem
+                    const descNf = r.descricao.trim()
+                    const descCadastro = draftNorm
+                      ? produtoBySkuNorm.get(draftNorm)?.trim() || ''
+                      : ''
+                    /** NF primeiro; se vazia, nome completo do cadastro (quando o SKU já foi digitado). */
+                    const descExibicao =
+                      descNf || descCadastro || r.sku_exemplo || r.codigo_origem || '—'
+                    const descCompleta = descNf || descCadastro || descExibicao
+                    return (
+                      <TableRow key={r.codigo_origem}>
+                        <TableCell className="align-top py-2">
+                          <p className="font-mono text-xs font-medium">{r.codigo_origem}</p>
+                          {r.sku_exemplo && r.sku_exemplo !== r.codigo_origem && (
+                            <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                              sku linha: {r.sku_exemplo}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden max-w-[220px] align-top py-2 text-xs text-muted-foreground md:table-cell">
+                          <Tooltip>
+                            <TooltipTrigger
+                              type="button"
+                              className="block w-full max-w-[220px] truncate text-left hover:text-foreground"
+                            >
+                              {descExibicao}
+                              {!descNf && descCadastro ? (
+                                <span className="ml-1 text-[10px] text-muted-foreground/70">
+                                  (cadastro)
+                                </span>
+                              ) : null}
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-sm p-2 text-left">
+                              <p className="text-xs leading-relaxed">{descCompleta}</p>
+                              {!descNf && descCadastro ? (
+                                <p className="mt-1 text-[10px] opacity-70">
+                                  Sem descrição na NF — nome do cadastro indústria
+                                </p>
+                              ) : null}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="align-top py-2 text-right text-xs tabular-nums">
+                          {formatCurrency(r.faturamento_total)}
+                          <p className="text-[10px] text-muted-foreground">
+                            {r.total_linhas.toLocaleString('pt-BR')} linhas
+                          </p>
+                        </TableCell>
+                        <TableCell className="align-top py-2">
+                          <div className="flex items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <Input
+                                value={draft}
+                                onChange={(e) =>
+                                  setSkuDraft((prev) => ({
+                                    ...prev,
+                                    [r.codigo_origem]: e.target.value,
+                                  }))
+                                }
+                                placeholder="ex. 11.5004"
+                                className="h-8 font-mono text-xs"
+                                list="insights-sku-industria-list"
+                              />
+                              {draftNorm && (
+                                <Tooltip>
+                                  <TooltipTrigger
+                                    type="button"
+                                    className={cn(
+                                      'mt-0.5 block w-full truncate text-left text-[10px]',
+                                      ok
+                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                        : 'text-amber-700'
+                                    )}
+                                  >
+                                    {ok
+                                      ? descCadastro || 'No catálogo'
+                                      : 'SKU ausente no cadastro'}
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-sm p-2 text-left">
+                                    <p className="text-xs leading-relaxed">
+                                      {ok
+                                        ? descCadastro || `SKU ${draftNorm} no catálogo`
+                                        : `SKU ${draftNorm} não existe em Produtos`}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 shrink-0 gap-1 text-xs"
+                              disabled={!ok || busy || upsert.isPending}
+                              onClick={() => void handleVincularManual(r.codigo_origem)}
+                            >
+                              {busy ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Link2 className="h-3.5 w-3.5" />
+                              )}
+                              Vincular
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <datalist id="insights-sku-industria-list">
+            {(produtos ?? []).slice(0, 800).map((p) => (
+              <option key={p.sku} value={p.sku}>
+                {p.descricao}
+              </option>
+            ))}
+          </datalist>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4 space-y-4">

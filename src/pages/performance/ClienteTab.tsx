@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { UserSearch } from 'lucide-react'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
+import { ClienteResumoModal } from '@/components/cliente/ClienteResumoModal'
+import { ClienteSinalizadores } from '@/components/cliente/ClienteSinalizadores'
 import { useClientes } from '@/hooks/useClientesExcelencia'
+import { useClientesFaturamentoResumo } from '@/hooks/useClientesFaturamentoResumo'
 import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
 import { Card } from '@/components/ui/card'
 import {
@@ -22,19 +24,27 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCurrency, formatDate } from '@/lib/format'
+import { formatCurrency, formatDate, formatCidadeUf } from '@/lib/format'
+import { resolveClienteCidadeUf } from '@/lib/cliente-cidade'
+import { useInsightsCidadesByCnpj } from '@/hooks/useInsightsCidadesByCnpj'
+import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
 import { usePerformanceContext } from './PerformanceContext'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
 import { SortableNumericHead, useNumericSort } from './sortableNumeric'
+import { hierarchyPersonLabel } from './hierarchyLabels'
 
 export function ClienteTab() {
-  const navigate = useNavigate()
+  const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null)
   const { filters, setFilter } = usePerformanceContext()
   const {
     distribuidorId,
     gerenteId,
     supervisorId,
     vendedorId,
+    periodoInicio,
+    periodoFim,
+    periodoMes,
+    metrica,
   } = filters
 
   const { data: clientes, isLoading } = useClientes(distribuidorId)
@@ -90,13 +100,25 @@ export function ClienteTab() {
     return filtered
   }, [clientes, vendedorId, supervisorId, gerenteId, hierarchy])
 
-  const { sortField, sortDir, toggleSort } = useNumericSort<'ticket_medio'>('ticket_medio')
+  const rowIds = useMemo(() => rows.map((r) => r.id), [rows])
+  const rowCnpjs = useMemo(() => rows.map((r) => r.cnpj), [rows])
+  const { cidadesMap } = useInsightsCidadesByCnpj(rowCnpjs)
+  const { resumoMap, topIds } = useClientesFaturamentoResumo(
+    distribuidorId,
+    rowIds,
+    periodoInicio,
+    periodoFim
+  )
+
+  const { sortField, sortDir, toggleSort } = useNumericSort<'faturamento_mes'>('faturamento_mes')
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      const cmp = Number(a.ticket_medio ?? 0) - Number(b.ticket_medio ?? 0)
+      const ta = resumoMap.get(a.id)?.faturamentoPeriodo ?? 0
+      const tb = resumoMap.get(b.id)?.faturamentoPeriodo ?? 0
+      const cmp = ta - tb
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, sortField, sortDir])
+  }, [rows, resumoMap, sortDir])
 
   if (!distribuidorId) {
     return (
@@ -119,6 +141,17 @@ export function ClienteTab() {
 
   return (
     <div className="space-y-6 mt-4">
+      <ClienteResumoModal
+        clienteId={selectedClienteId}
+        open={selectedClienteId != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedClienteId(null)
+        }}
+        periodoMes={periodoMes}
+        metrica={metrica}
+        distribuidorId={distribuidorId}
+      />
+
       {filterCount > 0 && (
         <FilterBar columns={filterColumns}>
           {showGerenteFilter && (
@@ -132,8 +165,12 @@ export function ClienteTab() {
                   )
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-8 w-full text-sm">
+                  <SelectValue placeholder="Todos">
+                    {gerenteId
+                      ? hierarchyPersonLabel(hierarchy, gerenteId, 'Gerente')
+                      : 'Todos'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -157,8 +194,12 @@ export function ClienteTab() {
                   )
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-8 w-full text-sm">
+                  <SelectValue placeholder="Todos">
+                    {supervisorId
+                      ? hierarchyPersonLabel(hierarchy, supervisorId, 'Supervisor')
+                      : 'Todos'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -182,8 +223,12 @@ export function ClienteTab() {
                   )
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
+                <SelectTrigger className="h-8 w-full text-sm">
+                  <SelectValue placeholder="Todos">
+                    {vendedorId
+                      ? hierarchyPersonLabel(hierarchy, vendedorId, 'Vendedor')
+                      : 'Todos'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
@@ -205,10 +250,10 @@ export function ClienteTab() {
             <TableRow className="hover:bg-transparent">
               <TableHead>Nome</TableHead>
               <TableHead>CNPJ</TableHead>
-              <TableHead>Cidade</TableHead>
+              <TableHead>Cidade / UF</TableHead>
               <SortableNumericHead
-                label="Ticket Médio"
-                field="ticket_medio"
+                label="Faturamento (mês)"
+                field="faturamento_mes"
                 sortField={sortField}
                 sortDir={sortDir}
                 onSort={toggleSort}
@@ -238,42 +283,62 @@ export function ClienteTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              sortedRows.map((row) => (
+              sortedRows.map((row) => {
+                const resumo = resumoMap.get(row.id)
+                const ultimaCompra = resumo?.ultimaCompra
+                const faturamentoMes = resumo?.faturamentoPeriodo ?? 0
+                return (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
-                  onClick={() => navigate(`/clientes/${row.id}`)}
+                  onClick={() => setSelectedClienteId(row.id)}
                 >
-                  <TableCell className="text-xs font-medium">
-                    <span className="inline-flex items-center gap-1.5">
-                      {row.nome_fantasia || row.razao_social}
-                      <InsightsBadge
-                        cnpj={row.cnpj}
-                        faturamentoLocal={row.ticket_medio ? Number(row.ticket_medio) : null}
+                  <TableCell className="max-w-[min(100%,18rem)] text-xs font-medium">
+                    <div className="space-y-1">
+                      <span className="inline-flex min-w-0 items-center gap-1.5">
+                        <span className="truncate">{row.nome_fantasia || row.razao_social}</span>
+                        <InsightsBadge
+                          cnpj={row.cnpj}
+                          faturamentoLocal={resumo?.faturamentoPeriodo ?? null}
+                          nfsLocais={resumo?.nfsPeriodo ?? null}
+                          periodoAnalise={{ inicio: periodoMes ?? periodoInicio, fim: periodoMes ?? periodoFim }}
+                          distribuidorId={distribuidorId}
+                          metrica={metrica}
+                        />
+                      </span>
+                      <ClienteSinalizadores
+                        cliente={row}
+                        resumo={resumo}
+                        isTopComprador={topIds.has(row.id)}
+                        compact
+                        className="max-w-full"
                       />
-                    </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-muted-foreground">
                     {row.cnpj}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {row.cidade} - {row.estado}
+                    {(() => {
+                      const resolved = resolveClienteCidadeUf(
+                        row,
+                        cidadesMap.get(insightsCnpjKey(row.cnpj))
+                      )
+                      const label = formatCidadeUf(resolved.cidade, resolved.estado)
+                      return label || '—'
+                    })()}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-right">
-                    {row.ticket_medio
-                      ? formatCurrency(Number(row.ticket_medio))
-                      : '—'}
+                  <TableCell className="text-xs tabular-nums text-right font-medium">
+                    {faturamentoMes > 0 ? formatCurrency(faturamentoMes) : '—'}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {row.ultima_compra
-                      ? formatDate(row.ultima_compra)
-                      : '—'}
+                    {ultimaCompra ? formatDate(ultimaCompra) : '—'}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={row.status} />
                   </TableCell>
                 </TableRow>
-              ))
+              )})
             )}
           </TableBody>
         </Table>
