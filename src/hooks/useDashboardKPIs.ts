@@ -27,7 +27,8 @@ export function useDashboardKPIs() {
           .select('id, status')
           .in('status', ['critico']),
         supabase
-          .from('alwayson_metas_distribuidor')
+          // View: realizado/percentual derivados do faturamento (migration 045).
+          .from('alwayson_metas_v_acompanhamento')
           .select('id, valor_meta, valor_realizado, percentual_atingimento'),
       ])
 

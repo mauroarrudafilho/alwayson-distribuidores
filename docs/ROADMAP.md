@@ -77,10 +77,20 @@ O CHECK de `alwayson_metas_distribuidor.tipo` é, na prática, a declaração do
 
 E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espelha exatamente o rollup que a hierarquia já suporta. Ou seja: **a tabela de metas já é o mapa do que falta** — três dos quatro tipos dependem de itens (a) e (c) acima.
 
-**Bloqueios concretos antes de subir metas:**
-1. **Não existe caminho de escrita.** `AdminMetas` é somente leitura, `useMetas` só tem SELECT, e **não há template de metas** no gerador de planilhas. Hoje a tabela só pode ser populada por SQL direto — "subir as metas" ainda não tem mecanismo.
-2. **`valor_realizado` e `percentual_atingimento` são colunas gravadas.** Se vierem preenchidas de planilha, ficam obsoletas assim que um novo arquivo de vendas entrar. O realizado deve ser **derivado** do faturamento (view/job); a planilha carrega só `valor_meta`. É a mesma armadilha do `realizado` da Excelência.
-3. **Não há UNIQUE** em (distribuidor, vendedor, hierarquia, tipo, período). Diferente do faturamento — onde reprocessar substitui —, **re-subir metas vai duplicar**. Definir a granularidade da chave antes da primeira carga evita limpeza depois.
+**Estado da frente de metas** (migration `045` + UI de escrita entregues):
+
+| Item | Estado |
+|------|--------|
+| Chave natural / idempotência | ✅ índices parciais únicos — re-gravar substitui, não duplica |
+| Realizado derivado (nunca gravado) | ✅ view `alwayson_metas_v_acompanhamento`, com `security_invoker` |
+| Rollup editável (soma dos filhos × meta do nível) | ✅ `valor_rollup_filhos` + `diferenca_rollup` |
+| Criação/edição pela UI, com apoio histórico | ✅ `MetaDialog` no `AdminMetas`, gated por `isAdmin` |
+| Auditoria (autor, justificativa) | ✅ `observacao`, `criado_por`, `atualizado_por` |
+| **Importação por planilha** | ⬜ **pendente** — template + parser ainda não existem |
+
+**Modelagem adotada — rollup editável.** A meta de supervisor/gerente **não** é a soma dos filhos: a soma é *sugestão*, o valor definido é a autoridade, e a diferença entre os dois é a **meta de venda direta** daquele nível (supervisor que vende sem passar por vendedor). Rollup puro deixaria essa venda sem meta associada a ninguém. A view devolve os dois lados para a UI mostrar a folga.
+
+**Cuidado ao escrever a importação:** as unique keys são índices **parciais**, então `ON CONFLICT` precisa repetir o predicado (`WHERE vendedor_id IS NOT NULL`), senão o Postgres devolve `42P10`. Detalhe registrado no cabeçalho da migration `045`. E a planilha deve trazer **apenas `valor_meta`** — realizado e atingimento são calculados.
 
 **f) Dívida que segue aberta**
 - Carregar `metas_distribuidor`, `performance_periodo`, `estoque_distribuidor` (schema pronto, tabelas vazias).

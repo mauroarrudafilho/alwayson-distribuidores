@@ -87,8 +87,14 @@ export interface Meta {
   periodo_inicio: string
   periodo_fim: string
   valor_meta: number
-  valor_realizado: number
-  percentual_atingimento: number
+  /**
+   * Derivado do faturamento pela view `alwayson_metas_v_acompanhamento`
+   * (migration 045) — não existe como coluna gravada. Null quando o tipo ainda
+   * não é calculável (`clientes_excelencia`, que depende do cadastro de foco).
+   */
+  valor_realizado: number | null
+  /** Null quando não há realizado calculável ou `valor_meta` é zero. */
+  percentual_atingimento: number | null
 }
 
 export interface EstoqueItem {

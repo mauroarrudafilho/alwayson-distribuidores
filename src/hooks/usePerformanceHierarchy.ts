@@ -77,7 +77,8 @@ export function useMetasByLevel(
     queryKey: ['metas-level', distribuidorId, hierarquia, vendedorId],
     queryFn: async () => {
       let query = supabase
-        .from('alwayson_metas_distribuidor')
+        // View: realizado/percentual derivados do faturamento (migration 045).
+        .from('alwayson_metas_v_acompanhamento')
         .select('*')
         .order('periodo_inicio', { ascending: false })
 
