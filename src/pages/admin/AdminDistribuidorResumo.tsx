@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
+import { AreaAtuacaoCard } from '@/components/distribuidor/AreaAtuacaoCard'
 
 export function AdminDistribuidorResumo() {
   const { distribuidorId = '' } = useParams<{ distribuidorId: string }>()
@@ -26,6 +27,8 @@ export function AdminDistribuidorResumo() {
 
   return (
     <div className="space-y-6">
+      <AreaAtuacaoCard distribuidor={dist} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardContent className="p-4 space-y-3">

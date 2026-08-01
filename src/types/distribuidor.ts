@@ -11,6 +11,12 @@ export interface Distribuidor {
   status: 'ativo' | 'inativo' | 'em_analise'
   criado_em: string
   atualizado_em: string
+  /** Nº de PDVs que o parceiro declara atender (migration 046). Confrontar com a carteira cadastrada. */
+  carteira_declarada?: number | null
+  /** Frequência padrão do roteiro — define a régua da positivação. */
+  frequencia_visita?: 'semanal' | 'quinzenal' | 'mensal' | 'outro' | null
+  /** Início da parceria — permite comparar parceiros por safra. */
+  inicio_parceria?: string | null
 }
 
 export interface Vendedor {
