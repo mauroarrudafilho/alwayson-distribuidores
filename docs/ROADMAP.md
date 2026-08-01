@@ -4,7 +4,9 @@
 
 ## Visão
 
-Ferramenta para o executivo acompanhar a saúde dos distribuidores parceiros e fazer gestão de vendas para eles. A Fase 1 é uma plataforma de apoio à equipe de vendas e gestão — o restante evolui para monitoramento por agentes especializados, disparo de sugestões via WhatsApp, e soluções financeiras (Pix, campanhas comerciais, gamificação) integradas ao dia a dia comercial.
+Ser o **motor de vendas e acompanhamento dos parceiros comerciais** — dando leitura e apoio para que os executivos trabalhem corretamente **baseados em dados**, garantindo a **sustentabilidade da venda dos nossos produtos na região de atuação**.
+
+Não é um BI de consulta: é o instrumento de trabalho de quem gere a rede de parceiros. A Fase 1 entrega isso para a equipe de vendas e gestão; o restante evolui para monitoramento por agentes especializados, disparo de sugestões via WhatsApp, e soluções financeiras (Pix, campanhas comerciais, gamificação) integradas ao dia a dia comercial.
 
 ---
 
@@ -61,6 +63,24 @@ Isso define o que ela é e o que ela **não** é:
 
 **e) Prioridade de execução do distribuidor**
 A ponte entre *quem* (cliente foco) e *o quê* (critério): a fila do que o distribuidor precisa executar. `alwayson_insights_acoes` já é a engrenagem — hoje serve só ao Insights, por CNPJ + tenant; generalizar para a fila de execução do distribuidor evita construir um segundo sistema de backlog.
+
+**e2) Metas — próximo passo declarado, e a tabela que define o produto**
+
+O CHECK de `alwayson_metas_distribuidor.tipo` é, na prática, a declaração do que este produto se propõe a medir:
+
+| `tipo` | Estado hoje |
+|--------|-------------|
+| `faturamento` | ✅ funciona — sell-in já carregado |
+| `positivacao` | ❌ depende do denominador (template `clientes`) — sem carteira, positivação não é calculável |
+| `mix` | ⚠️ dado existe (`faturamento_itens` + `produtos`), falta o cálculo por cliente/período |
+| `clientes_excelencia` | ❌ depende de `excelencia_clientes` populada + UI de escrita |
+
+E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espelha exatamente o rollup que a hierarquia já suporta. Ou seja: **a tabela de metas já é o mapa do que falta** — três dos quatro tipos dependem de itens (a) e (c) acima.
+
+**Bloqueios concretos antes de subir metas:**
+1. **Não existe caminho de escrita.** `AdminMetas` é somente leitura, `useMetas` só tem SELECT, e **não há template de metas** no gerador de planilhas. Hoje a tabela só pode ser populada por SQL direto — "subir as metas" ainda não tem mecanismo.
+2. **`valor_realizado` e `percentual_atingimento` são colunas gravadas.** Se vierem preenchidas de planilha, ficam obsoletas assim que um novo arquivo de vendas entrar. O realizado deve ser **derivado** do faturamento (view/job); a planilha carrega só `valor_meta`. É a mesma armadilha do `realizado` da Excelência.
+3. **Não há UNIQUE** em (distribuidor, vendedor, hierarquia, tipo, período). Diferente do faturamento — onde reprocessar substitui —, **re-subir metas vai duplicar**. Definir a granularidade da chave antes da primeira carga evita limpeza depois.
 
 **f) Dívida que segue aberta**
 - Carregar `metas_distribuidor`, `performance_periodo`, `estoque_distribuidor` (schema pronto, tabelas vazias).
