@@ -12,27 +12,30 @@ Ferramenta para o executivo acompanhar a saúde dos distribuidores parceiros e f
 
 **Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Excelência (leitura), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
 
-### O bloqueio de fundo: falta o denominador e falta o eixo do tempo
+### O que depende de carga e o que depende de engenharia
 
-As lacunas sentidas na Performance, na Excelência e no cadastro do distribuidor não são quatro problemas — são dois, e ambos são de **dado**, não de tela. Medido no banco em 2026-08-01:
+> **Contexto de leitura:** em 2026-08-01 havia **um único upload, de um único distribuidor** (`FORNECEDOR 38496_PARATY.xls`, tipo `vendas`, ref. 2026-05). Os números abaixo são desse estágio inicial — não são conclusão estrutural. A carga em volume estava começando.
 
-**1. A carteira não é uma carteira.** São 410 clientes cadastrados, 410 com faturamento, **zero sem nenhuma compra**. O cadastro de cliente hoje é um subproduto da ingestão de faturamento: um cliente só existe no banco porque emitiu nota. Consequência direta — cobertura/positivação dá **100% por construção** para todos os 52 vendedores, e a pergunta mais importante da gestão de vendas ("quantos clientes da base do vendedor ele *não* atendeu neste mês?") é impossível de responder, porque os não-atendidos não existem como registro.
+**1. Histórico — resolve-se sozinho com a carga.** Todo o sell-in está em um único mês (2026-05) simplesmente porque só um arquivo subiu. À medida que os meses entram, a série aparece. O que *é* estrutural aqui: a Performance é single-month por construção (`usePerfFilters`: *"Mês de análise (YYYY-MM) — início e fim são sempre iguais"*), então a tela de tendência é trabalho de engenharia que só faz sentido **depois** que houver meses no banco.
 
-**2. Não existe histórico.** Todo o sell-in está concentrado em **um único mês (2026-05)**. E a Performance é single-month por construção (`usePerfFilters`: *"Mês de análise (YYYY-MM) — início e fim são sempre iguais"*). Ou seja: nenhuma tela de tendência resolve isso enquanto não houver carga retroativa — não há série para plotar.
+**2. Cobertura — depende de *qual* template sobe, não de quantos.** Hoje são 410 clientes cadastrados, 410 com faturamento, zero sem compra — porque o único arquivo enviado foi de **vendas**, e o parser cria o cliente como efeito colateral da nota. Existe um template separado de **`clientes`** (`cnpj, razao_social, nome_fantasia, cidade, estado, codigo_vendedor, nome_vendedor` → `alwayson_clientes_distribuidor`) feito exatamente para carregar a base independentemente de haver compra.
 
-Enquanto esses dois pontos não forem resolvidos, health score, aderência a meta e qualquer leitura de evolução (Fase 2) ficam sem base. **São o gargalo real da Fase 1.**
+A implicação prática para a leva de uploads: **subir só arquivos de vendas dá histórico, mas nunca dá o denominador.** Sem o template de `clientes` carregando a base completa — inclusive quem não comprou —, cobertura/positivação continua 100% por construção por mais meses que entrem, e a pergunta "quantos clientes da base do vendedor ele *não* atendeu?" segue sem resposta.
+
+Com a base carregada pelo template certo, **cobertura = clientes distintos que compraram ÷ carteira** sai direto, e o rollup vendedor → supervisor → gerente → distribuidor vem de graça: `alwayson_vendedores_distribuidor.supervisor_id` e a hierarquia já existem e estão populados.
 
 ### Frentes de trabalho
 
-**a) Carteira como cadastro próprio (desbloqueia tudo)**
-- Template/ingestão de carteira independente do faturamento: cliente + vendedor responsável, exista compra ou não. É o que cria o denominador.
-- A partir dele: **cobertura = clientes distintos que compraram ÷ carteira**, no mês e na série. O rollup vendedor → supervisor → gerente → distribuidor sai de graça, porque `alwayson_vendedores_distribuidor.supervisor_id` e a hierarquia já existem e estão populadas.
-- Tela de gestão de carteira no cadastro do distribuidor: ver e reatribuir clientes por vendedor.
+**a) Carga: base de clientes junto com as vendas (desbloqueia tudo)**
+- Para cada distribuidor, subir o template **`clientes`** com a carteira completa — não só os arquivos de `vendas`. É o que cria o denominador.
+- Ordem recomendada: `clientes` antes de `vendas`, para o cliente já nascer com o vendedor responsável correto em vez de ser criado como efeito colateral da nota.
+- Tela de gestão de carteira no cadastro do distribuidor: ver e reatribuir clientes por vendedor (hoje não existe).
 
-**b) Histórico (sell-in retroativo + carteira versionada)**
-- Carregar 12–24 meses de sell-in — pré-requisito de dado, não de engenharia.
-- **Decisão de modelagem a tomar antes da carga:** a carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. A saída barata é um **snapshot mensal** da carteira (`mês, cliente, vendedor, distribuidor`) gravado no fechamento — resolve sem precisar de lógica de vigência.
-- Só depois disso a Performance ganha visão de série (evolução mês a mês, comparativo, variação) em vez do mês isolado.
+**b) Histórico (carga retroativa + carteira versionada)**
+- Carregar os meses retroativos de sell-in — pré-requisito de dado.
+- **Decisão de modelagem a tomar cedo:** a carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. A saída barata é um **snapshot mensal** da carteira (`mês, cliente, vendedor, distribuidor`) gravado no fechamento — resolve sem lógica de vigência.
+- Só depois de haver meses no banco a Performance ganha visão de série (evolução mês a mês, comparativo, variação) em vez do mês isolado.
+- **Reimportação é segura hoje:** o mesmo arquivo foi processado duas vezes (1.004 registros cada) e a tabela ficou com exatamente 1.004 linhas — não duplicou. A dívida registrada em `docs/ingestao-normatizacao-divida-tecnica.md` (definir formalmente substituir × rejeitar) segue aberta, mas na prática o reprocesso substitui.
 
 **c) Excelência: o schema já serve — falta dono do `realizado` e falta UI**
 O modelo atual é melhor do que a percepção de "critério vago" sugere:
