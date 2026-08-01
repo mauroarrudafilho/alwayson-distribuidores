@@ -50,8 +50,14 @@ O que torna o critério vago não é o schema: é `realizado` não ter dono. Dig
 
 Falta uma coluna de natureza em `excelencia_config` e uma de **`origem`** em `excelencia_clientes` (Scantech, indicação, whitespace territorial, decisão comercial) — para saber por que aquele cliente entrou na lupa.
 
-**d) Whitespace: uma fonte de clientes foco que já está no banco**
-Cruzando o universo territorial do Insights com a carteira do distribuidor: **8.438 CNPJs no Insights, 410 na carteira, apenas 153 em ambos** — ou seja, **8.285 clientes que a marca alcançou no território e que o distribuidor não atende hoje**. Isso é, literalmente, o backlog de recuperação/expansão que a tabela `alwayson_insights_acoes` (estados pendente/em_ação/resolvido/snooze/arquivado) já foi desenhada para gerir. É a terceira fonte de "cliente foco", ao lado da Scantech e da decisão comercial.
+**d) Insights é base de referência, não carteira a atacar**
+A base do Insights vem da **operação de distribuição anterior** do grupo: janela fechada de **36 meses (jan/2022 – dez/2024)**, 49.468 NFs, 8.438 CNPJs no território. Ela **não recebe dado novo** — é um snapshot histórico mantido para consulta e apoio à decisão do executivo. A UI já rotula corretamente (`histórico Arruda`) e o código já separa o sell-out corrente do arquivo antigo (`insightsCicloVivoPeriodo`: *"Sell-out atual: jan/2025 → mês vigente (não o arquivo Arruda 2022–2024)"*).
+
+Isso define o que ela é e o que ela **não** é:
+- **Não é** uma lista de tarefas. Cruzar o universo do Insights com a carteira de um parceiro (ex.: 8.438 × 410, com 153 em comum) **não** produz "8.285 clientes a conquistar": são CNPJs da operação antiga, que podem hoje estar atendidos por outro parceiro, fora do território daquele distribuidor, ou nem existir mais. Vira candidato a cliente foco **só depois de curadoria comercial**.
+- **É** o melhor benchmark territorial disponível — potencial *demonstrado*, não estimado. Responde perguntas que nenhum dado corrente responde: quanto uma praça já provou que entrega, com que mix, com que sazonalidade ao longo de 3 anos completos, e quanto por habitante (per capita via IBGE, já implementado).
+
+**Aplicação mais valiosa: baseline de meta.** `alwayson_metas_distribuidor` está vazia. Definir meta de um distribuidor novo (ou avaliar o atual) contra o que a praça historicamente entregou é muito mais defensável do que arbitrar número — e é exatamente o tipo de apoio ao executivo que justifica manter a base. Cuidado necessário: como a série congela em dez/2024 e o sell-in corrente começa em 2026, qualquer comparação precisa ser explicitamente rotulada como "referência histórica × período atual", nunca somada nem sobreposta como se fosse a mesma série.
 
 **e) Prioridade de execução do distribuidor**
 A ponte entre *quem* (cliente foco) e *o quê* (critério): a fila do que o distribuidor precisa executar. `alwayson_insights_acoes` já é a engrenagem — hoje serve só ao Insights, por CNPJ + tenant; generalizar para a fila de execução do distribuidor evita construir um segundo sistema de backlog.
