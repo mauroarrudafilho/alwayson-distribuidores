@@ -1,6 +1,7 @@
 -- Seed: Dados mockados para demonstração da plataforma
 -- Executar APÓS 002_novas_tabelas.sql
--- IMPORTANTE: Executar este script no SQL Editor do Supabase
+-- IMPORTANTE: NÃO executar em produção / projeto canônico com Insights reais.
+-- Em 2026-07 foi removido do projeto osukbalwykbqvoumddxz via 037_purge_seed_mock_operacional.sql.
 
 -- Limpar dados existentes (ordem inversa de dependência)
 DELETE FROM alwayson_faturamento_itens;

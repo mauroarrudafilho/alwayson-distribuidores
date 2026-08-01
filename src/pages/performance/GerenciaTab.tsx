@@ -5,9 +5,9 @@ import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
 import {
   useVendedorHierarchy,
-  usePerformanceByLevel,
   useMetasByLevel,
 } from '@/hooks/usePerformanceHierarchy'
+import { useFaturamentoSales, aggregateSales } from '@/hooks/useFaturamentoPerformance'
 import { Card } from '@/components/ui/card'
 import {
   Table,
@@ -27,53 +27,41 @@ export function GerenciaTab() {
 
   const { data: hierarchy, isLoading: loadingHierarchy } =
     useVendedorHierarchy(distribuidorId)
-  const { data: performance, isLoading: loadingPerf } =
-    usePerformanceByLevel(distribuidorId, periodoInicio, periodoFim)
+  const { data: sales = [], isLoading: loadingPerf } = useFaturamentoSales(
+    distribuidorId,
+    periodoInicio,
+    periodoFim
+  )
   const { data: metas } = useMetasByLevel(distribuidorId, 'distribuidor')
 
   const isLoading = loadingHierarchy || loadingPerf
 
   const rows = useMemo(() => {
-    if (!hierarchy || !performance) return []
+    if (!hierarchy) return []
     return hierarchy.gerentes.map((gerente) => {
       const subordinateIds = hierarchy.getSubordinateIds(gerente.id)
-      const allIds = [gerente.id, ...subordinateIds]
-      const perfRecords = performance.filter((p) =>
-        allIds.includes(p.vendedor_id)
-      )
-      const faturamento = perfRecords.reduce(
-        (sum, p) => sum + Number(p.faturamento),
-        0
-      )
-      const positivados = perfRecords.reduce(
-        (sum, p) => sum + (p.clientes_positivados ?? 0),
-        0
-      )
-      const itens = perfRecords.reduce(
-        (sum, p) => sum + (p.itens_vendidos ?? 0),
-        0
-      )
-      const pedidos = perfRecords.reduce(
-        (sum, p) => sum + (p.pedidos_realizados ?? 0),
-        0
-      )
-      return { ...gerente, faturamento, positivados, itens, pedidos }
+      const allIds = new Set([gerente.id, ...subordinateIds])
+      const scoped = sales.filter((s) => allIds.has(s.vendedor_id))
+      const agg = aggregateSales(scoped)
+      return {
+        ...gerente,
+        faturamento: agg.faturamento,
+        positivados: agg.clientes_positivados,
+        itens: agg.itens_vendidos,
+        pedidos: agg.pedidos_realizados,
+      }
     })
-  }, [hierarchy, performance])
+  }, [hierarchy, sales])
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (acc, r) => ({
-          faturamento: acc.faturamento + r.faturamento,
-          positivados: acc.positivados + r.positivados,
-          itens: acc.itens + r.itens,
-          pedidos: acc.pedidos + r.pedidos,
-        }),
-        { faturamento: 0, positivados: 0, itens: 0, pedidos: 0 }
-      ),
-    [rows]
-  )
+  const totals = useMemo(() => {
+    const agg = aggregateSales(sales)
+    return {
+      faturamento: agg.faturamento,
+      positivados: agg.clientes_positivados,
+      itens: agg.itens_vendidos,
+      pedidos: agg.pedidos_realizados,
+    }
+  }, [sales])
 
   const metaFaturamento = useMemo(() => {
     const m = (metas ?? []).find((meta) => meta.tipo === 'faturamento')

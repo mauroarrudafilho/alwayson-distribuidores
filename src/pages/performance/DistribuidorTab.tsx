@@ -4,8 +4,12 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
-import { useAllPerformance } from '@/hooks/useDistribuidorPerformance'
 import { useMetas } from '@/hooks/useMetas'
+import {
+  useAllFaturamentoSales,
+  aggregateSales,
+  aggregateSalesBy,
+} from '@/hooks/useFaturamentoPerformance'
 import { Card } from '@/components/ui/card'
 import {
   Table,
@@ -21,50 +25,46 @@ import { usePerformanceContext } from './PerformanceContext'
 import type { PerfTab } from './usePerfFilters'
 
 export function DistribuidorTab() {
-  const { drillDown, availableTabs } = usePerformanceContext()
+  const { drillDown, availableTabs, filters } = usePerformanceContext()
+  const { periodoInicio, periodoFim } = filters
   const { data: distribuidores, isLoading: loadingDist } = useDistribuidores()
-  const { data: allPerformance, isLoading: loadingPerf } = useAllPerformance()
+  const { data: sales = [], isLoading: loadingPerf } = useAllFaturamentoSales(
+    periodoInicio,
+    periodoFim
+  )
   const { data: metas } = useMetas()
 
   const isLoading = loadingDist || loadingPerf
 
   const rows = useMemo(() => {
-    if (!distribuidores || !allPerformance) return []
+    if (!distribuidores) return []
+    const byDist = aggregateSalesBy(sales, (r) => r.distribuidor_id)
     return distribuidores.map((dist) => {
-      const perfRecords = allPerformance.filter(
-        (p) => p.distribuidor_id === dist.id
-      )
-      const faturamento = perfRecords.reduce(
-        (sum, p) => sum + Number(p.faturamento),
-        0
-      )
-      const positivados = perfRecords.reduce(
-        (sum, p) => sum + (p.clientes_positivados ?? 0),
-        0
-      )
-      const itens = perfRecords.reduce(
-        (sum, p) => sum + (p.itens_vendidos ?? 0),
-        0
-      )
-      const pedidos = perfRecords.reduce(
-        (sum, p) => sum + (p.pedidos_realizados ?? 0),
-        0
-      )
-      return { ...dist, faturamento, positivados, itens, pedidos }
+      const agg = byDist.get(dist.id) ?? {
+        faturamento: 0,
+        clientes_positivados: 0,
+        itens_vendidos: 0,
+        pedidos_realizados: 0,
+      }
+      return {
+        ...dist,
+        faturamento: agg.faturamento,
+        positivados: agg.clientes_positivados,
+        itens: agg.itens_vendidos,
+        pedidos: agg.pedidos_realizados,
+      }
     })
-  }, [distribuidores, allPerformance])
+  }, [distribuidores, sales])
 
   const totals = useMemo(() => {
-    return rows.reduce(
-      (acc, r) => ({
-        faturamento: acc.faturamento + r.faturamento,
-        positivados: acc.positivados + r.positivados,
-        itens: acc.itens + r.itens,
-        pedidos: acc.pedidos + r.pedidos,
-      }),
-      { faturamento: 0, positivados: 0, itens: 0, pedidos: 0 }
-    )
-  }, [rows])
+    const agg = aggregateSales(sales)
+    return {
+      faturamento: agg.faturamento,
+      positivados: agg.clientes_positivados,
+      itens: agg.itens_vendidos,
+      pedidos: agg.pedidos_realizados,
+    }
+  }, [sales])
 
   const metaFaturamento = useMemo(() => {
     const m = (metas ?? []).find(

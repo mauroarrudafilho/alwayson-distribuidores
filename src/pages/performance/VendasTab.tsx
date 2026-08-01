@@ -6,9 +6,9 @@ import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import {
   useVendedorHierarchy,
-  usePerformanceByLevel,
   useMetasByLevel,
 } from '@/hooks/usePerformanceHierarchy'
+import { useFaturamentoSales, aggregateSales } from '@/hooks/useFaturamentoPerformance'
 import { Card } from '@/components/ui/card'
 import {
   Select,
@@ -41,8 +41,11 @@ export function VendasTab() {
 
   const { data: hierarchy, isLoading: loadingHierarchy } =
     useVendedorHierarchy(distribuidorId)
-  const { data: performance, isLoading: loadingPerf } =
-    usePerformanceByLevel(distribuidorId, periodoInicio, periodoFim)
+  const { data: sales = [], isLoading: loadingPerf } = useFaturamentoSales(
+    distribuidorId,
+    periodoInicio,
+    periodoFim
+  )
   const { data: metas } = useMetasByLevel(distribuidorId, 'vendedor')
 
   const isLoading = loadingHierarchy || loadingPerf
@@ -77,44 +80,28 @@ export function VendasTab() {
   }, [hierarchy, supervisorId, gerenteId])
 
   const rows = useMemo(() => {
-    if (!performance) return []
     return filteredVendedores.map((vendedor) => {
-      const perfRecords = performance.filter(
-        (p) => p.vendedor_id === vendedor.id
-      )
-      const faturamento = perfRecords.reduce(
-        (sum, p) => sum + Number(p.faturamento),
-        0
-      )
-      const positivados = perfRecords.reduce(
-        (sum, p) => sum + (p.clientes_positivados ?? 0),
-        0
-      )
-      const itens = perfRecords.reduce(
-        (sum, p) => sum + (p.itens_vendidos ?? 0),
-        0
-      )
-      const pedidos = perfRecords.reduce(
-        (sum, p) => sum + (p.pedidos_realizados ?? 0),
-        0
-      )
+      const scoped = sales.filter((s) => s.vendedor_id === vendedor.id)
+      const agg = aggregateSales(scoped)
+      const faturamento = agg.faturamento
+      const positivados = agg.clientes_positivados
+      const itens = agg.itens_vendidos
+      const pedidos = agg.pedidos_realizados
       return { ...vendedor, faturamento, positivados, itens, pedidos }
     })
-  }, [performance, filteredVendedores])
+  }, [sales, filteredVendedores])
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (acc, r) => ({
-          faturamento: acc.faturamento + r.faturamento,
-          positivados: acc.positivados + r.positivados,
-          itens: acc.itens + r.itens,
-          pedidos: acc.pedidos + r.pedidos,
-        }),
-        { faturamento: 0, positivados: 0, itens: 0, pedidos: 0 }
-      ),
-    [rows]
-  )
+  const totals = useMemo(() => {
+    const ids = new Set(filteredVendedores.map((v) => v.id))
+    const scoped = sales.filter((s) => ids.has(s.vendedor_id))
+    const agg = aggregateSales(scoped)
+    return {
+      faturamento: agg.faturamento,
+      positivados: agg.clientes_positivados,
+      itens: agg.itens_vendidos,
+      pedidos: agg.pedidos_realizados,
+    }
+  }, [sales, filteredVendedores])
 
   const metaFaturamento = useMemo(() => {
     const m = (metas ?? []).find((meta) => meta.tipo === 'faturamento')

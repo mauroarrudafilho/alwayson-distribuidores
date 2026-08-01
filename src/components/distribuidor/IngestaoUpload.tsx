@@ -45,8 +45,17 @@ const TEMPLATE_MAP: Record<TipoRelatorio, string> = {
 
 /** Colunas esperadas por tipo de relatório (hint para o usuário, não validação). */
 const COLUNAS_ESPERADAS: Record<TipoRelatorio, string[]> = {
-  vendas: ['data', 'cnpj_cliente', 'sku', 'quantidade', 'valor_total'],
-  estoque: ['sku', 'descricao', 'quantidade', 'est_minimo', 'dias_cobertura'],
+  vendas: [
+    'data_venda',
+    'numero_nf',
+    'cnpj_cliente',
+    'razao_social',
+    'sku',
+    'quantidade',
+    'unidade',
+    'valor_total',
+  ],
+  estoque: ['sku', 'descricao', 'quantidade_estoque', 'unidade'],
   clientes: ['cnpj', 'razao_social', 'nome_fantasia', 'cidade', 'estado'],
 }
 
@@ -175,6 +184,10 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
       queryClient.invalidateQueries({ queryKey: ['relatorios-ingestao'] })
       queryClient.invalidateQueries({ queryKey: ['relatorios-pendentes'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['faturamento-sales'] })
+      queryClient.invalidateQueries({ queryKey: ['performance-from-faturamento'] })
+      queryClient.invalidateQueries({ queryKey: ['vendedor-hierarchy'] })
+      queryClient.invalidateQueries({ queryKey: ['distribuidores-sem-dados'] })
 
       onSuccess?.()
     } catch (err) {

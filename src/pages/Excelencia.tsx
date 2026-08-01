@@ -128,10 +128,11 @@ export function Excelencia() {
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
         title="Excelência"
-        description="Monitoramento de clientes estratégicos"
+        accent="estratégica"
+        description="clientes prioritários"
       />
 
       <FilterBar columns={2}>

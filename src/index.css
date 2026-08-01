@@ -53,16 +53,16 @@
   --ring: var(--navy);
   --radius: 0.5rem;
 
-  /* Sidebar */
-  --sidebar-background: oklch(1 0 0);
-  --sidebar-foreground: var(--navy);
-  --sidebar-primary: var(--navy);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: var(--gray-50);
-  --sidebar-accent-foreground: var(--navy);
-  --sidebar-border: var(--gray-200);
-  --sidebar-ring: var(--navy);
-  --sidebar: oklch(1 0 0);
+  /* Sidebar — navy brand chrome (matches auth hero) */
+  --sidebar-background: oklch(0.20 0.04 252);
+  --sidebar-foreground: oklch(0.96 0.005 250);
+  --sidebar-primary: var(--teal);
+  --sidebar-primary-foreground: oklch(0.18 0.045 252);
+  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: var(--teal);
+  --sidebar: oklch(0.20 0.04 252);
 
   /* Charts */
   --chart-1: oklch(0.55 0.20 260);
@@ -169,6 +169,7 @@
 
   --animate-fade-in: fade-in 200ms ease-out;
   --animate-rise-in: rise-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-page-in: page-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-ticker: ticker 32s linear infinite;
 }
 
@@ -195,6 +196,11 @@
   to { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes ticker {
   from { transform: translateY(0); }
   to { transform: translateY(-50%); }
@@ -212,6 +218,10 @@
 @layer utilities {
   .animate-insights-reprocess-indeterminate {
     animation: insights-reprocess-bar 2.1s ease-in-out infinite;
+  }
+
+  .animate-page-in {
+    animation: var(--animate-page-in);
   }
 }
 

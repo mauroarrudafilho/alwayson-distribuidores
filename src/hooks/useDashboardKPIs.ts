@@ -1,17 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { aggregateSales, aggregateSalesBy } from '@/lib/faturamentoAgg'
+import { loadFaturamentoSales } from '@/lib/loadFaturamentoSales'
+import { getCurrentMonth, getMonthOffset, prevMonth } from '@/lib/periodo'
 import type { DistribuidorKPIs } from '@/types/distribuidor'
-
-function getMonthPrefixes() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth() + 1
-  const current = `${y}-${String(m).padStart(2, '0')}`
-  const prevMonth = m === 1 ? 12 : m - 1
-  const prevYear = m === 1 ? y - 1 : y
-  const prev = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
-  return { current, prev }
-}
 
 export function useDashboardKPIs() {
   return useQuery({
@@ -22,7 +14,6 @@ export function useDashboardKPIs() {
         clientesRes,
         estoqueRes,
         metasRes,
-        performanceRes,
       ] = await Promise.all([
         supabase
           .from('alwayson_distribuidores')
@@ -30,7 +21,7 @@ export function useDashboardKPIs() {
           .eq('status', 'ativo'),
         supabase
           .from('alwayson_clientes_distribuidor')
-          .select('id, plano_excelencia, status'),
+          .select('id, plano_excelencia, status, distribuidor_id'),
         supabase
           .from('alwayson_estoque_distribuidor')
           .select('id, status')
@@ -38,56 +29,49 @@ export function useDashboardKPIs() {
         supabase
           .from('alwayson_metas_distribuidor')
           .select('id, valor_meta, valor_realizado, percentual_atingimento'),
-        supabase
-          .from('alwayson_performance_periodo')
-          .select('distribuidor_id, periodo_inicio, faturamento, clientes_positivados, total_clientes_carteira'),
       ])
 
       const distribuidores = distribuidoresRes.data ?? []
       const clientes = clientesRes.data ?? []
       const estoqueCritico = estoqueRes.data ?? []
       const metas = metasRes.data ?? []
-      const performance = performanceRes.data ?? []
 
-      const { current, prev } = getMonthPrefixes()
+      // Janela alinhada à Performance (trimestre rolling) + mês âncora = último com venda.
+      const periodoFim = getCurrentMonth()
+      const periodoInicio = getMonthOffset(2)
+      const sales = await loadFaturamentoSales({ periodoInicio, periodoFim })
 
-      const currentPeriod = performance.filter((p) =>
-        p.periodo_inicio?.startsWith(current)
-      )
-      const prevPeriod = performance.filter((p) =>
-        p.periodo_inicio?.startsWith(prev)
-      )
+      let anchorMonth = periodoFim
+      if (sales.length) {
+        const months = sales.map((s) => s.data_emissao.slice(0, 7)).sort()
+        anchorMonth = months[months.length - 1] ?? periodoFim
+      }
+      const prev = prevMonth(anchorMonth)
 
-      const faturamentoAtual = currentPeriod.reduce(
-        (sum, p) => sum + Number(p.faturamento),
-        0
-      )
-      const faturamentoAnterior = prevPeriod.reduce(
-        (sum, p) => sum + Number(p.faturamento),
-        0
-      )
+      const currentSales = sales.filter((s) => s.data_emissao.startsWith(anchorMonth))
+      const prevSales = sales.filter((s) => s.data_emissao.startsWith(prev))
+
+      const currentAgg = aggregateSales(currentSales)
+      const prevAgg = aggregateSales(prevSales)
+
+      const faturamentoAtual = currentAgg.faturamento
+      const faturamentoAnterior = prevAgg.faturamento
       const variacaoPercentual =
         faturamentoAnterior > 0
           ? ((faturamentoAtual - faturamentoAnterior) / faturamentoAnterior) * 100
-          : faturamentoAtual > 0 ? 100 : 0
+          : faturamentoAtual > 0
+            ? 100
+            : 0
 
-      const totalPositivados = currentPeriod.reduce(
-        (sum, p) => sum + (p.clientes_positivados ?? 0),
-        0
-      )
-      const totalCarteira = currentPeriod.reduce(
-        (sum, p) => sum + (p.total_clientes_carteira ?? 0),
-        0
-      )
+      const totalPositivados = currentAgg.clientes_positivados
+      const totalCarteira = clientes.filter((c) => c.status === 'ativo').length
 
-      const rankingMap = new Map<string, number>()
-      for (const p of currentPeriod) {
-        const id = p.distribuidor_id ?? ''
-        if (!id) continue
-        rankingMap.set(id, (rankingMap.get(id) ?? 0) + Number(p.faturamento))
-      }
-      const rankingDistribuidores = Array.from(rankingMap.entries())
-        .map(([distribuidor_id, faturamento]) => ({ distribuidor_id, faturamento }))
+      const byDist = aggregateSalesBy(currentSales, (r) => r.distribuidor_id)
+      const rankingDistribuidores = Array.from(byDist.entries())
+        .map(([distribuidor_id, agg]) => ({
+          distribuidor_id,
+          faturamento: agg.faturamento,
+        }))
         .sort((a, b) => b.faturamento - a.faturamento)
 
       const clientesExcelencia = clientes.filter((c) => c.plano_excelencia)
@@ -116,6 +100,8 @@ export function useDashboardKPIs() {
         kpis,
         distribuidoresAtivos: distribuidores.length,
         rankingDistribuidores,
+        periodoReferencia: anchorMonth,
+        itensVendidos: currentAgg.itens_vendidos,
       }
     },
   })

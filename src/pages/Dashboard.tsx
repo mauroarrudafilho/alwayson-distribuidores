@@ -4,15 +4,15 @@ import {
   FileText,
   TrendingUp,
   Package,
+  ArrowUpRight,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
-import { KPICard } from '@/components/distribuidor/KPICard'
-import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
 import { SnapshotStrip, type SnapshotItem } from '@/components/distribuidor/SnapshotStrip'
-import { Card, CardContent } from '@/components/ui/card'
+import { Panel } from '@/components/distribuidor/Panel'
+import { EmptyState } from '@/components/distribuidor/EmptyState'
 import { Button } from '@/components/ui/button'
 import { useDashboardKPIs } from '@/hooks/useDashboardKPIs'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
@@ -24,6 +24,7 @@ import {
 } from '@/hooks/useRelatoriosIngestao'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 function formatCompactBRL(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `R$ ${(n / 1_000_000).toFixed(1).replace('.', ',')}M`
@@ -41,24 +42,17 @@ export function Dashboard() {
 
   if (isLoading || loadingDist) {
     return (
-      <div>
+      <div className="animate-page-in">
         <PageHeader
-          eyebrow="AlwaysOn · Distribuidores"
           title="Performance"
           accent="consolidada"
           description="visão geral dos parceiros"
         />
-        <Skeleton className="h-[68px] w-full mb-6 rounded-lg" />
-        <Skeleton className="h-3 w-24 mb-2" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-3">
-                <Skeleton className="h-3 w-24 mb-2" />
-                <Skeleton className="h-5 w-16" />
-              </CardContent>
-            </Card>
-          ))}
+        <Skeleton className="mb-6 h-[72px] w-full rounded-lg" />
+        <Skeleton className="mb-3 h-16 w-full rounded-lg" />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <Skeleton className="h-64 rounded-lg lg:col-span-3" />
+          <Skeleton className="h-64 rounded-lg lg:col-span-2" />
         </div>
       </div>
     )
@@ -106,9 +100,11 @@ export function Dashboard() {
       tone: 'up',
     },
     {
-      label: 'Metas',
-      value: `${kpis?.metas_atingidas ?? 0} / ${kpis?.total_metas ?? 0}`,
-      delta: 'no período',
+      label: 'Itens vendidos',
+      value: `${(data?.itensVendidos ?? 0).toLocaleString('pt-BR')}`,
+      delta: data?.periodoReferencia
+        ? `ref. ${data.periodoReferencia}`
+        : 'distintos',
       tone: 'flat',
     },
     {
@@ -119,149 +115,205 @@ export function Dashboard() {
     },
   ]
 
+  const actionItems = [
+    {
+      label: 'Positivação',
+      value: `${kpis?.clientes_positivados ?? 0}/${kpis?.total_clientes_carteira ?? 0}`,
+      hint: `${(kpis?.taxa_positivacao ?? 0).toFixed(0)}% cobertura`,
+      icon: Users,
+      to: '/performance',
+      hot: false,
+    },
+    {
+      label: 'Estoque crítico',
+      value: String(kpis?.itens_estoque_critico ?? 0),
+      hint: 'itens abaixo do mínimo',
+      icon: AlertTriangle,
+      to: '/estoque',
+      hot: (kpis?.itens_estoque_critico ?? 0) > 0,
+    },
+    {
+      label: 'Relatórios',
+      value: String(relatoriosPendentes),
+      hint: 'pendentes de processamento',
+      icon: FileText,
+      to: '/ingestao',
+      hot: relatoriosPendentes > 0,
+    },
+  ]
+
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
-        eyebrow="AlwaysOn · Distribuidores"
         title="Performance"
         accent="consolidada"
         description="visão geral dos parceiros"
       />
 
-      <SnapshotStrip items={snapshotItems} className="mb-6" />
+      <SnapshotStrip items={snapshotItems} className="mb-5" />
 
-      <div className="mb-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Para agir hoje
-        </p>
+      {/* Para agir — strip, não parede de KPI cards */}
+      <div className="mb-6">
+        <SectionTitle title="Para agir hoje" />
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border/70 bg-border/60 sm:grid-cols-3">
+          {actionItems.map((item) => (
+            <Link
+              key={item.label}
+              to={item.to}
+              className={cn(
+                'group flex items-center gap-3 bg-card px-4 py-3.5 transition-colors hover:bg-muted/40',
+                item.hot && 'bg-destructive/[0.03]'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border',
+                  item.hot
+                    ? 'border-destructive/20 bg-destructive/8 text-destructive'
+                    : 'border-border/70 bg-muted/40 text-navy/60'
+                )}
+              >
+                <item.icon className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    {item.label}
+                  </span>
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-teal" />
+                </span>
+                <span className="mt-0.5 block font-display text-lg tabular-nums tracking-tight text-foreground">
+                  {item.value}
+                </span>
+                <span className="text-[11px] text-muted-foreground">{item.hint}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
-      <KPIGrid columns={3}>
-        <KPICard
-          label="Clientes Positivados"
-          value={`${kpis?.clientes_positivados ?? 0} / ${kpis?.total_clientes_carteira ?? 0}`}
-          icon={Users}
-          badge={`${(kpis?.taxa_positivacao ?? 0).toFixed(0)}%`}
-        />
-        <KPICard
-          label="Estoque Crítico"
-          value={kpis?.itens_estoque_critico ?? 0}
-          icon={AlertTriangle}
-        />
-        <KPICard
-          label="Relatórios Pendentes"
-          value={relatoriosPendentes}
-          icon={FileText}
-        />
-      </KPIGrid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-        <Card>
-          <CardContent className="p-3">
-            <SectionTitle title="Ranking Distribuidores" icon={TrendingUp} />
-            {distribuidoresOrdenados.length > 0 ? (
-              <div className="space-y-1">
-                {distribuidoresOrdenados.slice(0, 10).map((dist, idx) => (
-                  <Link
-                    key={dist.id}
-                    to={`/performance?distribuidor=${dist.id}`}
-                    className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[11px] font-bold text-muted-foreground w-4 shrink-0">
-                        {idx + 1}
-                      </span>
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
-                        {dist.nome}
-                      </span>
-                      <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">
-                        {dist.estado}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] font-medium text-foreground tabular-nums">
-                        {formatCurrency(rankingMap.get(dist.id) ?? 0)}
-                      </span>
-                      <StatusBadge status={dist.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground py-4 text-center">
-                Nenhum distribuidor cadastrado
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-2">
-              <SectionTitle title="Alertas de Estoque" icon={Package} />
-              <Link to="/estoque">
-                <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]">
-                  Ver tudo
-                </Button>
-              </Link>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Panel accent className="lg:col-span-3">
+          <SectionTitle title="Ranking distribuidores" icon={TrendingUp} />
+          {distribuidoresOrdenados.length > 0 ? (
+            <div className="space-y-0.5">
+              {distribuidoresOrdenados.slice(0, 10).map((dist, idx) => (
+                <Link
+                  key={dist.id}
+                  to={`/performance?distribuidor=${dist.id}`}
+                  className="group flex items-center justify-between gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={cn(
+                        'w-5 shrink-0 text-right font-display text-sm tabular-nums',
+                        idx < 3 ? 'text-teal' : 'text-muted-foreground/50'
+                      )}
+                    >
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+                    <span className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-navy">
+                      {dist.nome}
+                    </span>
+                    <span className="hidden shrink-0 text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:inline">
+                      {dist.estado}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[12px] font-medium tabular-nums text-foreground">
+                      {formatCurrency(rankingMap.get(dist.id) ?? 0)}
+                    </span>
+                    <StatusBadge status={dist.status} />
+                  </div>
+                </Link>
+              ))}
             </div>
+          ) : (
+            <EmptyState
+              compact
+              icon={TrendingUp}
+              title="Sem distribuidores"
+              description="Cadastre parceiros para ver o ranking de faturamento."
+            />
+          )}
+        </Panel>
+
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <Panel className="flex-1">
+            <SectionTitle
+              title="Alertas de estoque"
+              icon={Package}
+              action={
+                <Link to="/estoque">
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Ver tudo
+                  </Button>
+                </Link>
+              }
+            />
             {estoqueAlertas && estoqueAlertas.length > 0 ? (
-              <div className="space-y-1">
-                {estoqueAlertas.slice(0, 8).map((item) => (
+              <div className="space-y-0.5">
+                {estoqueAlertas.slice(0, 6).map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30"
+                    className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30"
                   >
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-xs font-medium truncate">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">
                         {item.sku} — {item.descricao}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground truncate">
-                        {item.distribuidor_nome} · {item.quantidade_atual} un · {item.dias_cobertura}d cobertura
-                      </span>
+                      </p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {item.distribuidor_nome} · {item.quantidade_atual} un · {item.dias_cobertura}d
+                      </p>
                     </div>
-                    <StatusBadge status={item.status as any} />
+                    <StatusBadge status={item.status as 'critico' | 'baixo' | 'saudavel' | 'overstock' | 'ruptura'} />
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground py-4 text-center">
-                Nenhum alerta de estoque no momento
-              </p>
+              <EmptyState
+                compact
+                icon={Package}
+                title="Estoque em dia"
+                description="Nenhum alerta crítico no momento."
+              />
             )}
-          </CardContent>
-        </Card>
+          </Panel>
 
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-2">
-              <SectionTitle title="Últimos Relatórios" icon={FileText} />
-              <Link to="/ingestao">
-                <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]">
-                  Enviar
-                </Button>
-              </Link>
-            </div>
+          <Panel className="flex-1">
+            <SectionTitle
+              title="Últimos relatórios"
+              icon={FileText}
+              action={
+                <Link to="/ingestao">
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Enviar
+                  </Button>
+                </Link>
+              }
+            />
             {ultimosRelatorios && ultimosRelatorios.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {ultimosRelatorios.slice(0, 5).map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/30"
+                    className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/30"
                   >
-                    <span className="text-xs truncate max-w-[140px]">
-                      {r.arquivo_nome}
-                    </span>
+                    <span className="truncate text-xs">{r.arquivo_nome}</span>
                     <StatusBadge status={r.status} />
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground py-4 text-center">
-                Nenhum relatório recebido
-              </p>
+              <EmptyState
+                compact
+                icon={FileText}
+                title="Nada recebido"
+                description="Envie o primeiro relatório pela ingestão."
+              />
             )}
-          </CardContent>
-        </Card>
+          </Panel>
+        </div>
       </div>
     </div>
   )

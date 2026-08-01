@@ -31,8 +31,17 @@ export function AppLayout() {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
-      <main className="flex-1 overflow-auto min-w-0">
-        <div className="p-3 sm:p-6 max-w-[1400px] mx-auto">
+      <main className="relative min-w-0 flex-1 overflow-auto">
+        {/* Soft brand wash — keeps content light, ties to navy shell */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-56 opacity-90"
+          style={{
+            background:
+              'radial-gradient(80% 100% at 0% 0%, oklch(0.25 0.05 250 / 4%) 0%, transparent 60%), radial-gradient(55% 80% at 100% 0%, oklch(0.70 0.15 175 / 5%) 0%, transparent 55%)',
+          }}
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-[1400px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
           <RouteErrorBoundary resetKey={location.pathname}>
             <Outlet />
           </RouteErrorBoundary>

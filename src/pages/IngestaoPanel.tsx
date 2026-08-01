@@ -31,10 +31,11 @@ export function IngestaoPanel() {
       : 'pendente'
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
-        title="Ingestão de Relatórios"
-        description="Envie relatórios de vendas, estoque ou clientes para processamento"
+        title="Ingestão"
+        accent="de dados"
+        description="vendas, estoque e clientes"
       />
 
       <IngestaoUpload className="mb-6" />

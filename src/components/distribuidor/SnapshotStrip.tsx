@@ -22,37 +22,47 @@ export function SnapshotStrip({ items, className }: SnapshotStripProps) {
   return (
     <div
       className={cn(
-        'grid overflow-hidden rounded-lg border border-border bg-card shadow-card',
+        'overflow-x-auto rounded-lg border border-border/70 bg-card/90 shadow-[0_1px_2px_oklch(0_0_0/4%)]',
         className
       )}
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
-      {items.map((it, i) => (
-        <div
-          key={`${it.label}-${i}`}
-          className={cn(
-            'flex flex-col gap-0.5 px-3.5 py-2.5',
-            i < items.length - 1 && 'border-r border-border'
-          )}
-        >
-          <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {it.label}
-          </span>
-          <span className="text-sm font-semibold tabular-nums text-foreground">
-            {it.value}
-          </span>
-          {it.delta && (
-            <span
-              className={cn(
-                'text-[10px] font-semibold tabular-nums',
-                toneClass[it.tone ?? 'flat']
-              )}
-            >
-              {it.delta}
+      <div
+        className="grid min-w-max sm:min-w-0"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(7.5rem, 1fr))` }}
+      >
+        {items.map((it, i) => (
+          <div
+            key={`${it.label}-${i}`}
+            className={cn(
+              'relative flex flex-col gap-0.5 px-3.5 py-3',
+              i < items.length - 1 && 'border-r border-border/60'
+            )}
+          >
+            {i === 0 && (
+              <span
+                className="absolute left-0 top-2.5 bottom-2.5 w-0.5 rounded-full bg-teal"
+                aria-hidden
+              />
+            )}
+            <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              {it.label}
             </span>
-          )}
-        </div>
-      ))}
+            <span className="font-display text-[15px] font-normal tabular-nums tracking-tight text-foreground">
+              {it.value}
+            </span>
+            {it.delta && (
+              <span
+                className={cn(
+                  'text-[10px] font-medium tabular-nums',
+                  toneClass[it.tone ?? 'flat']
+                )}
+              >
+                {it.delta}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

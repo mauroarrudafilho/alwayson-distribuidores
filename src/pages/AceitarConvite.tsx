@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Loader2, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { AuthShell } from '@/components/auth/AuthShell'
 import { useAuth } from '@/contexts/auth'
 
 type AceiteResult = { ok: true; tenant_id: string; role: string } | { ok: false; error: string }
@@ -57,18 +58,18 @@ export function AceitarConvite() {
 
   if (loading) {
     return (
-      <Shell eyebrow="Aceitar convite" title="Verificando" italic="seu convite…">
+      <AuthShell eyebrow="Aceitar convite" title="Verificando" italic="seu convite…">
         <p className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border border-foreground/30 border-t-navy" />
           Carregando sessão
         </p>
-      </Shell>
+      </AuthShell>
     )
   }
 
   if (!session) {
     return (
-      <Shell eyebrow="Convite recebido" title="Falta só" italic="entrar.">
+      <AuthShell eyebrow="Convite recebido" title="Falta só" italic="entrar.">
         <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
           Para aceitar o convite, entre na sua conta com o mesmo e-mail que recebeu a mensagem.
         </p>
@@ -79,12 +80,12 @@ export function AceitarConvite() {
           Ir para o login
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" strokeWidth={1.75} />
         </Link>
-      </Shell>
+      </AuthShell>
     )
   }
 
   return (
-    <Shell
+    <AuthShell
       eyebrow="Aceitar convite"
       title={estado === 'ok' ? 'Bem-vindo' : estado === 'erro' ? 'Não foi possível' : 'Quase lá'}
       italic={estado === 'ok' ? 'à plataforma.' : estado === 'erro' ? 'aceitar.' : 'aceitando…'}
@@ -127,52 +128,6 @@ export function AceitarConvite() {
           Voltar para o início
         </Link>
       )}
-    </Shell>
-  )
-}
-
-function Shell({
-  eyebrow,
-  title,
-  italic,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  italic: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[oklch(0.98_0.005_250)] px-6 py-10 sm:px-10">
-      <div className="w-full max-w-[440px] [animation:var(--animate-rise-in)]">
-        <div className="mb-12 flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal" />
-            AlwaysOn · Distribuidores
-          </span>
-          <span>v1.0</span>
-        </div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground editorial-rule">
-          {eyebrow}
-        </p>
-        <h1
-          className="mt-3 text-[42px] leading-[1.02] tracking-[-0.02em] text-foreground sm:text-[48px]"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 360,
-            fontVariationSettings: '"opsz" 144, "SOFT" 30',
-          }}
-        >
-          {title}{' '}
-          <em
-            className="italic text-navy"
-            style={{ fontVariationSettings: '"opsz" 144, "SOFT" 50' }}
-          >
-            {italic}
-          </em>
-        </h1>
-        {children}
-      </div>
-    </div>
+    </AuthShell>
   )
 }

@@ -45,10 +45,11 @@ export function Conta() {
   const { user, profile, refresh, signOut } = useAuth()
 
   return (
-    <div className="space-y-8">
+    <div className="animate-page-in space-y-8">
       <PageHeader
         title="Minha conta"
-        description="Defina sua senha, atualize seu nome e gerencie segurança."
+        accent="e segurança"
+        description="perfil, senha e sessões"
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

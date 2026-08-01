@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Building2, MapPin, Search, Users } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
+import { EmptyState } from '@/components/distribuidor/EmptyState'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { Card, CardContent } from '@/components/ui/card'
@@ -72,9 +73,8 @@ export function ClientesBusca() {
   const showResults = isLoading || filtered.length > 0
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
-        eyebrow="AlwaysOn · Distribuidores"
         title="Clientes"
         accent="por recorte"
         description="consulta detalhada"
@@ -87,7 +87,7 @@ export function ClientesBusca() {
               <Search className="h-4 w-4" />
             </InputGroupAddon>
             <InputGroupInput
-              placeholder="Bar do Zé, 11.111.111…"
+              placeholder="CNPJ, razão social ou nome fantasia…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -127,16 +127,15 @@ export function ClientesBusca() {
       )}
 
       {showEmptyState && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Search className="h-10 w-10 text-muted-foreground/50 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {debouncedSearch
-                ? `Nenhum cliente encontrado para "${debouncedSearch}"${ufFilter ? ` em ${ufFilter}` : ''}.`
-                : 'Nenhum cliente carregado.'}
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Search}
+          title={debouncedSearch ? 'Nenhum cliente encontrado' : 'Nenhum cliente carregado'}
+          description={
+            debouncedSearch
+              ? `Sem resultados para "${debouncedSearch}"${ufFilter ? ` em ${ufFilter}` : ''}. Ajuste a busca ou o filtro de UF.`
+              : 'A base ainda não tem clientes neste recorte.'
+          }
+        />
       )}
 
       {showResults && (

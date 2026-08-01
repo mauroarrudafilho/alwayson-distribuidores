@@ -45,15 +45,15 @@ export function useDistribuidoresSemDadosRecentes() {
       seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
       const dataLimite = seteDiasAtras.toISOString().split('T')[0]
 
-      const { data: ultimaPerformance, error } = await supabase
-        .from('alwayson_performance_periodo')
+      const { data: faturamentosRecentes, error } = await supabase
+        .from('alwayson_faturamento')
         .select('distribuidor_id')
-        .gte('periodo_fim', dataLimite)
+        .gte('data_emissao', dataLimite)
 
       if (error) throw error
 
       const distribuidoresComDados = new Set(
-        (ultimaPerformance ?? []).map((p) => p.distribuidor_id)
+        (faturamentosRecentes ?? []).map((p) => p.distribuidor_id)
       )
 
       const { data: distribuidoresAtivos, error: errDist } = await supabase

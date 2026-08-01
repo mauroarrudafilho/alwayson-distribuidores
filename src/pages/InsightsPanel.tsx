@@ -181,7 +181,7 @@ function ClienteDetalheDrawer({
   const maxSkusMes = historico.length > 0 ? Math.max(...historico.map((h) => h.total_skus)) : 0
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <button
         onClick={onClose}
         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
@@ -589,7 +589,7 @@ function RedeGrupoDetalhePanel({
   const { data: filiais = [], isPending } = useInsightsFiliaisGrupo(row.grupo_id)
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <button
         type="button"
         onClick={onBack}
@@ -599,7 +599,9 @@ function RedeGrupoDetalhePanel({
         Voltar
       </button>
       <PageHeader
+        eyebrow="Insights · Rede"
         title={row.nome_rede?.trim() || row.grupo_label}
+        accent="em detalhe"
         description={
           row.grupo_kind === 'raiz'
             ? `Raiz ${row.grupo_label} · ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`
@@ -843,10 +845,11 @@ export function InsightsPanel() {
   // ─── Detalhe de cliente ───────────────────────────────────────────────────
   if (clienteDetalhe) {
     return (
-      <div className="animate-fade-in">
+      <div className="animate-page-in">
         <PageHeader
           title="Insights"
-          description={`Base histórica ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`}
+          accent="do cliente"
+          description={`${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`}
         />
         <ClienteDetalheDrawer
           cliente={clienteDetalhe}
@@ -871,7 +874,7 @@ export function InsightsPanel() {
   // ─── Visão principal (abas) ───────────────────────────────────────────────
   if (boot.isPending) {
     return (
-      <div className="animate-fade-in flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
+      <div className="animate-page-in flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
         <p className="text-sm">Carregando dados de Insights…</p>
       </div>
@@ -881,7 +884,7 @@ export function InsightsPanel() {
   if (boot.isError) {
     const msg = boot.error instanceof Error ? boot.error.message : String(boot.error)
     return (
-      <div className="animate-fade-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+      <div className="animate-page-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
         {msg}
       </div>
     )
@@ -889,7 +892,7 @@ export function InsightsPanel() {
 
   if (redeGrupoDetalhe && !clienteDetalhe) {
     return (
-      <div className="animate-fade-in">
+      <div className="animate-page-in">
         <RedeGrupoDetalhePanel
           row={redeGrupoDetalhe}
           periodo={periodo}
@@ -905,32 +908,33 @@ export function InsightsPanel() {
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
         title="Insights"
-        description={`Base histórica ${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)} · ${kpi.total_cidades} cidades`}
+        accent="acionáveis"
+        description={`${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)} · ${kpi.total_cidades} cidades`}
       />
 
       <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
         <TabsList
           variant="line"
-          className="mb-5 w-fit max-w-full h-auto gap-8 border-0 border-b border-border/40 bg-transparent p-0"
+          className="mb-5 h-auto w-fit max-w-full gap-8 border-0 border-b border-border/50 bg-transparent p-0"
         >
           <TabsTrigger
             value="territorio"
-            className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+            className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
           >
             Território
           </TabsTrigger>
           <TabsTrigger
             value="clientes"
-            className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+            className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
           >
             Clientes
           </TabsTrigger>
           <TabsTrigger
             value="produtos"
-            className="px-0 py-2 text-sm font-medium text-muted-foreground data-active:text-foreground data-active:font-semibold"
+            className="rounded-none border-b-2 border-transparent px-0 py-2 text-[13px] font-medium text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground"
           >
             Produtos
           </TabsTrigger>

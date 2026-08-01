@@ -22,7 +22,8 @@
     "insights:delete-upload-arquivo": "node scripts/delete-insights-upload-by-arquivo.mjs",
     "db:migrate": "node scripts/apply-migrations.mjs",
     "admin:bootstrap": "node scripts/admin-bootstrap.mjs",
-    "produtos:import-campestre": "node scripts/import-produtos-cadastro-campestre.mjs"
+    "produtos:import-campestre": "node scripts/import-produtos-cadastro-campestre.mjs",
+    "ingest:api": "node services/ingest-api/server.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -36,7 +37,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "lucide-react": "^0.577.0",
+    "multer": "^2.2.0",
     "pg": "^8.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -52,6 +56,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.12.0",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",

@@ -42,10 +42,11 @@ export function EstoquePanel() {
   const overstock = items.filter((e) => e.status === 'overstock').length
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
         title="Estoque"
-        description="Posição de estoque dos distribuidores"
+        accent="em posição"
+        description="cobertura e rupturas"
       />
 
       <FilterBar>

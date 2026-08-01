@@ -23,19 +23,20 @@ export function Admin() {
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
         title="Administração"
-        description="Cockpit de Parâmetros"
+        accent="do cockpit"
+        description="parâmetros e governança"
       />
-      <div className="flex gap-1 border-b border-border/50 mb-6">
+      <div className="mb-6 flex gap-1 border-b border-border/60">
         {adminTabs.map((tab) => (
           <Link
             key={tab.path}
             to={tab.path}
-            className={`px-3 py-2 text-sm transition-colors border-b-2 ${
+            className={`border-b-2 px-3 py-2 text-[13px] transition-colors ${
               tabActive(location.pathname, tab.path, tab.prefix)
-                ? 'border-primary text-foreground font-medium'
+                ? 'border-teal font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >

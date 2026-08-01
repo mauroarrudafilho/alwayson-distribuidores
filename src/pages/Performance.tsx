@@ -72,10 +72,11 @@ function PerformanceContent() {
   const ActiveTab = useMemo(() => TAB_COMPONENTS[currentTab], [currentTab])
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-page-in">
       <PageHeader
-        title="Performance"
-        description="Análise de sell-out por profundidade hierárquica"
+        title="Sell-out"
+        accent="em profundidade"
+        description="hierarquia comercial"
       />
 
       <FilterBar columns={3}>
@@ -129,22 +130,29 @@ function PerformanceContent() {
         value={currentTab}
         onValueChange={(v) => setFilter('tab', v as PerfTab)}
       >
-        <TabsList variant="line" className="mb-2 overflow-x-auto">
+        <TabsList
+          variant="line"
+          className="mb-2 h-auto gap-1 overflow-x-auto border-0 border-b border-border/50 bg-transparent p-0"
+        >
           {availableTabs.map((tab) => (
-            <TabsTrigger key={tab} value={tab} className="text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap">
+            <TabsTrigger
+              key={tab}
+              value={tab}
+              className="rounded-none border-b-2 border-transparent px-2 py-2 text-xs whitespace-nowrap text-muted-foreground data-active:border-teal data-active:font-semibold data-active:text-foreground sm:px-3 sm:text-[13px]"
+            >
               {TAB_LABELS[tab]}
             </TabsTrigger>
           ))}
         </TabsList>
 
         {breadcrumbs.length > 0 && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+          <div className="mb-4 flex items-center gap-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
             {breadcrumbs.map((crumb, idx) => (
               <span key={idx} className="flex items-center gap-1">
                 {idx > 0 && <ChevronRight className="h-3 w-3" />}
                 <button
                   type="button"
-                  className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                  className="transition-colors hover:text-foreground hover:underline hover:underline-offset-2"
                   onClick={() => drillDown(crumb.tab, crumb.filters)}
                 >
                   {crumb.label}
@@ -152,7 +160,7 @@ function PerformanceContent() {
               </span>
             ))}
             <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">
+            <span className="font-medium normal-case tracking-normal text-foreground">
               {TAB_LABELS[currentTab]}
             </span>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
+import { AuthShell } from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
@@ -47,18 +48,18 @@ export function RedefinirPassword() {
 
   if (loading) {
     return (
-      <Shell eyebrow="Redefinir senha" title="Verificando" italic="seu acesso…">
+      <AuthShell eyebrow="Redefinir senha" title="Verificando" italic="seu acesso…">
         <p className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           <span className="inline-block h-3 w-3 animate-spin rounded-full border border-foreground/30 border-t-navy" />
           Carregando sessão
         </p>
-      </Shell>
+      </AuthShell>
     )
   }
 
   if (!session) {
     return (
-      <Shell eyebrow="Redefinir senha" title="Link" italic="expirado.">
+      <AuthShell eyebrow="Redefinir senha" title="Link" italic="expirado.">
         <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
           Por segurança, os links de redefinição expiram após algumas horas. Solicite um novo
           e-mail e tente novamente.
@@ -69,12 +70,12 @@ export function RedefinirPassword() {
         >
           Pedir novo link <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
         </Link>
-      </Shell>
+      </AuthShell>
     )
   }
 
   return (
-    <Shell eyebrow="Redefinir senha" title="Defina sua" italic="nova senha.">
+    <AuthShell eyebrow="Redefinir senha" title="Defina sua" italic="nova senha.">
       <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
         Mínimo de 8 caracteres. Recomendamos misturar letras maiúsculas, números e símbolos para
         proteger seu acesso.
@@ -117,7 +118,7 @@ export function RedefinirPassword() {
           </Button>
         </form>
       )}
-    </Shell>
+    </AuthShell>
   )
 }
 
@@ -161,52 +162,6 @@ function PasswordInput({
         >
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
-      </div>
-    </div>
-  )
-}
-
-function Shell({
-  eyebrow,
-  title,
-  italic,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  italic: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[oklch(0.98_0.005_250)] px-6 py-10 sm:px-10">
-      <div className="w-full max-w-[440px] [animation:var(--animate-rise-in)]">
-        <div className="mb-12 flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal" />
-            AlwaysOn · Distribuidores
-          </span>
-          <span>v1.0</span>
-        </div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground editorial-rule">
-          {eyebrow}
-        </p>
-        <h1
-          className="mt-3 text-[42px] leading-[1.02] tracking-[-0.02em] text-foreground sm:text-[48px]"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 360,
-            fontVariationSettings: '"opsz" 144, "SOFT" 30',
-          }}
-        >
-          {title}{' '}
-          <em
-            className="italic text-navy"
-            style={{ fontVariationSettings: '"opsz" 144, "SOFT" 50' }}
-          >
-            {italic}
-          </em>
-        </h1>
-        {children}
       </div>
     </div>
   )

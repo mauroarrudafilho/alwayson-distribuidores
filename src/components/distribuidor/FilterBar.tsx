@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 interface FilterBarProps {
   children: ReactNode
   columns?: 2 | 3 | 4
+  className?: string
 }
 
-export function FilterBar({ children, columns = 3 }: FilterBarProps) {
+export function FilterBar({ children, columns = 3, className }: FilterBarProps) {
   const gridCols = {
     2: 'grid-cols-1 sm:grid-cols-2',
     3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
@@ -14,13 +15,14 @@ export function FilterBar({ children, columns = 3 }: FilterBarProps) {
   }
 
   return (
-    <Card className="mb-6">
-      <CardContent>
-        <div className={`grid ${gridCols[columns]} gap-3 sm:gap-4`}>
-          {children}
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className={cn(
+        'mb-6 rounded-lg border border-border/70 border-l-2 border-l-teal/60 bg-card/60 px-3.5 py-3.5',
+        className
+      )}
+    >
+      <div className={cn('grid gap-3 sm:gap-4', gridCols[columns])}>{children}</div>
+    </div>
   )
 }
 
@@ -32,7 +34,7 @@ interface FilterFieldProps {
 export function FilterField({ label, children }: FilterFieldProps) {
   return (
     <div>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+      <label className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </label>
       {children}

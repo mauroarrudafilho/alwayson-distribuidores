@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS alwayson_tenants (
 );
 
 COMMENT ON TABLE alwayson_tenants IS
-  'Organizações que acessam a plataforma: admin global (Arruda), fornecedor (Vinícola Campestre) ou distribuidor.';
+  'Organizações que acessam a plataforma: admin global (DevTech Labs), fornecedor (Vinícola Campestre) ou distribuidor.';
 
 CREATE INDEX IF NOT EXISTS idx_alwayson_tenants_tipo ON alwayson_tenants (tipo);
 CREATE INDEX IF NOT EXISTS idx_alwayson_tenants_distribuidor ON alwayson_tenants (distribuidor_id);
@@ -288,10 +288,10 @@ CREATE POLICY alwayson_user_invites_admin
   USING (public.current_user_is_admin())
   WITH CHECK (public.current_user_is_admin());
 
--- ─── 8. SEED — Arruda (admin_global) e Vinícola Campestre (fornecedor) ──────
+-- ─── 8. SEED — DevTech Labs (admin_global) e Vinícola Campestre (fornecedor) ──
 
 INSERT INTO alwayson_tenants (tipo, nome, slug)
-VALUES ('admin_global', 'Grupo Arruda', 'arruda')
+VALUES ('admin_global', 'DevTech Labs', 'devtech-labs')
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO alwayson_tenants (tipo, nome, slug)

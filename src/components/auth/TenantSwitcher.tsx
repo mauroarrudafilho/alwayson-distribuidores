@@ -47,24 +47,25 @@ export function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'group flex w-full items-center gap-2 rounded-md p-2 text-left text-sm outline-hidden transition-colors hover:bg-muted/50 focus-visible:bg-muted/50',
+          'group flex w-full items-center gap-2 rounded-md p-2 text-left text-sm outline-hidden transition-colors',
+          'hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring',
           collapsed && 'justify-center px-1'
         )}
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-[11px] font-semibold text-sidebar-foreground">
           {initials}
         </span>
         {!collapsed && (
           <>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-foreground">
+              <span className="block truncate text-xs font-medium text-sidebar-foreground">
                 {currentTenant.nome}
               </span>
-              <span className="block truncate text-[11px] text-muted-foreground">
+              <span className="block truncate text-[11px] text-sidebar-foreground/50">
                 {roleLabel[currentTenant.role]}
               </span>
             </span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 text-sidebar-foreground/40" />
           </>
         )}
       </DropdownMenuTrigger>

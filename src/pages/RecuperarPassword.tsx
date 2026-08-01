@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Mail, MailCheck } from 'lucide-react'
+import { AuthShell } from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
@@ -121,52 +122,6 @@ function Field({
         {label}
       </label>
       {children}
-    </div>
-  )
-}
-
-function AuthShell({
-  eyebrow,
-  title,
-  italic,
-  children,
-}: {
-  eyebrow: string
-  title: string
-  italic: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[oklch(0.98_0.005_250)] px-6 py-10 sm:px-10">
-      <div className="w-full max-w-[440px] [animation:var(--animate-rise-in)]">
-        <div className="mb-12 flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal" />
-            AlwaysOn · Distribuidores
-          </span>
-          <span>v1.0</span>
-        </div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-muted-foreground editorial-rule">
-          {eyebrow}
-        </p>
-        <h1
-          className="mt-3 text-[42px] leading-[1.02] tracking-[-0.02em] text-foreground sm:text-[48px]"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 360,
-            fontVariationSettings: '"opsz" 144, "SOFT" 30',
-          }}
-        >
-          {title}{' '}
-          <em
-            className="italic text-navy"
-            style={{ fontVariationSettings: '"opsz" 144, "SOFT" 50' }}
-          >
-            {italic}
-          </em>
-        </h1>
-        {children}
-      </div>
     </div>
   )
 }

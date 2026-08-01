@@ -194,25 +194,42 @@ Retorna o status de um processamento.
 
 ---
 
-## 7. Variáveis de ambiente
+## 7. Implementação neste repositório
+
+Serviço Node em `services/ingest-api/` (Express + multer + `xlsx`).
+
+```bash
+# Terminal 1 — API (porta 8787)
+npm run ingest:api
+
+# Terminal 2 — frontend (precisa de VITE_INGEST_API_URL=http://localhost:8787)
+npm run dev
+```
+
+Dockerfile de deploy: `services/ingest-api/Dockerfile` (raiz do repo como contexto: `docker build -f services/ingest-api/Dockerfile .`).
+
+## 8. Variáveis de ambiente
 
 ### Frontend (Vite)
-Adicione ao `.env`:
+Adicione ao `.env` / `.env.local`:
 ```
-VITE_INGEST_API_URL=https://seu-servico.railway.app
+VITE_INGEST_API_URL=http://localhost:8787
+# em produção: https://seu-servico.railway.app
 VITE_SUPABASE_URL=https://osukbalwykbqvoumddxz.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon do projeto osukbalwykbqvoumddxz>
 ```
 
 Projeto Supabase deste repo: ref **`osukbalwykbqvoumddxz`** — ver [`docs/SUPABASE_PROJECT.md`](SUPABASE_PROJECT.md). Não usar outro projeto Supabase para este codebase.
 
-### Railway (backend)
+### Railway / API (backend)
 
 | Variável | Descrição |
 |----------|-----------|
 | `SUPABASE_URL` | URL do projeto Supabase (`https://osukbalwykbqvoumddxz.supabase.co` neste produto) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key **do mesmo** projeto `osukbalwykbqvoumddxz` |
+| `PORT` | Default `8787` |
+| `CORS_ORIGIN` | Opcional; default libera a origem do browser |
 
 ---
 
-*Documento gerado em 12/03/2026. Referência: DISTRIBUIDOR_PLUS_REFERENCE.md.*
+*Documento atualizado em 31/07/2026. Referência: DISTRIBUIDOR_PLUS_REFERENCE.md.*

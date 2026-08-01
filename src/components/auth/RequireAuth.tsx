@@ -84,10 +84,10 @@ export function RequireAuth() {
           <p className="text-xs text-muted-foreground">
             Suporte:{' '}
             <a
-              href="mailto:maurofilho@grupoarruda.com"
+              href="mailto:contato@devtechlabs.com.br"
               className="font-medium text-foreground underline decoration-foreground/30 underline-offset-4 hover:text-navy"
             >
-              maurofilho@grupoarruda.com
+              contato@devtechlabs.com.br
             </a>
           </p>
         </div>
