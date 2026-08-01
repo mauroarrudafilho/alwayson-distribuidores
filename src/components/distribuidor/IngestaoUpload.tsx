@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { useDistribuidores } from '@/hooks/useDistribuidores'
+import { useDistribuidores, useFornecedoresDoDistribuidor } from '@/hooks/useDistribuidores'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 
@@ -74,6 +74,7 @@ interface IngestaoUploadProps {
 export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUploadProps) {
   const [tipo, setTipo] = useState<TipoRelatorio>('vendas')
   const [distribuidorId, setDistribuidorId] = useState<string>('')
+  const [fornecedorId, setFornecedorId] = useState<string>('')
   const [periodoReferencia, setPeriodoReferencia] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -83,6 +84,8 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: distribuidores } = useDistribuidores()
+  const { data: fornecedoresData } = useFornecedoresDoDistribuidor(distribuidorId || undefined)
+  const fornecedores = fornecedoresData ?? []
   const queryClient = useQueryClient()
 
   const ingestApiUrl = import.meta.env.VITE_INGEST_API_URL
@@ -141,7 +144,7 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!file || !distribuidorId || !periodoReferencia || !ingestApiUrl) {
+    if (!file || !distribuidorId || !fornecedorId || !periodoReferencia || !ingestApiUrl) {
       setUploadStatus('error')
       setUploadMessage(
         !ingestApiUrl
@@ -159,6 +162,7 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
       formData.append('file', file)
       formData.append('tipo', tipo)
       formData.append('distribuidor_id', distribuidorId)
+      formData.append('fornecedor_id', fornecedorId)
       formData.append('periodo_referencia', periodoReferencia)
 
       const res = await fetch(`${ingestApiUrl.replace(/\/$/, '')}/api/ingest`, {
@@ -230,7 +234,14 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Distribuidor
               </label>
-              <Select value={distribuidorId} onValueChange={(v) => setDistribuidorId(v ?? '')}>
+              <Select
+                value={distribuidorId}
+                onValueChange={(v) => {
+                  setDistribuidorId(v ?? '')
+                  // Os fornecedores válidos dependem do distribuidor escolhido.
+                  setFornecedorId('')
+                }}
+              >
                 <SelectTrigger className="h-8 w-full text-xs shadow-none border-border/50">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -242,6 +253,33 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
+                Fornecedor
+              </label>
+              <Select
+                value={fornecedorId}
+                onValueChange={(v) => setFornecedorId(v ?? '')}
+                disabled={!distribuidorId || fornecedores.length === 0}
+              >
+                <SelectTrigger className="h-8 w-full text-xs shadow-none border-border/50">
+                  <SelectValue placeholder={distribuidorId ? 'Selecione' : 'Escolha o distribuidor'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {fornecedores.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {distribuidorId && fornecedores.length === 0 && (
+                <p className="text-[11px] text-destructive mt-1">
+                  Nenhum fornecedor vinculado a este distribuidor.
+                </p>
+              )}
             </div>
 
             <div>

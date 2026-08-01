@@ -59,6 +59,7 @@ app.get('/health', (_req, res) => {
 app.post('/api/ingest', upload.single('file'), async (req, res) => {
   const tipo = String(req.body?.tipo ?? '').trim()
   const distribuidorId = String(req.body?.distribuidor_id ?? '').trim()
+  const fornecedorId = String(req.body?.fornecedor_id ?? '').trim()
   const periodoReferencia = String(req.body?.periodo_referencia ?? '').trim()
   const file = req.file
 
@@ -72,6 +73,14 @@ app.post('/api/ingest', upload.single('file'), async (req, res) => {
     return res.status(400).json({
       error: 'campos_obrigatorios',
       message: 'distribuidor_id e periodo_referencia são obrigatórios.',
+    })
+  }
+  // O arquivo é sempre o recorte de um fornecedor dentro de um distribuidor
+  // (migration 047) — sem o carimbo não há como o fornecedor ver "o que é dele".
+  if (!fornecedorId) {
+    return res.status(400).json({
+      error: 'campos_obrigatorios',
+      message: 'fornecedor_id é obrigatório.',
     })
   }
   if (!file?.buffer?.length) {
@@ -97,10 +106,32 @@ app.post('/api/ingest', upload.single('file'), async (req, res) => {
     })
   }
 
+  // Exige a relação comercial cadastrada, não só que o tenant exista: carimbar
+  // um fornecedor que não atende aquele distribuidor produziria dado que
+  // ninguém consegue enxergar depois que o escopo de acesso entrar.
+  const { data: vinculo, error: vinculoErr } = await supabase
+    .from('alwayson_fornecedor_distribuidores')
+    .select('id')
+    .eq('fornecedor_tenant_id', fornecedorId)
+    .eq('distribuidor_id', distribuidorId)
+    .eq('ativo', true)
+    .maybeSingle()
+  if (vinculoErr) {
+    console.error(vinculoErr)
+    return res.status(500).json({ error: 'internal_error', message: vinculoErr.message })
+  }
+  if (!vinculo) {
+    return res.status(400).json({
+      error: 'fornecedor_invalido',
+      message: 'Fornecedor não vinculado a este distribuidor.',
+    })
+  }
+
   const { data: ingestRow, error: ingestInsErr } = await supabase
     .from('alwayson_relatorios_ingestao')
     .insert({
       distribuidor_id: distribuidorId,
+      fornecedor_tenant_id: fornecedorId,
       tipo,
       arquivo_nome: file.originalname || 'upload.bin',
       status: 'processando',
@@ -122,6 +153,7 @@ app.post('/api/ingest', upload.single('file'), async (req, res) => {
       result = await processVendas(supabase, {
         buffer: file.buffer,
         distribuidorId,
+        fornecedorTenantId: fornecedorId,
         arquivoNome: file.originalname,
       })
     } else if (tipo === 'estoque') {

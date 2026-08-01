@@ -37,7 +37,7 @@ const ALIASES = {
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {{ buffer: Buffer, distribuidorId: string }} args
  */
-export async function processVendas(supabase, { buffer, distribuidorId }) {
+export async function processVendas(supabase, { buffer, distribuidorId, fornecedorTenantId }) {
   const { headers, rows } = readSheetRows(buffer)
   const missing = missingColumns(headers, REQUIRED, ALIASES)
   if (missing.length) {
@@ -387,6 +387,9 @@ export async function processVendas(supabase, { buffer, distribuidorId }) {
     const valor_total = g.itens.reduce((s, it) => s + Number(it.valor_total), 0)
     fatRows.push({
       distribuidor_id: distribuidorId,
+      // Segundo eixo do dado (migration 047): o arquivo é sempre o recorte de
+      // um fornecedor dentro de um distribuidor.
+      fornecedor_tenant_id: fornecedorTenantId,
       cliente_id,
       vendedor_id,
       numero_nf,

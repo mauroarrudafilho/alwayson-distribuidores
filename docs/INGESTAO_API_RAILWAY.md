@@ -21,6 +21,7 @@ Content-Type: multipart/form-data
 | `file` | File | ✅ | Arquivo Excel (.xlsx, .xls) ou CSV (.csv) |
 | `tipo` | string | ✅ | `vendas` \| `estoque` \| `clientes` |
 | `distribuidor_id` | string (UUID) | ✅ | ID do distribuidor no Supabase |
+| `fornecedor_id` | string (UUID) | ✅ | Tenant do fornecedor (`alwayson_tenants.tipo = 'fornecedor'`). Todo arquivo é o recorte de **um fornecedor dentro de um distribuidor** — ver migration `047` |
 | `periodo_referencia` | string (YYYY-MM-DD) | ✅ | Data de referência do período do relatório |
 
 **Exemplo (curl):**
@@ -29,6 +30,7 @@ curl -X POST "https://seu-servico.railway.app/api/ingest" \
   -F "file=@relatorio_vendas_marco.xlsx" \
   -F "tipo=vendas" \
   -F "distribuidor_id=uuid-do-distribuidor" \
+  -F "fornecedor_id=uuid-do-tenant-fornecedor" \
   -F "periodo_referencia=2026-03-01"
 ```
 
