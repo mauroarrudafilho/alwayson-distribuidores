@@ -5,6 +5,8 @@ type MembershipRole =
   | 'gestor'
   | 'gestor_cliente'
   | 'gestor_fornecedor'
+  // KAM: fornecedor ∈ seus E distribuidor ∈ seus (migrations 047/048).
+  | 'kam'
   | 'vendedor'
   | 'supervisor'
   | 'gerente'
@@ -19,6 +21,65 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+const RESEND_ENDPOINT = 'https://api.resend.com/emails'
+
+function corpoConvite(actionLink: string, nome?: string): string {
+  const saudacao = nome ? `Olá, ${nome}!` : 'Olá!'
+  return `
+    <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
+      <h2 style="font-size:18px;margin:0 0 16px">${saudacao}</h2>
+      <p style="font-size:14px;line-height:1.6;margin:0 0 16px">
+        Você foi convidado para a plataforma <strong>AlwaysOn Distribuidores</strong>.
+        Clique abaixo para definir o seu acesso.
+      </p>
+      <p style="margin:24px 0">
+        <a href="${actionLink}"
+           style="background:#1a1a1a;color:#fff;text-decoration:none;padding:11px 20px;border-radius:6px;font-size:14px;display:inline-block">
+          Aceitar convite
+        </a>
+      </p>
+      <p style="font-size:12px;color:#666;line-height:1.6;margin:0">
+        Se o botão não funcionar, copie e cole este endereço no navegador:<br>
+        <span style="word-break:break-all">${actionLink}</span>
+      </p>
+    </div>`
+}
+
+/**
+ * Entrega o convite pelo Resend. Opt-in: sem `RESEND_API_KEY` a função mantém o
+ * caminho antigo (e-mail nativo do Supabase), então publicar isto não altera
+ * comportamento enquanto o segredo não estiver definido.
+ */
+async function enviarPorResend(
+  email: string,
+  actionLink: string,
+  nome?: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const apiKey = Deno.env.get('RESEND_API_KEY')
+  if (!apiKey) return { ok: false, message: 'RESEND_API_KEY não definida' }
+  const from = Deno.env.get('RESEND_FROM') ?? 'AlwaysOn <onboarding@resend.dev>'
+
+  try {
+    const res = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: 'Seu acesso ao AlwaysOn Distribuidores',
+        html: corpoConvite(actionLink, nome),
+      }),
+    })
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => '')
+      return { ok: false, message: `Resend ${res.status}: ${corpo.slice(0, 300)}` }
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 function randomToken(): string {
@@ -48,6 +109,7 @@ function isRole(v: unknown): v is MembershipRole {
     'gestor',
     'gestor_cliente',
     'gestor_fornecedor',
+    'kam',
     'vendedor',
     'supervisor',
     'gerente',
@@ -193,6 +255,63 @@ Deno.serve(async (req) => {
 
   const inviteRowId = inserted.id as string
 
+  // ─── Entrega por Resend (quando configurado) ──────────────────────────────
+  // Gera o link sem disparar o e-mail nativo e entrega pelo Resend, que tem
+  // domínio verificado e limites de produção — o e-mail embutido do Supabase
+  // serve para desenvolvimento, não para convidar parceiros.
+  if (Deno.env.get('RESEND_API_KEY')) {
+    let actionLink: string | null = null
+
+    const convite = await adminSb.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: { redirectTo, data: nome ? { nome } : undefined },
+    })
+
+    if (convite.data?.properties?.action_link) {
+      actionLink = convite.data.properties.action_link
+    } else if (looksRegisteredError(convite.error?.message ?? '')) {
+      // Já tem conta: link mágico leva ao login e depois ao aceite.
+      const ml = await adminSb.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo },
+      })
+      actionLink = ml.data?.properties?.action_link ?? null
+    }
+
+    if (!actionLink) {
+      await deleteInvite(adminSb, inviteRowId)
+      console.error('generateLink (resend):', convite.error?.message)
+      return jsonResponse(
+        { ok: false, error: 'link_falhou', message: convite.error?.message ?? 'Sem action_link' },
+        502,
+      )
+    }
+
+    const envio = await enviarPorResend(email, actionLink, nome)
+    if (envio.ok) {
+      return jsonResponse({
+        ok: true,
+        delivery: 'resend',
+        invite_id: inviteRowId,
+        message: 'Convite enviado por e-mail (Resend).',
+      })
+    }
+
+    // Resend falhou: o convite continua válido, então devolve o link em vez de
+    // descartar o trabalho — o admin envia manualmente.
+    console.error('resend:', envio.message)
+    return jsonResponse({
+      ok: true,
+      delivery: 'manual',
+      invite_id: inviteRowId,
+      action_link: actionLink,
+      message: `Não foi possível enviar pelo Resend (${envio.message}). Copie o link e envie manualmente.`,
+    })
+  }
+
+  // ─── Caminho original: e-mail nativo do Supabase ──────────────────────────
   const { error: inviteEmailErr } = await adminSb.auth.admin.inviteUserByEmail(email, {
     data: nome ? { nome } : undefined,
     redirectTo,
