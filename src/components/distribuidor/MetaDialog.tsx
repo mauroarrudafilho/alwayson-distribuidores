@@ -25,6 +25,7 @@ import {
   type MetaComNomes,
 } from '@/hooks/useMetas'
 import { formatCurrency } from '@/lib/format'
+import { monthStart, monthEnd, getCurrentMonth } from '@/lib/periodo'
 import type { Meta } from '@/types/distribuidor'
 
 const HIERARQUIAS: { value: Meta['hierarquia']; label: string }[] = [
@@ -50,20 +51,13 @@ const TIPO_VENDEDOR_POR_HIERARQUIA: Record<string, Meta['hierarquia'] | undefine
 
 /** Primeiro e último dia do mês YYYY-MM. */
 function limitesDoMes(mes: string): { inicio: string; fim: string } {
-  const [ano, m] = mes.split('-').map(Number)
-  const ultimo = new Date(ano, m, 0).getDate()
-  return { inicio: `${mes}-01`, fim: `${mes}-${String(ultimo).padStart(2, '0')}` }
+  return { inicio: monthStart(mes), fim: monthEnd(mes) }
 }
 
 /** Mesmo mês do ano anterior — base de comparação para a meta. */
 function mesmoMesAnoAnterior(mes: string): string {
   const [ano, m] = mes.split('-').map(Number)
   return `${ano - 1}-${String(m).padStart(2, '0')}`
-}
-
-function mesCorrente(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 interface Props {
@@ -84,7 +78,7 @@ export function MetaDialog({ open, onOpenChange, distribuidorId, meta }: Props) 
   const [hierarquia, setHierarquia] = useState<Meta['hierarquia']>(meta?.hierarquia ?? 'vendedor')
   const [vendedorId, setVendedorId] = useState<string>(meta?.vendedor_id ?? '')
   const [tipo, setTipo] = useState<Meta['tipo']>(meta?.tipo ?? 'faturamento')
-  const [mes, setMes] = useState<string>(meta ? meta.periodo_inicio.slice(0, 7) : mesCorrente())
+  const [mes, setMes] = useState<string>(meta ? meta.periodo_inicio.slice(0, 7) : getCurrentMonth())
   const [valorMeta, setValorMeta] = useState<string>(meta ? String(meta.valor_meta) : '')
   const [observacao, setObservacao] = useState<string>(meta?.observacao ?? '')
   const [erro, setErro] = useState<string | null>(null)

@@ -48,7 +48,7 @@ export function VendasTab() {
     periodoInicio,
     periodoFim
   )
-  const { data: metas } = useMetasByLevel(distribuidorId, 'vendedor')
+  const { data: metas } = useMetasByLevel(distribuidorId, 'vendedor', undefined, periodoInicio)
 
   const isLoading = loadingHierarchy || loadingPerf
 

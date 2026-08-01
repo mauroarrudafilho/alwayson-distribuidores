@@ -86,7 +86,13 @@ E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espel
 | Rollup editável (soma dos filhos × meta do nível) | ✅ `valor_rollup_filhos` + `diferenca_rollup` |
 | Criação/edição pela UI, com apoio histórico | ✅ `MetaDialog` no `AdminMetas`, gated por `isAdmin` |
 | Auditoria (autor, justificativa) | ✅ `observacao`, `criado_por`, `atualizado_por` |
+| Seleção da meta pelo mês do filtro | ✅ corrigido — ver abaixo |
 | **Importação por planilha** | ⬜ **pendente** — template + parser ainda não existem |
+| **Panorama mês a mês (matriz responsável × mês)** | ⬜ **pendente** — só faz sentido após a carga histórica |
+
+**Correção de seleção por período.** As quatro abas de Performance buscavam metas sem filtrar por período (`useMetasByLevel` devolvia todos os meses, ordenados desc) e pegavam a primeira com `.find()` — ou seja, a meta do **mês mais recente**, qualquer que fosse o mês escolhido no filtro. Com um único mês de dado isso era invisível; com metas de vários meses, o realizado de um mês seria comparado à meta de outro, silenciosamente. `useMetasByLevel` agora recebe `periodoMes` e filtra no servidor; `DistribuidorTab`, que lê da lista completa, filtra pelo mês e não exibe meta quando não há mês definido.
+
+**Panorama mês a mês (proposto).** Hoje `AdminMetas` é uma lista plana — cada mês é uma linha. O modelo já suporta a grade sem mudança de schema (`periodo_inicio/fim` por meta; a view calcula realizado por período), então é só outra leitura da mesma view: linhas = responsável no nível escolhido, colunas = meses, célula = atingimento com o mesmo semáforo, mais uma coluna de acumulado; clique na célula abre a meta do mês para edição. Fica útil quando houver vários meses carregados.
 
 **Modelagem adotada — rollup editável.** A meta de supervisor/gerente **não** é a soma dos filhos: a soma é *sugestão*, o valor definido é a autoridade, e a diferença entre os dois é a **meta de venda direta** daquele nível (supervisor que vende sem passar por vendedor). Rollup puro deixaria essa venda sem meta associada a ninguém. A view devolve os dois lados para a UI mostrar a folga.
 

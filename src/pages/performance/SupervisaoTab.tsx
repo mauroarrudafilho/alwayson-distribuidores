@@ -42,7 +42,7 @@ export function SupervisaoTab() {
     periodoInicio,
     periodoFim
   )
-  const { data: metas } = useMetasByLevel(distribuidorId, 'supervisor')
+  const { data: metas } = useMetasByLevel(distribuidorId, 'supervisor', undefined, periodoInicio)
 
   const isLoading = loadingHierarchy || loadingPerf
 

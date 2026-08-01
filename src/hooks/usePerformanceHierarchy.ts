@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { monthStart, monthEnd } from '@/lib/periodo'
 import type { Vendedor, PerformancePeriodo, Meta } from '@/types/distribuidor'
 import type { PerfTab } from '@/pages/performance/usePerfFilters'
 
@@ -68,13 +69,22 @@ export function usePerformanceByLevel(
   })
 }
 
+/**
+ * Metas de um nível da hierarquia.
+ *
+ * `periodoMes` ('YYYY-MM') é o mês de análise: sem ele a query devolve as metas
+ * de **todos** os períodos e quem consome acaba pegando a primeira da lista — a
+ * do mês mais recente —, comparando o realizado do mês escolhido contra a meta
+ * de outro mês. Passe sempre o mês do filtro.
+ */
 export function useMetasByLevel(
   distribuidorId: string | undefined,
   hierarquia?: Meta['hierarquia'],
-  vendedorId?: string
+  vendedorId?: string,
+  periodoMes?: string
 ) {
   return useQuery({
-    queryKey: ['metas-level', distribuidorId, hierarquia, vendedorId],
+    queryKey: ['metas-level', distribuidorId, hierarquia, vendedorId, periodoMes],
     queryFn: async () => {
       let query = supabase
         // View: realizado/percentual derivados do faturamento (migration 045).
@@ -85,6 +95,13 @@ export function useMetasByLevel(
       if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
       if (hierarquia) query = query.eq('hierarquia', hierarquia)
       if (vendedorId) query = query.eq('vendedor_id', vendedorId)
+      if (periodoMes) {
+        // Meta pertence ao mês quando começa dentro dele (a UI grava sempre
+        // períodos de mês fechado).
+        query = query
+          .gte('periodo_inicio', monthStart(periodoMes))
+          .lte('periodo_inicio', monthEnd(periodoMes))
+      }
 
       const { data, error } = await query
       if (error) throw error

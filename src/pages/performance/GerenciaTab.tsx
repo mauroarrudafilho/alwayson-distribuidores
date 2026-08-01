@@ -33,7 +33,7 @@ export function GerenciaTab() {
     periodoInicio,
     periodoFim
   )
-  const { data: metas } = useMetasByLevel(distribuidorId, 'distribuidor')
+  const { data: metas } = useMetasByLevel(distribuidorId, 'distribuidor', undefined, periodoInicio)
 
   const isLoading = loadingHierarchy || loadingPerf
 

@@ -70,16 +70,24 @@ export function DistribuidorTab() {
   }, [sales])
 
   const metaFaturamento = useMemo(() => {
+    // Sem mês definido não dá para escolher a meta certa — melhor não exibir
+    // nenhuma do que exibir a de outro período.
+    if (!periodoInicio) return null
     const m = (metas ?? []).find(
-      (meta) => meta.hierarquia === 'distribuidor' && meta.tipo === 'faturamento'
+      (meta) =>
+        meta.hierarquia === 'distribuidor' &&
+        meta.tipo === 'faturamento' &&
+        // Sem este filtro, pega a meta do mês mais recente (a lista vem
+        // ordenada por período desc) e a compara com o realizado do mês escolhido.
+        meta.periodo_inicio.startsWith(periodoInicio)
     )
     if (!m) return null
     return {
       meta: Number(m.valor_meta),
-      realizado: Number(m.valor_realizado),
-      percentual: Number(m.percentual_atingimento),
+      realizado: Number(m.valor_realizado ?? 0),
+      percentual: Number(m.percentual_atingimento ?? 0),
     }
-  }, [metas])
+  }, [metas, periodoInicio])
 
   const nextTab = useMemo<PerfTab>(() => {
     const afterDist = availableTabs.find(
