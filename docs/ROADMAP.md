@@ -10,14 +10,55 @@ Ferramenta para o executivo acompanhar a saúde dos distribuidores parceiros e f
 
 ## Fase 1 — Plataforma de apoio à equipe de vendas e gestão (atual)
 
-**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Excelência (critérios de plano), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
+**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Excelência (leitura), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
 
-**Para fechar a Fase 1 antes de investir nas próximas:**
-- Carregar dado real em `metas_distribuidor`, `performance_periodo`, `estoque_distribuidor` e no módulo Excelência — hoje o schema existe, a tela existe, mas as tabelas estão vazias.
-- Histórico de CNPJ de verdade (vincular CNPJ antigo → cliente atual, com auditoria) — hoje é só uma tela; virou dado real nesta sessão (`alwayson_clientes_ajustes_cadastro`), mas ainda não resolve automaticamente o faturamento/Insights do CNPJ antigo para o mesmo cliente (o plano original em `docs/superpowers/plans/2026-04-27-insights-connection-and-roadmap.md`, Fase 3, cobre a view de resolução — ainda não implementada).
-- Upload de sell-out (Insights) direto pela UI — hoje esse pipeline roda fora do app (processo externo/manual); dá pra fechar o loop com uma tela de upload no Admin, como o plano original já especificava.
-- Tirar as views `SECURITY DEFINER` do Insights do vermelho do linter de segurança, e apertar as duas policies de escrita `ALL USING(true)` (de-para produto) para `current_user_is_admin()` — mesmo padrão já usado no restante do app.
-- Cobertura de teste mínima (hoje zero) nos hooks e regras de negócio mais críticos (cálculo de metas/excelência, RLS de tenant).
+### O bloqueio de fundo: falta o denominador e falta o eixo do tempo
+
+As lacunas sentidas na Performance, na Excelência e no cadastro do distribuidor não são quatro problemas — são dois, e ambos são de **dado**, não de tela. Medido no banco em 2026-08-01:
+
+**1. A carteira não é uma carteira.** São 410 clientes cadastrados, 410 com faturamento, **zero sem nenhuma compra**. O cadastro de cliente hoje é um subproduto da ingestão de faturamento: um cliente só existe no banco porque emitiu nota. Consequência direta — cobertura/positivação dá **100% por construção** para todos os 52 vendedores, e a pergunta mais importante da gestão de vendas ("quantos clientes da base do vendedor ele *não* atendeu neste mês?") é impossível de responder, porque os não-atendidos não existem como registro.
+
+**2. Não existe histórico.** Todo o sell-in está concentrado em **um único mês (2026-05)**. E a Performance é single-month por construção (`usePerfFilters`: *"Mês de análise (YYYY-MM) — início e fim são sempre iguais"*). Ou seja: nenhuma tela de tendência resolve isso enquanto não houver carga retroativa — não há série para plotar.
+
+Enquanto esses dois pontos não forem resolvidos, health score, aderência a meta e qualquer leitura de evolução (Fase 2) ficam sem base. **São o gargalo real da Fase 1.**
+
+### Frentes de trabalho
+
+**a) Carteira como cadastro próprio (desbloqueia tudo)**
+- Template/ingestão de carteira independente do faturamento: cliente + vendedor responsável, exista compra ou não. É o que cria o denominador.
+- A partir dele: **cobertura = clientes distintos que compraram ÷ carteira**, no mês e na série. O rollup vendedor → supervisor → gerente → distribuidor sai de graça, porque `alwayson_vendedores_distribuidor.supervisor_id` e a hierarquia já existem e estão populadas.
+- Tela de gestão de carteira no cadastro do distribuidor: ver e reatribuir clientes por vendedor.
+
+**b) Histórico (sell-in retroativo + carteira versionada)**
+- Carregar 12–24 meses de sell-in — pré-requisito de dado, não de engenharia.
+- **Decisão de modelagem a tomar antes da carga:** a carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. A saída barata é um **snapshot mensal** da carteira (`mês, cliente, vendedor, distribuidor`) gravado no fechamento — resolve sem precisar de lógica de vigência.
+- Só depois disso a Performance ganha visão de série (evolução mês a mês, comparativo, variação) em vez do mês isolado.
+
+**c) Excelência: o schema já serve — falta dono do `realizado` e falta UI**
+O modelo atual é melhor do que a percepção de "critério vago" sugere:
+- `alwayson_excelencia_clientes` (distribuidor_id, cliente_id, ativo) **já é o cadastro de clientes foco** — está vazio e sem tela de carga.
+- `alwayson_excelencia_criterios` (cliente_id, criterio, meta, realizado, atingido, **periodo**) já modela medição objetiva **com histórico**.
+- `alwayson_excelencia_config` (criterio_nome, meta_valor, tipo_comparacao, ordem) define os critérios por distribuidor.
+- `AdminExcelencia` hoje é **somente leitura** — não há como cadastrar nem critério nem cliente foco pela interface.
+
+O que torna o critério vago não é o schema: é `realizado` não ter dono. Digitado à mão, vira subjetivo e ninguém mantém. A virada é classificar o critério por **natureza**:
+- **Automático** — derivado do dado que já existe (comprou no período? tem N SKUs no mix? volume ≥ X? frequência de compra?). Calculado por view/job, zero digitação. É daqui que sai o *relatório de critérios*.
+- **Verificação de campo** — material de PDV, visita, ruptura. Precisa de input, mas como checklist objetivo, não como nota.
+
+Falta uma coluna de natureza em `excelencia_config` e uma de **`origem`** em `excelencia_clientes` (Scantech, indicação, whitespace territorial, decisão comercial) — para saber por que aquele cliente entrou na lupa.
+
+**d) Whitespace: uma fonte de clientes foco que já está no banco**
+Cruzando o universo territorial do Insights com a carteira do distribuidor: **8.438 CNPJs no Insights, 410 na carteira, apenas 153 em ambos** — ou seja, **8.285 clientes que a marca alcançou no território e que o distribuidor não atende hoje**. Isso é, literalmente, o backlog de recuperação/expansão que a tabela `alwayson_insights_acoes` (estados pendente/em_ação/resolvido/snooze/arquivado) já foi desenhada para gerir. É a terceira fonte de "cliente foco", ao lado da Scantech e da decisão comercial.
+
+**e) Prioridade de execução do distribuidor**
+A ponte entre *quem* (cliente foco) e *o quê* (critério): a fila do que o distribuidor precisa executar. `alwayson_insights_acoes` já é a engrenagem — hoje serve só ao Insights, por CNPJ + tenant; generalizar para a fila de execução do distribuidor evita construir um segundo sistema de backlog.
+
+**f) Dívida que segue aberta**
+- Carregar `metas_distribuidor`, `performance_periodo`, `estoque_distribuidor` (schema pronto, tabelas vazias).
+- Histórico de CNPJ: o log de ajuste virou real (`alwayson_clientes_ajustes_cadastro`), mas ainda **não resolve** o faturamento/Insights do CNPJ antigo para o mesmo cliente — falta a view de resolução (Fase 3 do plano de 2026-04-27).
+- Upload de sell-out (Insights) pela UI — hoje roda fora do app.
+- Views `SECURITY DEFINER` do Insights no vermelho do linter; duas policies de escrita `ALL USING(true)` (de-para produto) a apertar para `current_user_is_admin()`.
+- Cobertura de teste mínima (hoje zero) nas regras de negócio críticas (cobertura, metas/excelência, RLS de tenant).
 
 ## Fase 2 — Visão executiva
 
