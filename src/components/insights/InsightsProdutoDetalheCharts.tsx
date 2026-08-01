@@ -237,7 +237,7 @@ export function InsightsProdutoDetalheCharts({
                     interval={0}
                   />
                   <Tooltip
-                    formatter={((v: unknown, _n, p) => {
+                    formatter={((v: unknown, _n: unknown, p: { payload?: { pct?: number } }) => {
                       const pct = Number(p?.payload?.pct ?? 0)
                       return [
                         `${formatCurrency(coerceTooltipNumber(v))} (${formatPercent(pct)})`,

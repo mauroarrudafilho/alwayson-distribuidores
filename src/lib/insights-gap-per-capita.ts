@@ -138,7 +138,7 @@ export function suggestClientesExclusaoPotencial(
   /** Fat e nº de clientes por cidade — sempre a partir da carteira. */
   const cityAgg = new Map<string, { fat: number; n: number }>()
   for (const c of clientes) {
-    const key = cidadeGapKey(c.cidade, c.estado)
+    const key = cidadeGapKey(c.cidade ?? '', c.estado ?? '')
     const row = cityAgg.get(key) ?? { fat: 0, n: 0 }
     row.fat += c.faturamento_total
     row.n += 1
@@ -158,7 +158,7 @@ export function suggestClientesExclusaoPotencial(
   for (const c of clientes) {
     const cnpj = cnpjKey(c.cnpj_cliente)
     if (cnpj.length !== 14) continue
-    const key = cidadeGapKey(c.cidade, c.estado)
+    const key = cidadeGapKey(c.cidade ?? '', c.estado ?? '')
     const agg = cityAgg.get(key)
     const cityFat = agg?.fat ?? 0
     const cityCli = agg?.n ?? 0

@@ -247,7 +247,7 @@ export function InsightsParametrizacaoDialog({
                       return (
                         <ClienteRow
                           key={cnpj}
-                          nome={c.nome_cliente}
+                          nome={c.nome_cliente ?? '—'}
                           cnpj={cnpj}
                           fat={c.faturamento_total}
                           cidade={c.cidade}
@@ -369,7 +369,7 @@ function ListaNaExclusao({
         return (
           <ClienteRow
             key={cnpj}
-            nome={c.nome_cliente}
+            nome={c.nome_cliente ?? '—'}
             cnpj={cnpj}
             fat={c.faturamento_total}
             cidade={c.cidade}

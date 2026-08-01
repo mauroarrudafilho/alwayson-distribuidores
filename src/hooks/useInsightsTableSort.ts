@@ -7,14 +7,21 @@ export type InsightsSortState<K extends string> = {
   dir: InsightsSortDir
 }
 
+type SortAccessor<T> = (row: T) => string | number | null | undefined
+
 /**
  * Ordenação clicável para tabelas Insights (padrão: desc na 1ª coluna numérica).
+ * A chave K é inferida a partir das keys de `accessors` (não só do `initial`).
  */
-export function useInsightsTableSort<T, K extends string>(
+export function useInsightsTableSort<
+  T,
+  A extends Record<string, SortAccessor<T>>,
+>(
   rows: T[],
-  accessors: Record<K, (row: T) => string | number | null | undefined>,
-  initial: InsightsSortState<K>
+  accessors: A,
+  initial: InsightsSortState<Extract<keyof A, string>>
 ) {
+  type K = Extract<keyof A, string>
   const [sort, setSort] = useState<InsightsSortState<K>>(initial)
 
   function toggle(key: K) {
