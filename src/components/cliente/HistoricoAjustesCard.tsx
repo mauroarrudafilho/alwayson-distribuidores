@@ -17,7 +17,8 @@ import {
   TIPO_LABELS,
   MOTIVO_LABELS,
   type AjusteTipo,
-} from '@/hooks/useMockAjustesCadastro'
+} from '@/hooks/useAjustesCadastro'
+import { useAuth } from '@/contexts/auth'
 import { AjusteCadastroDialog, type AjusteClienteContext } from './AjusteCadastroDialog'
 
 const TIPO_ICONS: Record<AjusteTipo, typeof FileText> = {
@@ -35,7 +36,9 @@ interface Props {
 
 export function HistoricoAjustesCard({ cliente }: Props) {
   const [open, setOpen] = useState(false)
-  const ajustes = useAjustesPorCliente(cliente.id)
+  const { isAdmin } = useAuth()
+  const { data, isLoading } = useAjustesPorCliente(cliente.id)
+  const ajustes = data ?? []
   const ativos = ajustes.filter((a) => !a.reverted_em)
 
   return (
@@ -50,13 +53,22 @@ export function HistoricoAjustesCard({ cliente }: Props) {
             </Badge>
           )}
         </CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="h-8 text-xs">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setOpen(true)}
+          disabled={!isAdmin}
+          title={!isAdmin ? 'Apenas administradores podem registrar ajustes.' : undefined}
+          className="h-8 text-xs"
+        >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Novo ajuste
         </Button>
       </CardHeader>
       <CardContent className="pt-4">
-        {ajustes.length === 0 ? (
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Carregando…</p>
+        ) : ajustes.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             Nenhum ajuste de cadastro registrado.
           </p>

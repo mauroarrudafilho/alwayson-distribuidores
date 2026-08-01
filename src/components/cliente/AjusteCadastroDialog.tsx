@@ -19,13 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  adicionarAjuste,
+  useAdicionarAjuste,
   TIPO_LABELS,
   MOTIVO_LABELS,
   MOTIVOS_POR_TIPO,
   type AjusteTipo,
   type AjusteMotivo,
-} from '@/hooks/useMockAjustesCadastro'
+} from '@/hooks/useAjustesCadastro'
 import { useClientesBusca } from '@/hooks/useClientesBusca'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
@@ -195,6 +195,7 @@ export function AjusteCadastroDialog({ open, onOpenChange, cliente: clienteProp 
   const [motivo, setMotivo] = useState<AjusteMotivo | ''>('')
   const [observacao, setObservacao] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const adicionarAjuste = useAdicionarAjuste()
 
   const cliente = clienteProp ?? pickedCliente
   const valorAtual = useMemo(
@@ -233,7 +234,7 @@ export function AjusteCadastroDialog({ open, onOpenChange, cliente: clienteProp 
     }
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!cliente) {
       setError('Selecione um cliente.')
       return
@@ -259,16 +260,19 @@ export function AjusteCadastroDialog({ open, onOpenChange, cliente: clienteProp 
       return
     }
 
-    adicionarAjuste({
-      cliente_id: cliente.id,
-      cliente_nome: cliente.nome,
-      tipo,
-      valor_anterior: trimmed,
-      valor_atual: valorAtual,
-      motivo,
-      observacao: observacao.trim() || undefined,
-    })
-    handleClose(false)
+    try {
+      await adicionarAjuste.mutateAsync({
+        cliente_id: cliente.id,
+        tipo,
+        valor_anterior: trimmed,
+        valor_atual: valorAtual,
+        motivo,
+        observacao: observacao.trim() || undefined,
+      })
+      handleClose(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao registrar o ajuste.')
+    }
   }
 
   return (
@@ -390,10 +394,12 @@ export function AjusteCadastroDialog({ open, onOpenChange, cliente: clienteProp 
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)}>
+          <Button variant="outline" onClick={() => handleClose(false)} disabled={adicionarAjuste.isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit}>Registrar ajuste</Button>
+          <Button onClick={handleSubmit} disabled={adicionarAjuste.isPending}>
+            {adicionarAjuste.isPending ? 'Registrando…' : 'Registrar ajuste'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

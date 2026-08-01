@@ -19,16 +19,20 @@ import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import {
   useTodosAjustes,
-  reverterAjuste,
+  useReverterAjuste,
   TIPO_LABELS,
   MOTIVO_LABELS,
   type AjusteTipo,
-} from '@/hooks/useMockAjustesCadastro'
+} from '@/hooks/useAjustesCadastro'
+import { useAuth } from '@/contexts/auth'
 import { AjusteCadastroDialog } from '@/components/cliente/AjusteCadastroDialog'
 
 export function AdminAjustesCadastro() {
   const navigate = useNavigate()
-  const todos = useTodosAjustes()
+  const { isAdmin } = useAuth()
+  const { data, isLoading } = useTodosAjustes()
+  const todos = useMemo(() => data ?? [], [data])
+  const reverterAjuste = useReverterAjuste()
   const [busca, setBusca] = useState('')
   const [tipoFilter, setTipoFilter] = useState<AjusteTipo | ''>('')
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativos' | 'revertidos'>('todos')
@@ -74,7 +78,12 @@ export function AdminAjustesCadastro() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button onClick={() => setDialogOpen(true)} className="h-9 text-sm">
+        <Button
+          onClick={() => setDialogOpen(true)}
+          disabled={!isAdmin}
+          title={!isAdmin ? 'Apenas administradores podem registrar ajustes.' : undefined}
+          className="h-9 text-sm"
+        >
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           Novo ajuste
         </Button>
@@ -154,7 +163,14 @@ export function AdminAjustesCadastro() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.length === 0 && (
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-10">
+                    Carregando…
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && filtrados.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-10">
                     Nenhum ajuste encontrado para os filtros.
@@ -220,10 +236,12 @@ export function AdminAjustesCadastro() {
                           size="sm"
                           variant="ghost"
                           className="h-7 text-xs"
+                          disabled={!isAdmin || reverterAjuste.isPending}
+                          title={!isAdmin ? 'Apenas administradores podem reverter ajustes.' : undefined}
                           onClick={(e) => {
                             e.stopPropagation()
                             if (confirm(`Reverter este ajuste?`)) {
-                              reverterAjuste(a.id)
+                              reverterAjuste.mutate(a.id)
                             }
                           }}
                         >
