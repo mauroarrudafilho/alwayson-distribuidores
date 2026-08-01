@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
+import { SortableNumericHead, useNumericSort } from './sortableNumeric'
 
 export function ClienteTab() {
   const navigate = useNavigate()
@@ -88,6 +89,14 @@ export function ClienteTab() {
 
     return filtered
   }, [clientes, vendedorId, supervisorId, gerenteId, hierarchy])
+
+  const { sortField, sortDir, toggleSort } = useNumericSort<'ticket_medio'>('ticket_medio')
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const cmp = Number(a.ticket_medio ?? 0) - Number(b.ticket_medio ?? 0)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rows, sortField, sortDir])
 
   if (!distribuidorId) {
     return (
@@ -197,7 +206,13 @@ export function ClienteTab() {
               <TableHead>Nome</TableHead>
               <TableHead>CNPJ</TableHead>
               <TableHead>Cidade</TableHead>
-              <TableHead className="text-right">Ticket Médio</TableHead>
+              <SortableNumericHead
+                label="Ticket Médio"
+                field="ticket_medio"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
               <TableHead>Última Compra</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -223,7 +238,7 @@ export function ClienteTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              sortedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"

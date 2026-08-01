@@ -22,6 +22,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 import type { PerfTab } from './usePerfFilters'
 
 export function DistribuidorTab() {
@@ -55,6 +56,8 @@ export function DistribuidorTab() {
       }
     })
   }, [distribuidores, sales])
+
+  const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
   const totals = useMemo(() => {
     const agg = aggregateSales(sales)
@@ -134,10 +137,37 @@ export function DistribuidorTab() {
             <TableRow className="hover:bg-transparent">
               <TableHead>Distribuidor</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Faturamento</TableHead>
-              <TableHead className="text-right hidden sm:table-cell">Positivados</TableHead>
-              <TableHead className="text-right hidden md:table-cell">Itens</TableHead>
-              <TableHead className="text-right hidden md:table-cell">Pedidos</TableHead>
+              <SortableNumericHead
+                label="Faturamento"
+                field="faturamento"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Positivados"
+                field="positivados"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden sm:table-cell"
+              />
+              <SortableNumericHead
+                label="Itens"
+                field="itens"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden md:table-cell"
+              />
+              <SortableNumericHead
+                label="Pedidos"
+                field="pedidos"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden md:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -160,7 +190,7 @@ export function DistribuidorTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              sortedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"

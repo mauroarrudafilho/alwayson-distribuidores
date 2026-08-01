@@ -28,6 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 
 export function SupervisaoTab() {
   const { filters, setFilter, drillDown } = usePerformanceContext()
@@ -70,6 +71,8 @@ export function SupervisaoTab() {
       }
     })
   }, [hierarchy, sales, filteredSupervisores])
+
+  const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
   const totals = useMemo(() => {
     if (!hierarchy) {
@@ -187,10 +190,34 @@ export function SupervisaoTab() {
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Supervisor</TableHead>
-              <TableHead className="text-right">Faturamento</TableHead>
-              <TableHead className="text-right">Positivados</TableHead>
-              <TableHead className="text-right">Itens</TableHead>
-              <TableHead className="text-right">Pedidos</TableHead>
+              <SortableNumericHead
+                label="Faturamento"
+                field="faturamento"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Positivados"
+                field="positivados"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Itens"
+                field="itens"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Pedidos"
+                field="pedidos"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -213,7 +240,7 @@ export function SupervisaoTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              sortedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"

@@ -28,6 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 
 export function VendasTab() {
   const { filters, setFilter, drillDown } = usePerformanceContext()
@@ -90,6 +91,8 @@ export function VendasTab() {
       return { ...vendedor, faturamento, positivados, itens, pedidos }
     })
   }, [sales, filteredVendedores])
+
+  const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
   const totals = useMemo(() => {
     const ids = new Set(filteredVendedores.map((v) => v.id))
@@ -240,10 +243,34 @@ export function VendasTab() {
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Vendedor</TableHead>
-              <TableHead className="text-right">Faturamento</TableHead>
-              <TableHead className="text-right">Positivados</TableHead>
-              <TableHead className="text-right">Itens</TableHead>
-              <TableHead className="text-right">Pedidos</TableHead>
+              <SortableNumericHead
+                label="Faturamento"
+                field="faturamento"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Positivados"
+                field="positivados"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Itens"
+                field="itens"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableNumericHead
+                label="Pedidos"
+                field="pedidos"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -266,7 +293,7 @@ export function VendasTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              sortedRows.map((row) => (
                 <TableRow
                   key={row.id}
                   className="cursor-pointer"
