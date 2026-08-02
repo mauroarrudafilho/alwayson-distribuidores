@@ -64,6 +64,11 @@ export interface ClienteDistribuidor {
   /** Timestamp do último enriquecimento geográfico; null = pendente. */
   geo_enriquecido_em?: string
   vendedor_id?: string
+  /**
+   * Vestigial: a coluna existe no banco mas nunca foi alimentada pela ingestão.
+   * A curadoria vive em `alwayson_clientes_estrategicos` (migration 052) — não
+   * volte a ler daqui.
+   */
   plano_excelencia: boolean
   itens_cadastrados: number
   ultima_compra?: string
@@ -74,7 +79,8 @@ export interface ClienteDistribuidor {
   atualizado_em?: string
 }
 
-export interface ExcelenciaCriterio {
+/** Realizado por critério de acompanhamento (alwayson_clientes_estrategicos_criterios). */
+export interface CriterioEstrategicoRealizado {
   id: string
   cliente_id: string
   criterio: 'mix_minimo' | 'recorrencia' | 'volume_minimo' | 'itens_cadastrados'
@@ -89,14 +95,14 @@ export interface Meta {
   distribuidor_id: string
   vendedor_id?: string
   hierarquia: 'vendedor' | 'supervisor' | 'gerente' | 'distribuidor'
-  tipo: 'faturamento' | 'positivacao' | 'mix' | 'clientes_excelencia'
+  tipo: 'faturamento' | 'positivacao' | 'mix' | 'clientes_estrategicos'
   periodo_inicio: string
   periodo_fim: string
   valor_meta: number
   /**
    * Derivado do faturamento pela view `alwayson_metas_v_acompanhamento`
    * (migration 045) — não existe como coluna gravada. Null quando o tipo ainda
-   * não é calculável (`clientes_excelencia`, que depende do cadastro de foco).
+   * não é calculável (`clientes_estrategicos`, que depende da lista curada).
    */
   valor_realizado: number | null
   /** Null quando não há realizado calculável ou `valor_meta` é zero. */
@@ -147,8 +153,9 @@ export interface DistribuidorKPIs {
   clientes_positivados: number
   total_clientes_carteira: number
   taxa_positivacao: number
-  clientes_excelencia_ativos: number
-  clientes_excelencia_total: number
+  /** Da lista curada (`alwayson_clientes_estrategicos`), não de flag no cadastro. */
+  clientes_estrategicos_ativos: number
+  clientes_estrategicos_total: number
   metas_atingidas: number
   total_metas: number
   itens_estoque_critico: number

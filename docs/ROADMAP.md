@@ -12,7 +12,7 @@ Não é um BI de consulta: é o instrumento de trabalho de quem gere a rede de p
 
 ## Fase 1 — Plataforma de apoio à equipe de vendas e gestão (atual)
 
-**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Excelência (leitura), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
+**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Clientes Estratégicos (lista curada, migration 052), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
 
 ### O que depende de carga e o que depende de engenharia
 
@@ -39,18 +39,19 @@ Com a base carregada pelo template certo, **cobertura = clientes distintos que c
 - Só depois de haver meses no banco a Performance ganha visão de série (evolução mês a mês, comparativo, variação) em vez do mês isolado.
 - **Reimportação é segura hoje:** o mesmo arquivo foi processado duas vezes (1.004 registros cada) e a tabela ficou com exatamente 1.004 linhas — não duplicou. A dívida registrada em `docs/ingestao-normatizacao-divida-tecnica.md` (definir formalmente substituir × rejeitar) segue aberta, mas na prática o reprocesso substitui.
 
-**c) Excelência: o schema já serve — falta dono do `realizado` e falta UI**
-O modelo atual é melhor do que a percepção de "critério vago" sugere:
-- `alwayson_excelencia_clientes` (distribuidor_id, cliente_id, ativo) **já é o cadastro de clientes foco** — está vazio e sem tela de carga.
-- `alwayson_excelencia_criterios` (cliente_id, criterio, meta, realizado, atingido, **periodo**) já modela medição objetiva **com histórico**.
-- `alwayson_excelencia_config` (criterio_nome, meta_valor, tipo_comparacao, ordem) define os critérios por distribuidor.
-- `AdminExcelencia` hoje é **somente leitura** — não há como cadastrar nem critério nem cliente foco pela interface.
+**c) Excelência → Clientes Estratégicos — entregue (migration `052`)**
 
-O que torna o critério vago não é o schema: é `realizado` não ter dono. Digitado à mão, vira subjetivo e ninguém mantém. A virada é classificar o critério por **natureza**:
+A decisão de produto mudou o conceito, não só o nome: sai "plano de excelência com critérios", entra **lista curada e manual**. É uma lista avulsa que o time preenche à mão — cada cliente entra com **o seu próprio motivo**, e passa a ser acompanhado em rota dedicada (`/clientes-estrategicos`).
+
+O que ficou no ar:
+- `alwayson_clientes_estrategicos` (ex-`excelencia_clientes`) ganhou `motivo`, `origem` (Scantech, indicação, decisão comercial, rede, potencial), `prioridade`, `observacao` e autoria — e policies de escrita admin, com UI de adicionar/editar/remover.
+- `alwayson_clientes_estrategicos_config` (ex-`excelencia_config`) e `_criterios` continuam sendo a camada de **acompanhamento**, opcional por cima da lista. A lista existe e vale sem nenhum critério.
+
+O que segue aberto — e é onde o antigo diagnóstico continua válido: **`realizado` não tem dono**. Digitado à mão, vira subjetivo e ninguém mantém. A virada é classificar o critério por **natureza**:
 - **Automático** — derivado do dado que já existe (comprou no período? tem N SKUs no mix? volume ≥ X? frequência de compra?). Calculado por view/job, zero digitação. É daqui que sai o *relatório de critérios*.
 - **Verificação de campo** — material de PDV, visita, ruptura. Precisa de input, mas como checklist objetivo, não como nota.
 
-Falta uma coluna de natureza em `excelencia_config` e uma de **`origem`** em `excelencia_clientes` (Scantech, indicação, whitespace territorial, decisão comercial) — para saber por que aquele cliente entrou na lupa.
+Falta a coluna de natureza em `clientes_estrategicos_config` e uma UI para cadastrar critério (hoje só por SQL).
 
 **d) Insights é base de referência, não carteira a atacar**
 A base do Insights vem da **operação de distribuição anterior** do grupo: janela fechada de **36 meses (jan/2022 – dez/2024)**, 49.468 NFs, 8.438 CNPJs no território. Ela **não recebe dado novo** — é um snapshot histórico mantido para consulta e apoio à decisão do executivo. A UI já rotula corretamente (`histórico Arruda`) e o código já separa o sell-out corrente do arquivo antigo (`insightsCicloVivoPeriodo`: *"Sell-out atual: jan/2025 → mês vigente (não o arquivo Arruda 2022–2024)"*).
@@ -73,7 +74,7 @@ O CHECK de `alwayson_metas_distribuidor.tipo` é, na prática, a declaração do
 | `faturamento` | ✅ funciona — sell-in já carregado |
 | `positivacao` | ❌ depende do denominador (template `clientes`) — sem carteira, positivação não é calculável |
 | `mix` | ⚠️ dado existe (`faturamento_itens` + `produtos`), falta o cálculo por cliente/período |
-| `clientes_excelencia` | ❌ depende de `excelencia_clientes` populada + UI de escrita |
+| `clientes_estrategicos` | ⚠️ UI de escrita da lista entregue (migration `052`) — falta popular a lista |
 
 E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espelha exatamente o rollup que a hierarquia já suporta. Ou seja: **a tabela de metas já é o mapa do que falta** — três dos quatro tipos dependem de itens (a) e (c) acima.
 
@@ -108,10 +109,10 @@ E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espel
 ## Fase 2 — Visão executiva
 
 Camada acima do que já existe, pensada para quem gerencia a carteira de distribuidores (não o vendedor no campo):
-- **Health score por distribuidor** — um número/semáforo combinando tendência de faturamento, aderência a metas, cobertura de Excelência e atividade recente, para priorizar onde o executivo olha primeiro.
+- **Health score por distribuidor** — um número/semáforo combinando tendência de faturamento, aderência a metas, cobertura da lista estratégica e atividade recente, para priorizar onde o executivo olha primeiro.
 - **Dashboard de portfólio** — visão consolidada de todos os distribuidores lado a lado (hoje o Dashboard já mostra ranking; falta comparação estruturada período-a-período e alertas de desvio).
-- **Cadência de revisão** — resumo semanal/mensal pronto para reunião (o que já existe como dado disperso em Insights + Performance + Excelência, consolidado em uma narrativa: quem subiu, quem caiu, por quê).
-- **Export executivo** (PDF/apresentação) — o app já usa `jspdf`/`jspdf-autotable` em algum ponto da Excelência; generalizar para um relatório de portfólio.
+- **Cadência de revisão** — resumo semanal/mensal pronto para reunião (o que já existe como dado disperso em Insights + Performance + Clientes Estratégicos, consolidado em uma narrativa: quem subiu, quem caiu, por quê).
+- **Export executivo** (PDF/apresentação) — o app já usa `jspdf`/`jspdf-autotable`; generalizar para um relatório de portfólio.
 
 Depende de Fase 1 fechada (principalmente metas e performance_periodo com dado real — sem isso não há "aderência a meta" para compor o health score).
 
@@ -127,8 +128,8 @@ Depende de Fase 1 (dado de sell-out/sell-in consistente) e se apoia em Fase 2 pa
 ## Fase 4 — Soluções financeiras e engajamento
 
 - **Pagamento via Pix** integrado ao fluxo comercial (ex.: liquidação de campanhas, incentivo por meta batida).
-- **Campanhas comerciais fomentadas** — ligar orçamento de campanha a metas/Excelência já existentes, não um sistema paralelo.
-- **Gamificação** — ranking e recompensas por adesão ao plano de Excelência e cumprimento de metas; a infraestrutura de critérios/pontuação da Excelência já dá a base de dados, falta a camada de pontos/prêmios.
+- **Campanhas comerciais fomentadas** — ligar orçamento de campanha a metas/lista estratégica já existentes, não um sistema paralelo.
+- **Gamificação** — ranking e recompensas por adesão à lista estratégica e cumprimento de metas; a infraestrutura de critérios/pontuação já dá a base de dados, falta a camada de pontos/prêmios.
 
 Fase mais distante e a que mais depende de decisão de negócio (parceiro financeiro, compliance de pagamento) — não bloqueia as fases anteriores, mas também não deve competir por atenção de engenharia antes delas estarem maduras.
 

@@ -1,4 +1,4 @@
-import type { ExcelenciaConfig } from '@/types/excelencia'
+import type { CriterioEstrategicoConfig } from '@/types/clientes-estrategicos'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
 export type CriterioCellStatus = 'verde' | 'amarelo' | 'vermelho' | 'sem_dados'
@@ -16,20 +16,26 @@ export const STATUS_CELL_CLASSES: Record<CriterioCellStatus, string> = {
   sem_dados: 'text-muted-foreground',
 }
 
+/**
+ * Mapeia o critério configurado para um número do cadastro do cliente.
+ *
+ * Só cobre critérios **automáticos** (derivados do que já está no cadastro).
+ * Critério de verificação de campo — material de PDV, visita — cai em `null`
+ * e aparece como "sem dados": é honesto, ninguém preencheu.
+ */
 function realizadoForCriterio(
   cliente: ClienteDistribuidor,
-  cfg: ExcelenciaConfig
+  cfg: CriterioEstrategicoConfig
 ): number | null {
   const n = cfg.criterio_nome.toLowerCase()
-  if (/mix|cadastr|item/i.test(n)) return cliente.itens_cadastrados
+  if (/mix|cadastr|item|sku/i.test(n)) return cliente.itens_cadastrados
   if (/ticket|fatur|volume/i.test(n)) return cliente.ticket_medio ?? null
   if (/freq|recorr|dia/i.test(n)) return cliente.frequencia_compra_dias ?? null
-  if (/excel|plano|programa/i.test(n)) return cliente.plano_excelencia ? 1 : 0
   return null
 }
 
 function statusFor(
-  cfg: ExcelenciaConfig,
+  cfg: CriterioEstrategicoConfig,
   realizado: number | null
 ): CriterioCellStatus {
   if (realizado === null) return 'sem_dados'
@@ -43,7 +49,7 @@ function statusFor(
 }
 
 export function buildCriteriosForCliente(
-  configs: ExcelenciaConfig[],
+  configs: CriterioEstrategicoConfig[],
   cliente: ClienteDistribuidor
 ): CriterioCell[] {
   return configs.map((cfg) => {
@@ -56,21 +62,27 @@ export function buildCriteriosForCliente(
   })
 }
 
-export function dedupeExcelenciaConfigs(
-  configs: ExcelenciaConfig[]
-): ExcelenciaConfig[] {
-  const m = new Map<string, ExcelenciaConfig>()
+/**
+ * Com "todos os distribuidores" selecionados, o mesmo critério pode vir
+ * repetido (um por distribuidor) e viraria coluna duplicada.
+ */
+export function dedupeCriterios(
+  configs: CriterioEstrategicoConfig[]
+): CriterioEstrategicoConfig[] {
+  const m = new Map<string, CriterioEstrategicoConfig>()
   for (const c of [...configs].sort((a, b) => a.ordem - b.ordem)) {
     if (!m.has(c.criterio_nome)) m.set(c.criterio_nome, c)
   }
   return [...m.values()]
 }
 
-export function deriveScoreLabel(
-  criterios: CriterioCell[]
-): 'aderente' | 'em_risco' | 'fora_do_padrao' {
+export type AcompanhamentoLabel = 'aderente' | 'em_risco' | 'fora_do_padrao' | 'sem_criterios'
+
+export function deriveScoreLabel(criterios: CriterioCell[]): AcompanhamentoLabel {
   const valid = criterios.filter((x) => x.status !== 'sem_dados')
-  if (valid.length === 0) return 'fora_do_padrao'
+  // Sem critério medível não é "fora do padrão" — é ausência de régua. Marcar
+  // como fora do padrão faria toda lista nova nascer vermelha.
+  if (valid.length === 0) return 'sem_criterios'
   const greens = valid.filter((x) => x.status === 'verde').length
   const ratio = greens / valid.length
   if (ratio >= 0.7) return 'aderente'

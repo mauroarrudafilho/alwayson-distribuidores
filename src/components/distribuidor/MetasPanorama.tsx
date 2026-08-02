@@ -24,7 +24,7 @@ const TIPOS: { value: Meta['tipo']; label: string }[] = [
   { value: 'faturamento', label: 'Faturamento' },
   { value: 'positivacao', label: 'Positivação' },
   { value: 'mix', label: 'Mix' },
-  { value: 'clientes_excelencia', label: 'Clientes Excelência' },
+  { value: 'clientes_estrategicos', label: 'Clientes Estratégicos' },
 ]
 
 /** Lista de meses YYYY-MM de início a fim, inclusive. */

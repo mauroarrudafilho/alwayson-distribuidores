@@ -92,10 +92,10 @@ export function Dashboard() {
       tone: 'flat',
     },
     {
-      label: 'Excelência',
-      value: `${kpis?.clientes_excelencia_ativos ?? 0} / ${kpis?.clientes_excelencia_total ?? 0}`,
-      delta: kpis?.clientes_excelencia_total
-        ? `${Math.round(((kpis?.clientes_excelencia_ativos ?? 0) / kpis.clientes_excelencia_total) * 100)}%`
+      label: 'Estratégicos',
+      value: `${kpis?.clientes_estrategicos_ativos ?? 0} / ${kpis?.clientes_estrategicos_total ?? 0}`,
+      delta: kpis?.clientes_estrategicos_total
+        ? `${Math.round(((kpis?.clientes_estrategicos_ativos ?? 0) / kpis.clientes_estrategicos_total) * 100)}% ativos`
         : undefined,
       tone: 'up',
     },

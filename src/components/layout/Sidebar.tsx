@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   TrendingUp,
-  Award,
+  Star,
   Target,
   UserSearch,
   Package,
@@ -36,7 +36,7 @@ const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; gr
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'analise' },
   { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'analise' },
   { path: '/metas', label: 'Metas', icon: Target, group: 'analise' },
-  { path: '/excelencia', label: 'Excelência', icon: Award, group: 'analise' },
+  { path: '/clientes-estrategicos', label: 'Clientes Estratégicos', icon: Star, group: 'analise' },
   { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
   { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },
   { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacao' },
