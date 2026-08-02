@@ -15,6 +15,8 @@ Documentação detalhada: [`docs/SUPABASE_PROJECT.md`](docs/SUPABASE_PROJECT.md)
 
 Visão de produto e fases futuras: [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+**Retomando o trabalho?** [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md) lista o que falta: passos manuais de deploy/configuração, cargas de dado, backlog de engenharia e as armadilhas que já custaram caro.
+
 ## Estado atual (atualizado 2026-08-01)
 
 Snapshot rápido para qualquer agente que chegue neste repo sem contexto prévio — confirme direto no banco (`mcp__Supabase__list_tables` / `list_migrations`) antes de assumir que algo aqui ainda está atual.
