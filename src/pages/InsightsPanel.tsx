@@ -648,7 +648,7 @@ export function InsightsPanel() {
       <Tabs value={insightsTab} onValueChange={(v) => setInsightsTab(v as 'territorio' | 'clientes' | 'produtos')}>
         <TabsList
           variant="line"
-          className="mb-5 h-auto w-fit max-w-full gap-8 border-0 border-b border-border/50 bg-transparent p-0"
+          className="tab-strip mb-5 h-auto w-fit max-w-full gap-5 border-0 border-b border-border/50 bg-transparent p-0 sm:gap-8"
         >
           <TabsTrigger
             value="clientes"
@@ -678,7 +678,7 @@ export function InsightsPanel() {
           >
             <TabsList
               variant="line"
-              className="mb-4 w-fit max-w-full h-auto gap-6 border-0 border-b border-border/40 bg-transparent p-0"
+              className="tab-strip mb-4 h-auto w-fit max-w-full gap-5 border-0 border-b border-border/40 bg-transparent p-0 sm:gap-6"
             >
               <TabsTrigger
                 value="lojas"

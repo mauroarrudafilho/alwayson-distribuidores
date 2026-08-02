@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 const subTabClass = ({ isActive }: { isActive: boolean }) =>
   cn(
-    'px-3 py-2 text-sm transition-colors border-b-2',
+    'shrink-0 whitespace-nowrap px-3 py-2 text-sm transition-colors border-b-2',
     isActive
       ? 'border-primary text-foreground font-medium'
       : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -51,7 +51,7 @@ export function AdminDistribuidorLayout() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1 border-b border-border/50">
+      <div className="tab-strip flex gap-1 border-b border-border/50">
         <NavLink to={base} end className={subTabClass}>
           Resumo
         </NavLink>

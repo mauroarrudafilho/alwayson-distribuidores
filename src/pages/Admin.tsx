@@ -27,12 +27,12 @@ export function Admin() {
         accent="do cockpit"
         description="o que é da plataforma — o de cada parceiro fica em Parceiros"
       />
-      <div className="mb-6 flex gap-1 border-b border-border/60">
+      <div className="tab-strip mb-6 flex gap-1 border-b border-border/60">
         {adminTabs.map((tab) => (
           <Link
             key={tab.path}
             to={tab.path}
-            className={`border-b-2 px-3 py-2 text-[13px] transition-colors ${
+            className={`shrink-0 border-b-2 px-3 py-2 text-[13px] whitespace-nowrap transition-colors ${
               tabActive(location.pathname, tab.path, tab.prefix)
                 ? 'border-teal font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
