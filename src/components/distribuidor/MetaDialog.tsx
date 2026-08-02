@@ -39,7 +39,7 @@ const TIPOS: { value: Meta['tipo']; label: string; unidade: 'moeda' | 'contagem'
   { value: 'faturamento', label: 'Faturamento', unidade: 'moeda' },
   { value: 'positivacao', label: 'Positivação (clientes)', unidade: 'contagem' },
   { value: 'mix', label: 'Mix (SKUs)', unidade: 'contagem' },
-  { value: 'clientes_excelencia', label: 'Clientes Excelência', unidade: 'contagem' },
+  { value: 'clientes_estrategicos', label: 'Clientes Estratégicos', unidade: 'contagem' },
 ]
 
 /** Hierarquias que correspondem a uma pessoa em alwayson_vendedores_distribuidor. */

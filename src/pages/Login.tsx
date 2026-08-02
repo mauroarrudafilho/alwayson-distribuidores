@@ -106,7 +106,7 @@ export function Login() {
             />
 
             <div className="rounded-full border border-white/15 bg-white/4 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75 backdrop-blur-sm">
-              Sell-out · Insights · Excelência
+              Sell-out · Insights · Estratégia
             </div>
           </div>
 
@@ -132,14 +132,14 @@ export function Login() {
             </h2>
 
             <p className="max-w-[40ch] text-[15px] leading-relaxed text-white/70">
-              Performance, insights e excelência — num só cockpit, com governança multi-tenant.
+              Performance, insights e clientes estratégicos — num só cockpit, com governança multi-tenant.
             </p>
 
             <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
               {[
                 { n: '01', t: 'Performance', s: 'sell-out, mix, cobertura' },
                 { n: '02', t: 'Insights', s: 'territorial · cliente · NF' },
-                { n: '03', t: 'Excelência', s: 'cadastro · auditoria · convites' },
+                { n: '03', t: 'Estratégicos', s: 'lista curada · acompanhamento' },
               ].map((f) => (
                 <div
                   key={f.n}

@@ -62,10 +62,11 @@ Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e 
 |---|---|---|
 | Template **`clientes`** (não só `vendas`) | Ingestão | É o **denominador**. Sem ele, cobertura/positivação dá 100% por construção, por mais meses que entrem |
 | Sell-in retroativo (12–24 meses) | Ingestão | Sem série não há tendência; a Performance é single-month por construção |
-| Metas | `/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_excelencia`) dependem dos itens acima e da Excelência |
+| Metas | `/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_estrategicos`) dependem dos itens acima e da lista estratégica |
 | Reatribuição de cliente entre vendedores | `/parceiros/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
 | Cidades, carteira declarada, frequência de visita, início da parceria | `/parceiros/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
-| Clientes foco + critérios de Excelência | — | **UI de escrita não existe** (ver C3) |
+| Lista de clientes estratégicos | `/clientes-estrategicos` (UI pronta) | Cadastro manual, um motivo por cliente — é o que alimenta o KPI do Dashboard e o badge "Estratégico" |
+| Critérios de acompanhamento | — | **UI de escrita não existe** — só por SQL em `alwayson_clientes_estrategicos_config` (ver C3) |
 
 ---
 
@@ -81,14 +82,17 @@ Template e parser não existem — hoje só criação pela UI. A chave natural e
 
 Ganha corpo conforme a carga histórica entra; hoje mostra poucas colunas.
 
-### C3. Excelência → **Clientes Estratégicos** (repensar, não renomear)
-Decisão de produto: a Excelência vira um cadastro curado de **clientes estratégicos** — o que o time considera importante —, com acompanhamento próprio em rota dedicada. O schema atual serve de base (`excelencia_clientes` já é o cadastro de foco; `excelencia_criterios` já tem `meta`/`realizado`/`atingido`/`periodo`), mas o conceito muda: sai "plano de excelência com critérios", entra "lista estratégica monitorada". Precisa de uma passada de design antes de código.
+### C3. Excelência → **Clientes Estratégicos** — ✅ entregue (com uma ponta solta)
+Migration `052`: as três tabelas `alwayson_excelencia_*` viraram `alwayson_clientes_estrategicos*` (estavam vazias, rename sem risco), a lista ganhou `motivo`/`origem`/`prioridade`/`observacao`/autoria e policies de escrita admin. Rota `/clientes-estrategicos`, com `/excelencia` e `/admin/excelencia` redirecionando.
 
-Notas herdadas do módulo atual:
-`AdminExcelencia` é **somente leitura**. O schema já serve: `excelencia_clientes` é o cadastro de clientes foco, `excelencia_criterios` já tem `meta`/`realizado`/`atingido`/`periodo`. Falta:
-- UI de escrita
-- coluna `origem` em `excelencia_clientes` (Scantech, indicação, decisão comercial)
-- separar critério **automático** (derivado do faturamento — comprou? tem N SKUs? frequência?) de **verificação de campo** (material de PDV, visita). O que torna o critério vago não é o schema: é `realizado` não ter dono.
+O conceito mudou de "plano com critérios" para **lista curada e manual**: cada cliente entra com o seu próprio motivo e é acompanhado por ali. Consequências de design que valem lembrar:
+- A lista **existe sem critério nenhum** configurado. O acompanhamento é camada por cima — por isso `deriveScoreLabel` devolve `sem_criterios` em vez de `fora_do_padrao` quando não há régua; senão toda lista nova nasceria vermelha.
+- A flag `plano_excelencia` em `alwayson_clientes_distribuidor` ficou **vestigial** (nunca foi alimentada pela ingestão, 0 linhas true). Dashboard, badge do cliente e sinalizadores passaram a ler a lista curada. A coluna continua no banco, marcada como tal no tipo TS.
+- O tipo de meta `clientes_excelencia` virou `clientes_estrategicos` (CHECK atualizado no mesmo migration).
+
+**Ponta solta — quem cura a lista?** Hoje a escrita é `current_user_is_admin()`, seguindo a convenção das migrations `028`/`035`/`044`. Se o KAM tiver de montar a lista do distribuidor dele, a policy a mudar é `alwayson_clientes_estrategicos_insert_admin`/`_update_admin` — trocar por `current_user_is_admin() OR distribuidor_id IN (select ... current_user_distribuidores_visiveis())`.
+
+**Ainda por fazer:** separar critério **automático** (derivado do faturamento — comprou? tem N SKUs? frequência?) de **verificação de campo** (material de PDV, visita). O que torna o critério vago não é o schema: é `realizado` não ter dono. Além disso, `alwayson_clientes_estrategicos_config` continua sem UI de escrita — os critérios só entram por SQL.
 
 ### C4. Snapshot mensal da carteira
 A carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. Saída barata: tabela `(mês, cliente, vendedor, distribuidor)` gravada no fechamento. **Decidir antes da carga retroativa.**

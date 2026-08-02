@@ -1,5 +1,6 @@
 import { ClientTag, ClientTagStack } from '@/components/distribuidor/ClientTag'
 import { buildClienteSinalizadores } from '@/lib/cliente-sinalizadores'
+import { useIdsEstrategicos } from '@/hooks/useClientesEstrategicos'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 import type { ClienteFatResumo } from '@/lib/cliente-faturamento-resumo'
 
@@ -7,6 +8,7 @@ interface Props {
   cliente: ClienteDistribuidor
   resumo?: ClienteFatResumo
   isTopComprador?: boolean
+  /** Sobrepõe a consulta à lista curada — útil quando quem chama já sabe. */
   clienteEstrategico?: boolean
   className?: string
   /** Lista compacta na tabela — máx. 2 badges, labels curtos. */
@@ -23,11 +25,15 @@ export function ClienteSinalizadores({
   compact,
   maxTags,
 }: Props) {
+  // Uma única query partilhada (chave fixa + staleTime), mesmo renderizado por
+  // linha de tabela: o React Query desduplica.
+  const { data: idsEstrategicos } = useIdsEstrategicos()
+
   const input = {
     cliente,
     resumo,
     isTopComprador,
-    clienteEstrategico,
+    clienteEstrategico: clienteEstrategico ?? idsEstrategicos?.has(cliente.id) ?? false,
   }
   const allTags = buildClienteSinalizadores(input, {
     compact,

@@ -14,6 +14,7 @@ export function useDashboardKPIs() {
         clientesRes,
         estoqueRes,
         metasRes,
+        estrategicosRes,
       ] = await Promise.all([
         supabase
           .from('alwayson_distribuidores')
@@ -21,7 +22,7 @@ export function useDashboardKPIs() {
           .eq('status', 'ativo'),
         supabase
           .from('alwayson_clientes_distribuidor')
-          .select('id, plano_excelencia, status, distribuidor_id'),
+          .select('id, status, distribuidor_id'),
         supabase
           .from('alwayson_estoque_distribuidor')
           .select('id, status')
@@ -30,12 +31,19 @@ export function useDashboardKPIs() {
           // View: realizado/percentual derivados do faturamento (migration 045).
           .from('alwayson_metas_v_acompanhamento')
           .select('id, valor_meta, valor_realizado, percentual_atingimento'),
+        // Lista curada (migration 052) — substitui a flag `plano_excelencia`,
+        // que nunca foi alimentada pela ingestão.
+        supabase
+          .from('alwayson_clientes_estrategicos')
+          .select('cliente_id, ativo')
+          .eq('ativo', true),
       ])
 
       const distribuidores = distribuidoresRes.data ?? []
       const clientes = clientesRes.data ?? []
       const estoqueCritico = estoqueRes.data ?? []
       const metas = metasRes.data ?? []
+      const estrategicos = estrategicosRes.data ?? []
 
       // Janela alinhada à Performance (trimestre rolling) + mês âncora = último com venda.
       const periodoFim = getCurrentMonth()
@@ -75,7 +83,13 @@ export function useDashboardKPIs() {
         }))
         .sort((a, b) => b.faturamento - a.faturamento)
 
-      const clientesExcelencia = clientes.filter((c) => c.plano_excelencia)
+      // "Ativos" aqui é o status do cliente na carteira: quantos da lista
+      // estratégica continuam ativos comercialmente.
+      const statusPorCliente = new Map(clientes.map((c) => [c.id as string, c.status as string]))
+      const estrategicosAtivos = estrategicos.filter(
+        (e) => statusPorCliente.get(e.cliente_id as string) === 'ativo'
+      )
+
       const metasAtingidas = metas.filter(
         (m) => Number(m.percentual_atingimento) >= 100
       )
@@ -88,10 +102,8 @@ export function useDashboardKPIs() {
         total_clientes_carteira: totalCarteira,
         taxa_positivacao:
           totalCarteira > 0 ? (totalPositivados / totalCarteira) * 100 : 0,
-        clientes_excelencia_ativos: clientesExcelencia.filter(
-          (c) => c.status === 'ativo'
-        ).length,
-        clientes_excelencia_total: clientesExcelencia.length,
+        clientes_estrategicos_ativos: estrategicosAtivos.length,
+        clientes_estrategicos_total: estrategicos.length,
         metas_atingidas: metasAtingidas.length,
         total_metas: metas.length,
         itens_estoque_critico: estoqueCritico.length,

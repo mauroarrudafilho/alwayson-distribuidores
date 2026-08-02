@@ -1,0 +1,67 @@
+import type { ClienteDistribuidor } from '@/types/distribuidor'
+
+/**
+ * Origem da indicação. Lista fechada (espelha o CHECK da migration 052) porque
+ * alimenta filtro — justificativa em texto livre vai em `motivo`/`observacao`.
+ */
+export const ORIGENS_ESTRATEGICAS = [
+  { value: 'scantech', label: 'Scantech' },
+  { value: 'indicacao', label: 'Indicação' },
+  { value: 'decisao_comercial', label: 'Decisão comercial' },
+  { value: 'rede', label: 'Rede / grupo' },
+  { value: 'potencial', label: 'Potencial de território' },
+  { value: 'outro', label: 'Outro' },
+] as const
+
+export type OrigemEstrategica = (typeof ORIGENS_ESTRATEGICAS)[number]['value']
+
+export const PRIORIDADES = [
+  { value: 'alta', label: 'Alta' },
+  { value: 'media', label: 'Média' },
+  { value: 'baixa', label: 'Baixa' },
+] as const
+
+export type PrioridadeEstrategica = (typeof PRIORIDADES)[number]['value']
+
+export const ORIGEM_LABELS: Record<OrigemEstrategica, string> = Object.fromEntries(
+  ORIGENS_ESTRATEGICAS.map((o) => [o.value, o.label])
+) as Record<OrigemEstrategica, string>
+
+export const PRIORIDADE_LABELS: Record<PrioridadeEstrategica, string> = Object.fromEntries(
+  PRIORIDADES.map((p) => [p.value, p.label])
+) as Record<PrioridadeEstrategica, string>
+
+/**
+ * Uma linha da lista curada. Não é derivada de faturamento: alguém decidiu
+ * incluir este cliente e escreveu por quê.
+ */
+export interface ClienteEstrategico {
+  id: string
+  distribuidor_id: string
+  cliente_id: string
+  motivo: string | null
+  origem: OrigemEstrategica | null
+  prioridade: PrioridadeEstrategica
+  observacao: string | null
+  ativo: boolean
+  adicionado_por: string | null
+  adicionado_em: string
+  atualizado_em: string
+  removido_em: string | null
+}
+
+export type ClienteEstrategicoComCliente = ClienteEstrategico & {
+  cliente: ClienteDistribuidor | null
+}
+
+/** Critérios de acompanhamento — o "como monitorar" da lista. */
+export interface CriterioEstrategicoConfig {
+  id: string
+  distribuidor_id: string
+  criterio_nome: string
+  meta_valor: number
+  tipo_comparacao: 'min' | 'max'
+  ativo: boolean
+  ordem: number
+  criado_em: string
+}

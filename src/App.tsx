@@ -19,7 +19,7 @@ import { AceitarConvite } from '@/pages/AceitarConvite'
 import { Conta } from '@/pages/Conta'
 import { Dashboard } from '@/pages/Dashboard'
 import { Performance } from '@/pages/Performance'
-import { Excelencia } from '@/pages/Excelencia'
+import { ClientesEstrategicos } from '@/pages/ClientesEstrategicos'
 import { ClientesBusca } from '@/pages/ClientesBusca'
 import { ClienteDetalhe } from '@/pages/ClienteDetalhe'
 import { EstoquePanel } from '@/pages/EstoquePanel'
@@ -27,7 +27,6 @@ import { Admin } from '@/pages/Admin'
 import { AdminDistribuidores } from '@/pages/admin/AdminDistribuidores'
 import { AdminProdutos } from '@/pages/admin/AdminProdutos'
 import { AdminMetas } from '@/pages/admin/AdminMetas'
-import { AdminExcelencia } from '@/pages/admin/AdminExcelencia'
 import { AdminUsuarios } from '@/pages/admin/AdminUsuarios'
 import { AdminAjustesCadastro } from '@/pages/admin/AdminAjustesCadastro'
 import { AdminAjustesLayout } from '@/pages/admin/AdminAjustesLayout'
@@ -90,7 +89,13 @@ function App() {
                   {/* Metas é acompanhamento, não configuração — mora na Análise.
                       O caminho por distribuidor continua em /admin para o cadastro. */}
                   <Route path="/metas" element={<AdminMetas />} />
-                  <Route path="/excelencia" element={<Excelencia />} />
+                  {/* A Excelência virou uma lista curada de clientes estratégicos —
+                      o caminho antigo continua a funcionar. */}
+                  <Route path="/clientes-estrategicos" element={<ClientesEstrategicos />} />
+                  <Route
+                    path="/excelencia"
+                    element={<Navigate to="/clientes-estrategicos" replace />}
+                  />
                   <Route path="/clientes" element={<ClientesBusca />} />
                   <Route path="/clientes/:id" element={<ClienteDetalhe />} />
                   <Route path="/estoque" element={<EstoquePanel />} />
@@ -133,7 +138,10 @@ function App() {
                       />
                     </Route>
                     <Route path="produtos" element={<AdminProdutos />} />
-                    <Route path="excelencia" element={<AdminExcelencia />} />
+                    <Route
+                      path="excelencia"
+                      element={<Navigate to="/clientes-estrategicos" replace />}
+                    />
                     <Route path="usuarios" element={<AdminUsuarios />} />
                     <Route path="ajustes-cadastro" element={<AdminAjustesLayout />}>
                       <Route index element={<AdminAjustesCadastro />} />

@@ -11,7 +11,6 @@ type StatusType =
   | 'normal'
   | 'saudavel'
   | 'overstock'
-  | 'excelencia'
   | 'pendente'
   | 'processando'
   | 'concluido'
@@ -34,7 +33,6 @@ const statusConfig: Record<StatusType, { label: string; variant: BadgeVariant }>
   ruptura:      { label: 'Ruptura',      variant: 'destructive' },
   erro:         { label: 'Erro',         variant: 'destructive' },
   inativo:      { label: 'Inativo',      variant: 'secondary' },
-  excelencia:   { label: 'Excelencia',   variant: 'accent' },
 }
 
 interface StatusBadgeProps {

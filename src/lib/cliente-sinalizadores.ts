@@ -20,7 +20,7 @@ export interface ClienteSinalizadorInput {
   cliente: ClienteDistribuidor
   resumo?: ClienteFatResumo
   isTopComprador?: boolean
-  /** Reservado: cadastro estratégico / base de produtos (flag futura no banco). */
+  /** Está na lista curada `alwayson_clientes_estrategicos` (migration 052). */
   clienteEstrategico?: boolean
 }
 
@@ -78,21 +78,12 @@ export function buildClienteSinalizadores(
     })
   }
 
-  if (cliente.plano_excelencia) {
-    tags.push({
-      id: 'excelencia',
-      label: opts?.compact ? 'Excel.' : 'Excelência',
-      category: 'programa',
-      title: 'Participante do plano de excelência',
-    })
-  }
-
   if (clienteEstrategico) {
     tags.push({
       id: 'estrategico',
       label: opts?.compact ? 'Estrat.' : 'Estratégico',
-      category: 'destaque',
-      title: 'Cliente marcado na base estratégica de cadastro',
+      category: 'programa',
+      title: 'Está na lista curada de clientes estratégicos',
     })
   }
 
@@ -124,7 +115,6 @@ export function buildClienteSinalizadores(
 
 /** Sugestões de sinalizadores para evoluir (documentação de produto). */
 export const SINALIZADORES_FUTUROS = [
-  'Cliente estratégico — flag manual na base de cadastro/produtos',
   'Mix completo — atingiu SKUs mínimos do programa',
   'Reativado — voltou a comprar após gap longo',
   'Alta recorrência — frequência acima da média da carteira',

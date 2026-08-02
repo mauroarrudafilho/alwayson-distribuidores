@@ -41,7 +41,7 @@ const TIPO_OPCOES = [
   { value: 'faturamento', label: 'Faturamento' },
   { value: 'positivacao', label: 'Positivacao' },
   { value: 'mix', label: 'Mix' },
-  { value: 'clientes_excelencia', label: 'Clientes Excelencia' },
+  { value: 'clientes_estrategicos', label: 'Clientes Estratégicos' },
 ] as const
 
 function AtingimentoCell({ percentual }: { percentual: number | null }) {

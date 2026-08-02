@@ -20,6 +20,7 @@ import { useClienteFaturamentoMensal } from '@/hooks/useFaturamento'
 import { formatCurrency, formatDate, formatCnpj, formatCidadeUf } from '@/lib/format'
 import { resolveClienteCidadeUf } from '@/lib/cliente-cidade'
 import { useInsightsCidadesByCnpj } from '@/hooks/useInsightsCidadesByCnpj'
+import { useIdsEstrategicos } from '@/hooks/useClientesEstrategicos'
 import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
@@ -171,6 +172,7 @@ export function ClienteDetalhe() {
   const { data: mensal, isLoading: loadingMensal } = useClienteFaturamentoMensal(id)
   const { data: vendedorNome } = useVendedorNome(cliente?.vendedor_id)
   const { cidadesMap } = useInsightsCidadesByCnpj(cliente ? [cliente.cnpj] : [])
+  const { data: idsEstrategicos } = useIdsEstrategicos()
 
   const faturamentoIds = useMemo(
     () => faturamentos?.map((f) => f.id) ?? [],
@@ -287,8 +289,8 @@ export function ClienteDetalhe() {
   )
   const cidadeUF = formatCidadeUf(localizacao.cidade, localizacao.estado) || '—'
   const headerTags: { category: ClientTagCategory; label: string }[] = []
-  if (cliente.plano_excelencia) {
-    headerTags.push({ category: 'programa', label: 'Plano Excelência' })
+  if (idsEstrategicos?.has(cliente.id)) {
+    headerTags.push({ category: 'programa', label: 'Cliente Estratégico' })
   }
   if (cliente.status === 'em_risco') {
     headerTags.push({ category: 'risk', label: 'Em Risco' })
