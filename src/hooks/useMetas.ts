@@ -200,3 +200,43 @@ export function useHistoricoParaMeta(params: {
     },
   })
 }
+
+/**
+ * Metas de um nível ao longo de vários meses — alimenta o panorama em grade.
+ *
+ * Uma consulta só para toda a janela: a view já devolve o realizado por período,
+ * então a grade é apenas outra leitura do mesmo dado que a lista usa.
+ */
+export function useMetasPanorama(params: {
+  distribuidorId?: string
+  hierarquia?: Meta['hierarquia']
+  tipo?: Meta['tipo']
+  mesInicio?: string
+  mesFim?: string
+}) {
+  const { distribuidorId, hierarquia, tipo, mesInicio, mesFim } = params
+  return useQuery({
+    queryKey: [KEY, 'panorama', distribuidorId, hierarquia, tipo, mesInicio, mesFim],
+    enabled: !!distribuidorId && !!hierarquia && !!tipo && !!mesInicio && !!mesFim,
+    queryFn: async (): Promise<MetaComNomes[]> => {
+      const [{ data, error }, nomes] = await Promise.all([
+        supabase
+          .from(VIEW)
+          .select('*')
+          .eq('distribuidor_id', distribuidorId!)
+          .eq('hierarquia', hierarquia!)
+          .eq('tipo', tipo!)
+          .gte('periodo_inicio', `${mesInicio}-01`)
+          .lte('periodo_inicio', `${mesFim}-31`)
+          .order('periodo_inicio'),
+        buscarNomes(),
+      ])
+      if (error) throw error
+      return (data as unknown as MetaAcompanhamento[]).map((m) => ({
+        ...m,
+        distribuidor_nome: nomes.distribuidores.get(m.distribuidor_id) ?? '—',
+        vendedor_nome: m.vendedor_id ? (nomes.vendedores.get(m.vendedor_id) ?? '—') : null,
+      }))
+    },
+  })
+}

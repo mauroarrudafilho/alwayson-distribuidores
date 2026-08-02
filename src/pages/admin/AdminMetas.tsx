@@ -6,6 +6,7 @@ import { useMetas, useDeleteMeta, type MetaComNomes } from '@/hooks/useMetas'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useAuth } from '@/contexts/auth'
 import { MetaDialog } from '@/components/distribuidor/MetaDialog'
+import { MetasPanorama } from '@/components/distribuidor/MetasPanorama'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -302,6 +303,10 @@ export function AdminMetas() {
           </TableBody>
         </Table>
       </Card>
+
+      <div className="mt-6">
+        <MetasPanorama distribuidorId={distribuidorAlvo} />
+      </div>
 
       {/* Montado só quando aberto: o formulário inicializa a partir dos props,
           sem efeito de sincronização. */}

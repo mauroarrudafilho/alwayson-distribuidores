@@ -63,6 +63,7 @@ Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e 
 | Template **`clientes`** (não só `vendas`) | Ingestão | É o **denominador**. Sem ele, cobertura/positivação dá 100% por construção, por mais meses que entrem |
 | Sell-in retroativo (12–24 meses) | Ingestão | Sem série não há tendência; a Performance é single-month por construção |
 | Metas | `/admin/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_excelencia`) dependem dos itens acima e da Excelência |
+| Reatribuição de cliente entre vendedores | `/admin/distribuidores/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
 | Cidades, carteira declarada, frequência de visita, início da parceria | `/admin/distribuidores/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
 | Clientes foco + critérios de Excelência | — | **UI de escrita não existe** (ver C3) |
 
@@ -73,8 +74,12 @@ Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e 
 ### C1. Importação de metas por planilha
 Template e parser não existem — hoje só criação pela UI. A chave natural e a regra "planilha carrega só `valor_meta`" já estão prontas. ⚠️ As unique keys são índices **parciais**: `ON CONFLICT` exige repetir o predicado (`WHERE vendedor_id IS NOT NULL`), senão o Postgres devolve `42P10`.
 
-### C2. Panorama mês a mês das metas
-Hoje `AdminMetas` é lista plana — cada mês é uma linha. O modelo já suporta a grade sem migration (`periodo_inicio/fim` por meta; a view calcula realizado por período). Formato proposto: linhas = responsável, colunas = meses, célula = atingimento com o semáforo atual, mais coluna de acumulado. Só faz sentido depois da carga histórica.
+### C2. Panorama mês a mês das metas — ✅ entregue
+`MetasPanorama` no `AdminMetas`: linhas = responsável, colunas = meses (teto de 24), célula = atingimento com o semáforo, mais coluna de acumulado. Filtros de nível, métrica e janela.
+
+⚠️ O acumulado **pondera pelo tamanho das metas**, não é média dos percentuais — média distorce quando as metas mensais têm tamanhos diferentes. Validado: metas de 10k e 50k com 0% e 53,7% dão **44,7% ponderado contra 26,8% de média ingênua**. Se alguém "simplificar" para média, o número muda 17 pontos.
+
+Ganha corpo conforme a carga histórica entra; hoje mostra poucas colunas.
 
 ### C3. Excelência — escrita e critérios automáticos
 `AdminExcelencia` é **somente leitura**. O schema já serve: `excelencia_clientes` é o cadastro de clientes foco, `excelencia_criterios` já tem `meta`/`realizado`/`atingido`/`periodo`. Falta:

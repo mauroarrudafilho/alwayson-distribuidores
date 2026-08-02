@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ChevronDown, Network, Users } from 'lucide-react'
 import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
+import { CarteiraVendedorCard } from '@/components/distribuidor/CarteiraVendedorCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -300,7 +301,7 @@ export function AdminDistribuidorHierarquia() {
             <span className="font-semibold tabular-nums">{totalVend}</span> vendedores
           </p>
           <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-            Estrutura ativa (somente leitura). Metas nominais na aba{' '}
+            Estrutura ativa. Metas nominais na aba{' '}
             <Link to={`${base}/metas`} className="text-foreground underline-offset-2 hover:underline">
               Metas
             </Link>
@@ -327,6 +328,8 @@ export function AdminDistribuidorHierarquia() {
           />
         ))}
       </div>
+
+      <CarteiraVendedorCard distribuidorId={distribuidorId} vendedores={h.vendedores} />
     </div>
   )
 }
