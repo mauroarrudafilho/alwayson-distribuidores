@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   TrendingUp,
   Award,
+  Target,
   UserSearch,
   Package,
   Settings,
@@ -32,6 +33,7 @@ const GROUP_LABELS: Record<MenuGroup, string> = {
 const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; group: MenuGroup }[] = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'analise' },
   { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'analise' },
+  { path: '/metas', label: 'Metas', icon: Target, group: 'analise' },
   { path: '/excelencia', label: 'Excelência', icon: Award, group: 'analise' },
   { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
   { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },

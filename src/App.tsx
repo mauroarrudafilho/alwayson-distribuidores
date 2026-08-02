@@ -70,6 +70,9 @@ function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/conta" element={<Conta />} />
                   <Route path="/performance" element={<Performance />} />
+                  {/* Metas é acompanhamento, não configuração — mora na Análise.
+                      O caminho por distribuidor continua em /admin para o cadastro. */}
+                  <Route path="/metas" element={<AdminMetas />} />
                   <Route path="/excelencia" element={<Excelencia />} />
                   <Route path="/clientes" element={<ClientesBusca />} />
                   <Route path="/clientes/:id" element={<ClienteDetalhe />} />
@@ -130,10 +133,7 @@ function App() {
                       path="excluir-insights-clientes"
                       element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
                     />
-                    <Route
-                      path="metas"
-                      element={<Navigate to="/admin/distribuidores" replace />}
-                    />
+                    <Route path="metas" element={<Navigate to="/metas" replace />} />
                   </Route>
                   <Route path="/ingestao" element={<IngestaoPanel />} />
                   <Route path="/insights" element={<InsightsPanel />} />

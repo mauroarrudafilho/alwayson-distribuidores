@@ -130,6 +130,12 @@ export function AdminMetas() {
 
   return (
     <div>
+      {!scoped && (
+        <div className="mb-6">
+          <MetasPanorama distribuidorId={distribuidorAlvo} />
+        </div>
+      )}
+
       <div className="flex justify-end mb-4">
         <Button
           onClick={abrirNova}
@@ -304,9 +310,11 @@ export function AdminMetas() {
         </Table>
       </Card>
 
-      <div className="mt-6">
-        <MetasPanorama distribuidorId={distribuidorAlvo} />
-      </div>
+      {scoped && (
+        <div className="mt-6">
+          <MetasPanorama distribuidorId={distribuidorAlvo} />
+        </div>
+      )}
 
       {/* Montado só quando aberto: o formulário inicializa a partir dos props,
           sem efeito de sincronização. */}
