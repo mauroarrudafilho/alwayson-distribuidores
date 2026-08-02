@@ -19,7 +19,8 @@ export function PageHeader({
   accent,
 }: PageHeaderProps) {
   return (
-    <div className="mb-6 flex items-end justify-between gap-4 border-b border-border/70 pb-4">
+    // Empilha no telemóvel: título e ações numa linha só espremem os dois.
+    <div className="mb-6 flex flex-col items-start gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
         {eyebrow && (
           <p className="mb-1.5 flex items-center text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
@@ -44,14 +45,23 @@ export function PageHeader({
               <span className="text-foreground">.</span>
             </>
           )}
+          {/* Inline só em ecrã mesmo largo (xl): abaixo disso a descrição parte o
+              título a meio da frase e encosta no botão de ação. */}
           {description && (
-            <span className="ml-2 align-baseline text-sm font-normal tracking-normal text-muted-foreground">
+            <span className="ml-2 hidden align-baseline text-sm font-normal tracking-normal text-muted-foreground xl:inline">
               — {description}
             </span>
           )}
         </h1>
+        {description && (
+          <p className="mt-1 text-[13px] leading-snug text-muted-foreground xl:hidden">
+            {description}
+          </p>
+        )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{actions}</div>
+      )}
     </div>
   )
 }

@@ -129,7 +129,7 @@ function PerformanceContent() {
       >
         <TabsList
           variant="line"
-          className="mb-2 h-auto gap-1 overflow-x-auto border-0 border-b border-border/50 bg-transparent p-0"
+          className="tab-strip mb-2 h-auto gap-1 border-0 border-b border-border/50 bg-transparent p-0"
         >
           {availableTabs.map((tab) => (
             <TabsTrigger

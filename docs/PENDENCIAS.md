@@ -94,6 +94,11 @@ O conceito mudou de "plano com critérios" para **lista curada e manual**: cada 
 
 **Ainda por fazer:** separar critério **automático** (derivado do faturamento — comprou? tem N SKUs? frequência?) de **verificação de campo** (material de PDV, visita). O que torna o critério vago não é o schema: é `realizado` não ter dono. Além disso, `alwayson_clientes_estrategicos_config` continua sem UI de escrita — os critérios só entram por SQL.
 
+### C3b. Responsividade — shell corrigido, telas com dado por conferir
+Abaixo de `lg` (1024px) a sidebar deixou de ocupar espaço fixo e virou drawer, aberto por uma barra superior própria. A fronteira é `lg` e não `md` de propósito: a 768px os 232px fixos comiam 30% da largura. Também empilham no telemóvel: cabeçalho de página (título / descrição / ações), campos lado a lado dos diálogos. Faixas de abas rolam na horizontal (`.tab-strip`) em vez de quebrar linha.
+
+⚠️ **O que foi verificado e o que não foi.** A validação correu num harness temporário que monta o shell real e os primitivos (`PageHeader`, `FilterBar`, `KPIGrid`, `Table`, faixa de abas) a 375/768/1024/1440 — nenhuma rolagem horizontal da página em nenhuma largura, drawer abre e fecha ao navegar, tabela rola dentro do próprio contentor. **Não foi possível entrar com sessão real**, então as telas densas com dado — mapas do Insights, drill-down da Performance, Cliente Detalhe — não foram exercitadas com conteúdo verdadeiro. Vale uma passada no telemóvel nessas três.
+
 ### C4. Snapshot mensal da carteira
 A carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. Saída barata: tabela `(mês, cliente, vendedor, distribuidor)` gravada no fechamento. **Decidir antes da carga retroativa.**
 

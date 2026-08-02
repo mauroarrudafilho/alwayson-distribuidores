@@ -223,6 +223,18 @@
   .animate-page-in {
     animation: var(--animate-page-in);
   }
+
+  /* Faixas de abas: rolam na horizontal no telemóvel sem mostrar barra —
+     quebrar em duas linhas desalinha o sublinhado do separador. */
+  .tab-strip {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .tab-strip::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Editorial helpers used in auth screens */

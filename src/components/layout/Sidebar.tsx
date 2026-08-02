@@ -21,6 +21,11 @@ import { BrandMark } from '@/components/brand/BrandMark'
 interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
+  /** Chamado ao clicar num item — o drawer mobile usa para se fechar. */
+  onNavigate?: () => void
+  /** No drawer não há o que recolher: a largura é a do próprio painel. */
+  showToggle?: boolean
+  className?: string
 }
 
 type MenuGroup = 'analise' | 'operacao' | 'parceiros' | 'sistema'
@@ -48,14 +53,21 @@ const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; gr
   { path: '/admin', label: 'Administração', icon: Settings, group: 'sistema' },
 ]
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({
+  collapsed,
+  onToggle,
+  onNavigate,
+  showToggle = true,
+  className,
+}: SidebarProps) {
   const location = useLocation()
 
   return (
     <aside
       className={cn(
         'relative flex flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
-        collapsed ? 'w-[60px]' : 'w-[232px]'
+        collapsed ? 'w-[60px]' : 'w-[232px]',
+        className
       )}
     >
       {/* Atmosphere — same family as login hero, quieter */}
@@ -87,19 +99,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         >
           <BrandMark tone="onDark" size="sm" markOnly={collapsed} stacked />
         </Link>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 shrink-0 p-0 text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-3.5 w-3.5" />
-          ) : (
-            <PanelLeftClose className="h-3.5 w-3.5" />
-          )}
-        </Button>
+        {showToggle && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 shrink-0 p-0 text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            onClick={onToggle}
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+            ) : (
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        )}
       </div>
 
       <nav className="relative z-10 flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
@@ -129,6 +143,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 ))}
               <Link
                 to={item.path}
+                onClick={onNavigate}
                 className={cn(
                   'group relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors',
                   collapsed && 'justify-center px-0',
