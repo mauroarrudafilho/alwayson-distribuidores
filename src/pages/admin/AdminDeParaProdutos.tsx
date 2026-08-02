@@ -325,7 +325,7 @@ export function AdminDeParaProdutos() {
         {scopedToRoute ? (
           <>
             <Link
-              to={`/admin/distribuidores/${routeDistribuidorId}`}
+              to={`/parceiros/${routeDistribuidorId}`}
               className="text-primary underline-offset-2 hover:underline"
             >
               Voltar ao resumo do distribuidor
@@ -335,7 +335,7 @@ export function AdminDeParaProdutos() {
           <>
             Voltar para{' '}
             <Link
-              to="/admin/distribuidores"
+              to="/parceiros"
               className="text-primary underline-offset-2 hover:underline"
             >
               Distribuidores

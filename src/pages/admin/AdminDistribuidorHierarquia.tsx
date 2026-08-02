@@ -241,7 +241,7 @@ function EquipeBoard({
 export function AdminDistribuidorHierarquia() {
   const { distribuidorId = '' } = useParams<{ distribuidorId: string }>()
   const { data: h, isLoading, isError } = useVendedorHierarchy(distribuidorId || undefined)
-  const base = `/admin/distribuidores/${distribuidorId}`
+  const base = `/parceiros/${distribuidorId}`
   const [focusId, setFocusId] = useState<string | 'all'>('all')
 
   const equipes = useMemo(() => {

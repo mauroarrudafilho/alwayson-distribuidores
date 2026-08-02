@@ -169,7 +169,7 @@ export function AdminDistribuidores() {
       await qc.invalidateQueries({ queryKey: ['admin', 'usuarios'] })
       resetDialog()
       setOpen(false)
-      if (dist?.id) navigate(`/admin/distribuidores/${dist.id}`)
+      if (dist?.id) navigate(`/parceiros/${dist.id}`)
     },
     onError: (err) => {
       setFormError(err instanceof Error ? err.message : 'Falha ao cadastrar distribuidor.')
@@ -337,7 +337,7 @@ export function AdminDistribuidores() {
                 <TableRow key={dist.id}>
                   <TableCell className="text-xs font-medium">
                     <Link
-                      to={`/admin/distribuidores/${dist.id}`}
+                      to={`/parceiros/${dist.id}`}
                       className="text-primary hover:underline"
                     >
                       {dist.nome}
@@ -370,7 +370,7 @@ export function AdminDistribuidores() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Link
-                      to={`/admin/distribuidores/${dist.id}`}
+                      to={`/parceiros/${dist.id}`}
                       className="text-xs text-primary hover:underline"
                     >
                       Abrir

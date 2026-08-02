@@ -1,4 +1,12 @@
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useSearchParams,
+  useParams,
+  useLocation,
+} from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -31,9 +39,18 @@ import { AdminAjustesRedesTemplateVendas } from '@/pages/admin/AdminAjustesRedes
 import { AdminDistribuidorLayout } from '@/pages/admin/AdminDistribuidorLayout'
 import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
 import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
+import { AdminDistribuidorIngestao } from '@/pages/admin/AdminDistribuidorIngestao'
 import { AdminInsightsLayout } from '@/pages/admin/AdminInsightsLayout'
 import { IngestaoPanel } from '@/pages/IngestaoPanel'
 import { InsightsPanel } from '@/pages/InsightsPanel'
+
+/** `/admin/distribuidores/:id/...` → `/parceiros/:id/...`, preservando a sub-rota. */
+function RedirecionaParceiro() {
+  const { distribuidorId } = useParams<{ distribuidorId: string }>()
+  const location = useLocation()
+  const resto = location.pathname.split(`/admin/distribuidores/${distribuidorId}`)[1] ?? ''
+  return <Navigate to={`/parceiros/${distribuidorId}${resto}`} replace />
+}
 
 function AdminLegacyDeParaProdutos() {
   const [sp] = useSearchParams()
@@ -77,18 +94,25 @@ function App() {
                   <Route path="/clientes" element={<ClientesBusca />} />
                   <Route path="/clientes/:id" element={<ClienteDetalhe />} />
                   <Route path="/estoque" element={<EstoquePanel />} />
+                  {/* Parceiros: o que pertence a um distribuidor vive aqui, fora de
+                      Administração — que fica só com o que é da plataforma. */}
+                  <Route path="/parceiros" element={<AdminDistribuidores />} />
+                  <Route path="/parceiros/:distribuidorId" element={<AdminDistribuidorLayout />}>
+                    <Route index element={<AdminDistribuidorResumo />} />
+                    <Route path="de-para-produtos" element={<AdminDeParaProdutos />} />
+                    <Route path="metas" element={<AdminMetas />} />
+                    <Route path="ingestao" element={<AdminDistribuidorIngestao />} />
+                    <Route path="hierarquia" element={<AdminDistribuidorHierarquia />} />
+                  </Route>
+
                   <Route path="/admin" element={<Admin />}>
                     <Route index element={<Navigate to="/admin/distribuidores" replace />} />
-                    <Route path="distribuidores" element={<AdminDistribuidores />} />
+                    {/* Link salvo continua funcionando. */}
+                    <Route path="distribuidores" element={<Navigate to="/parceiros" replace />} />
                     <Route
-                      path="distribuidores/:distribuidorId"
-                      element={<AdminDistribuidorLayout />}
-                    >
-                      <Route index element={<AdminDistribuidorResumo />} />
-                      <Route path="de-para-produtos" element={<AdminDeParaProdutos />} />
-                      <Route path="metas" element={<AdminMetas />} />
-                      <Route path="hierarquia" element={<AdminDistribuidorHierarquia />} />
-                    </Route>
+                      path="distribuidores/:distribuidorId/*"
+                      element={<RedirecionaParceiro />}
+                    />
                     <Route path="insights" element={<AdminInsightsLayout />}>
                       <Route
                         index

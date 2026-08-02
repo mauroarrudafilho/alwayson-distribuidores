@@ -636,7 +636,7 @@ export function AdminInsightsDeParaProdutos() {
       <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
         <span>
           <Link
-            to="/admin/distribuidores"
+            to="/parceiros"
             className="text-primary underline-offset-2 hover:underline"
           >
             Correlação por distribuidor

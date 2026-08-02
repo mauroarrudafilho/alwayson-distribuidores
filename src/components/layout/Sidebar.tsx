@@ -7,6 +7,7 @@ import {
   UserSearch,
   Package,
   Settings,
+  Handshake,
   Upload,
   BarChart3,
   PanelLeftClose,
@@ -22,12 +23,13 @@ interface SidebarProps {
   onToggle: () => void
 }
 
-type MenuGroup = 'analise' | 'operacao' | 'setup'
+type MenuGroup = 'analise' | 'operacao' | 'parceiros' | 'sistema'
 
 const GROUP_LABELS: Record<MenuGroup, string> = {
   analise: 'Análise',
   operacao: 'Operação',
-  setup: 'Setup',
+  parceiros: 'Parceiros',
+  sistema: 'Sistema',
 }
 
 const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; group: MenuGroup }[] = [
@@ -38,8 +40,12 @@ const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; gr
   { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
   { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },
   { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacao' },
-  { path: '/admin', label: 'Administração', icon: Settings, group: 'setup' },
-  { path: '/ingestao', label: 'Ingestão', icon: Upload, group: 'setup' },
+  // O que é de um parceiro mora dentro dele — inclusive a ingestão, que assim
+  // herda distribuidor e fornecedor do contexto.
+  { path: '/parceiros', label: 'Distribuidores', icon: Handshake, group: 'parceiros' },
+  { path: '/ingestao', label: 'Ingestão (geral)', icon: Upload, group: 'parceiros' },
+  // Sistema: só o que é transversal à plataforma.
+  { path: '/admin', label: 'Administração', icon: Settings, group: 'sistema' },
 ]
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {

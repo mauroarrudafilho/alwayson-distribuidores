@@ -66,14 +66,20 @@ function formatBytes(bytes: number): string {
 }
 
 interface IngestaoUploadProps {
+  /**
+   * Quando informado, o distribuidor vem do contexto (tela dentro do parceiro)
+   * e o seletor some. Menos clique e, sobretudo, uma classe de erro a menos:
+   * não dá para carimbar o arquivo no distribuidor errado.
+   */
+  distribuidorFixo?: string
   onSuccess?: () => void
   onError?: (message: string) => void
   className?: string
 }
 
-export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUploadProps) {
+export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo }: IngestaoUploadProps) {
   const [tipo, setTipo] = useState<TipoRelatorio>('vendas')
-  const [distribuidorId, setDistribuidorId] = useState<string>('')
+  const [distribuidorId, setDistribuidorId] = useState<string>(distribuidorFixo ?? '')
   const [fornecedorId, setFornecedorId] = useState<string>('')
   const [periodoReferencia, setPeriodoReferencia] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
@@ -230,6 +236,7 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
               </Select>
             </div>
 
+            {!distribuidorFixo && (
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                 Distribuidor
@@ -254,6 +261,7 @@ export function IngestaoUpload({ onSuccess, onError, className }: IngestaoUpload
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">

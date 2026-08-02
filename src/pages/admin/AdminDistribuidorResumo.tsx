@@ -10,7 +10,7 @@ import { AreaAtuacaoCard } from '@/components/distribuidor/AreaAtuacaoCard'
 export function AdminDistribuidorResumo() {
   const { distribuidorId = '' } = useParams<{ distribuidorId: string }>()
   const { data: dist, isLoading, isError } = useDistribuidor(distribuidorId || undefined)
-  const base = `/admin/distribuidores/${distribuidorId}`
+  const base = `/parceiros/${distribuidorId}`
 
   if (isLoading) {
     return (

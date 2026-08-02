@@ -62,9 +62,9 @@ Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e 
 |---|---|---|
 | Template **`clientes`** (não só `vendas`) | Ingestão | É o **denominador**. Sem ele, cobertura/positivação dá 100% por construção, por mais meses que entrem |
 | Sell-in retroativo (12–24 meses) | Ingestão | Sem série não há tendência; a Performance é single-month por construção |
-| Metas | `/admin/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_excelencia`) dependem dos itens acima e da Excelência |
-| Reatribuição de cliente entre vendedores | `/admin/distribuidores/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
-| Cidades, carteira declarada, frequência de visita, início da parceria | `/admin/distribuidores/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
+| Metas | `/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_excelencia`) dependem dos itens acima e da Excelência |
+| Reatribuição de cliente entre vendedores | `/parceiros/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
+| Cidades, carteira declarada, frequência de visita, início da parceria | `/parceiros/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
 | Clientes foco + critérios de Excelência | — | **UI de escrita não existe** (ver C3) |
 
 ---
@@ -81,7 +81,10 @@ Template e parser não existem — hoje só criação pela UI. A chave natural e
 
 Ganha corpo conforme a carga histórica entra; hoje mostra poucas colunas.
 
-### C3. Excelência — escrita e critérios automáticos
+### C3. Excelência → **Clientes Estratégicos** (repensar, não renomear)
+Decisão de produto: a Excelência vira um cadastro curado de **clientes estratégicos** — o que o time considera importante —, com acompanhamento próprio em rota dedicada. O schema atual serve de base (`excelencia_clientes` já é o cadastro de foco; `excelencia_criterios` já tem `meta`/`realizado`/`atingido`/`periodo`), mas o conceito muda: sai "plano de excelência com critérios", entra "lista estratégica monitorada". Precisa de uma passada de design antes de código.
+
+Notas herdadas do módulo atual:
 `AdminExcelencia` é **somente leitura**. O schema já serve: `excelencia_clientes` é o cadastro de clientes foco, `excelencia_criterios` já tem `meta`/`realizado`/`atingido`/`periodo`. Falta:
 - UI de escrita
 - coluna `origem` em `excelencia_clientes` (Scantech, indicação, decisão comercial)

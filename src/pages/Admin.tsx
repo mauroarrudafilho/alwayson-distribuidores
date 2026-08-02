@@ -2,7 +2,6 @@ import { Outlet, Navigate, useLocation, Link } from 'react-router-dom'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 
 const adminTabs = [
-  { path: '/admin/distribuidores', label: 'Distribuidores', prefix: true },
   { path: '/admin/insights', label: 'Insights', prefix: true },
   { path: '/admin/produtos', label: 'Produtos', prefix: false },
   { path: '/admin/excelencia', label: 'Excelência', prefix: false },
@@ -19,7 +18,7 @@ export function Admin() {
   const location = useLocation()
 
   if (location.pathname === '/admin') {
-    return <Navigate to="/admin/distribuidores" replace />
+    return <Navigate to="/admin/usuarios" replace />
   }
 
   return (
@@ -27,7 +26,7 @@ export function Admin() {
       <PageHeader
         title="Administração"
         accent="do cockpit"
-        description="parâmetros e governança"
+        description="o que é da plataforma — o de cada parceiro fica em Parceiros"
       />
       <div className="mb-6 flex gap-1 border-b border-border/60">
         {adminTabs.map((tab) => (

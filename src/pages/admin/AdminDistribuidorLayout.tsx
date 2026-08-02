@@ -17,13 +17,13 @@ export function AdminDistribuidorLayout() {
   const { distribuidorId = '' } = useParams<{ distribuidorId: string }>()
   const { data: dist, isLoading, isError } = useDistribuidor(distribuidorId || undefined)
 
-  const base = `/admin/distribuidores/${distribuidorId}`
+  const base = `/parceiros/${distribuidorId}`
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          to="/admin/distribuidores"
+          to="/parceiros"
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
@@ -60,6 +60,9 @@ export function AdminDistribuidorLayout() {
         </NavLink>
         <NavLink to={`${base}/metas`} className={subTabClass}>
           Metas
+        </NavLink>
+        <NavLink to={`${base}/ingestao`} className={subTabClass}>
+          Ingestão
         </NavLink>
         <NavLink to={`${base}/hierarquia`} className={subTabClass}>
           Hierarquia
