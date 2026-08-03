@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/auth'
+import { redefinirPasswordPath, userNeedsPasswordSetup } from '@/lib/auth-callback'
 
 export function RequireAuth() {
   const { loading, resolvingTenants, session, memberships, profile } = useAuth()
@@ -21,6 +22,17 @@ export function RequireAuth() {
   if (!session) {
     const next = `${location.pathname}${location.search}`
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
+  }
+
+  if (userNeedsPasswordSetup(session.user.user_metadata as Record<string, unknown> | undefined)) {
+    const next = `${location.pathname}${location.search}`
+    return (
+      <Navigate
+        to={redefinirPasswordPath(next, 'invite')}
+        replace
+        state={{ motivo: 'senha_obrigatoria' }}
+      />
+    )
   }
 
   if (profile?.status === 'suspended') {

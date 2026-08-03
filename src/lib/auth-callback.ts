@@ -25,3 +25,11 @@ export function clearAuthHash(): void {
 export function userNeedsPasswordSetup(metadata: Record<string, unknown> | undefined): boolean {
   return metadata?.needs_password_setup === true
 }
+
+export function redefinirPasswordPath(next?: string, flow?: 'invite'): string {
+  const params = new URLSearchParams()
+  if (next) params.set('next', next)
+  if (flow) params.set('flow', flow)
+  const q = params.toString()
+  return `/redefinir-password${q ? `?${q}` : ''}`
+}

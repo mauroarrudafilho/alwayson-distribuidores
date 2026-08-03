@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { BrandMark } from '@/components/brand/BrandMark'
 import { useAuth } from '@/contexts/auth'
 import { consumeAuthError, humanizeAuthError } from '@/lib/auth-error-bootstrap'
+import { redefinirPasswordPath, userNeedsPasswordSetup } from '@/lib/auth-callback'
 
 export function Login() {
   const { signIn, session, loading } = useAuth()
@@ -32,10 +33,21 @@ export function Login() {
   }, [])
 
   useEffect(() => {
-    if (!loading && session) navigate(next, { replace: true })
+    if (!loading && session) {
+      if (userNeedsPasswordSetup(session.user.user_metadata as Record<string, unknown> | undefined)) {
+        navigate(redefinirPasswordPath(next, 'invite'), { replace: true })
+        return
+      }
+      navigate(next, { replace: true })
+    }
   }, [loading, session, next, navigate])
 
-  if (session) return <Navigate to={next} replace />
+  if (session) {
+    if (userNeedsPasswordSetup(session.user.user_metadata as Record<string, unknown> | undefined)) {
+      return <Navigate to={redefinirPasswordPath(next, 'invite')} replace />
+    }
+    return <Navigate to={next} replace />
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

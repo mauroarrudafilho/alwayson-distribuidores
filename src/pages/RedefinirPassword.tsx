@@ -76,7 +76,7 @@ export function RedefinirPassword() {
     >
       <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
         {isInviteFlow
-          ? 'Antes de entrar na plataforma, escolha uma senha pessoal para proteger seu acesso.'
+          ? 'Por segurança, você precisa criar uma senha pessoal antes de acessar dados da plataforma.'
           : 'Mínimo de 8 caracteres. Recomendamos misturar letras maiúsculas, números e símbolos.'}
       </p>
 

@@ -74,10 +74,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const { data } = await supabase.auth.getSession()
-      setSession(data.session)
-      if (data.session?.user) {
-        await loadProfileAndTenants(data.session.user.id)
+      const [{ data: userData, error: userErr }, { data: sessionData, error: sessionErr }] =
+        await Promise.all([supabase.auth.getUser(), supabase.auth.getSession()])
+      if (userErr) throw userErr
+      if (sessionErr) throw sessionErr
+
+      const baseSession = sessionData.session
+      const mergedSession =
+        baseSession && userData.user ? { ...baseSession, user: userData.user } : baseSession
+
+      setSession(mergedSession)
+      if (mergedSession?.user) {
+        await loadProfileAndTenants(mergedSession.user.id)
       } else {
         tenantsResolvedUserIdRef.current = null
         setProfile(null)
