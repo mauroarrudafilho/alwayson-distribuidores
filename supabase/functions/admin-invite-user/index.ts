@@ -214,6 +214,11 @@ type DeliveryResult = {
   error?: string
 }
 
+function buildInviteRedirect(appOrigin: string, token: string): string {
+  const next = encodeURIComponent(`/aceitar-convite/${token}`)
+  return `${appOrigin}/redefinir-password?next=${next}&flow=invite`
+}
+
 async function entregarConviteEmail(
   adminSb: SupabaseClient,
   email: string,
@@ -229,7 +234,10 @@ async function entregarConviteEmail(
     const convite = await adminSb.auth.admin.generateLink({
       type: 'invite',
       email,
-      options: { redirectTo, data: nome ? { nome } : undefined },
+      options: {
+        redirectTo,
+        data: { ...(nome ? { nome } : {}), needs_password_setup: true },
+      },
     })
 
     if (convite.data?.properties?.action_link) {
@@ -271,7 +279,7 @@ async function entregarConviteEmail(
   }
 
   const { error: inviteEmailErr } = await adminSb.auth.admin.inviteUserByEmail(email, {
-    data: nome ? { nome } : undefined,
+    data: { ...(nome ? { nome } : {}), needs_password_setup: true },
     redirectTo,
   })
 
@@ -420,7 +428,7 @@ Deno.serve(async (req) => {
     }
 
     const token = randomToken()
-    const redirectTo = `${app_origin}/aceitar-convite/${token}`
+    const redirectTo = buildInviteRedirect(app_origin, token)
     const expira_em = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
 
     const { error: updErr } = await adminSb
@@ -560,7 +568,7 @@ Deno.serve(async (req) => {
   }
 
   const token = randomToken()
-  const redirectTo = `${app_origin}/aceitar-convite/${token}`
+  const redirectTo = buildInviteRedirect(app_origin, token)
 
   const { data: inserted, error: insErr } = await adminSb
     .from('alwayson_user_invites')
