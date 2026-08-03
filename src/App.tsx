@@ -40,6 +40,8 @@ import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
 import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
 import { AdminDistribuidorIngestao } from '@/pages/admin/AdminDistribuidorIngestao'
 import { AdminInsightsLayout } from '@/pages/admin/AdminInsightsLayout'
+import { AdminExplorarLayout } from '@/pages/admin/AdminExplorarLayout'
+import { AdminExplorarDesconsiderados } from '@/pages/admin/AdminExplorarDesconsiderados'
 import { InsightsPanel } from '@/pages/InsightsPanel'
 import { ExplorarPanel } from '@/pages/ExplorarPanel'
 
@@ -136,6 +138,13 @@ function App() {
                         path="excluir-clientes"
                         element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
                       />
+                    </Route>
+                    <Route path="explorar" element={<AdminExplorarLayout />}>
+                      <Route
+                        index
+                        element={<Navigate to="/admin/explorar/desconsiderados" replace />}
+                      />
+                      <Route path="desconsiderados" element={<AdminExplorarDesconsiderados />} />
                     </Route>
                     <Route path="produtos" element={<AdminProdutos />} />
                     <Route

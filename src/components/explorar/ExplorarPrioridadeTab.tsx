@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, EyeOff, Target } from 'lucide-react'
 import { Panel } from '@/components/distribuidor/Panel'
 import { EmptyState } from '@/components/distribuidor/EmptyState'
 import { ExplorarSegmentoBadge } from '@/components/explorar/ExplorarSegmentoBadge'
@@ -21,11 +21,12 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Button } from '@/components/ui/button'
 import { usePagination } from '@/hooks/usePagination'
+import { useDesconsiderarPdv } from '@/hooks/usePdvDesconsiderados'
 import { formatCnpj, formatCurrency } from '@/lib/format'
 import { faixaRelevanciaLabel, formatIndiceRelevancia, formatExplorarRank, PDV_FAIXA_PRIORIDADE, PDV_FAIXA_PRIORIDADE_TEXTO } from '@/lib/pdv'
 import type { PdvPrioridadeRow, PdvSegmento } from '@/types/pdv'
-import { Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type VisaoPrioridade = 'oportunidades' | 'carteira' | 'todos'
@@ -49,6 +50,7 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
   const [faixaFilter, setFaixaFilter] = useState<FaixaFiltro>('ab')
   const [segmentoFilter, setSegmentoFilter] = useState<'todos' | PdvSegmento>('subexplorado')
   const [vendedorFilter, setVendedorFilter] = useState<string>('todos')
+  const desconsiderar = useDesconsiderarPdv()
 
   const vendedores = useMemo(() => {
     const map = new Map<string, string>()
@@ -279,7 +281,7 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
               </>
             )}
             {modoOportunidade && <TableHead>Bairro</TableHead>}
-            <TableHead className="w-8" />
+            <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -339,15 +341,28 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
                 <TableCell className="text-sm text-muted-foreground">{r.bairro ?? '—'}</TableCell>
               )}
               <TableCell>
-                {r.cliente_id && (
-                  <Link
-                    to={`/clientes/${r.cliente_id}`}
-                    className="inline-flex text-muted-foreground hover:text-foreground"
-                    aria-label="Ver cliente"
+                <div className="flex items-center justify-end gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-destructive"
+                    title="Não se aplica ao nosso negócio"
+                    disabled={desconsiderar.isPending}
+                    onClick={() => desconsiderar.mutate({ cnpj: r.cnpj, motivo: 'fora_do_mix' })}
                   >
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                )}
+                    <EyeOff className="size-4" />
+                  </Button>
+                  {r.cliente_id && (
+                    <Link
+                      to={`/clientes/${r.cliente_id}`}
+                      className="inline-flex text-muted-foreground hover:text-foreground"
+                      aria-label="Ver cliente"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
             )

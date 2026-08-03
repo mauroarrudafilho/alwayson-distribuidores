@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/distribuidor/PageHeader'
 
 const adminTabs = [
   { path: '/admin/insights', label: 'Insights', prefix: true },
+  { path: '/admin/explorar', label: 'Explorar', prefix: true },
   { path: '/admin/produtos', label: 'Produtos', prefix: false },
   { path: '/admin/usuarios', label: 'Usuários', prefix: false },
   { path: '/admin/ajustes-cadastro', label: 'Ajustes de cadastro', prefix: true },
