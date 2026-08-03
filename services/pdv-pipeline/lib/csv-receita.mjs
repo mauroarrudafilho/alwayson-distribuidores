@@ -40,9 +40,9 @@ function parseReceitaLine(line) {
 }
 
 const RECEITA_KIND_MATCH = {
-  estabele: (name) => /^estabele/i.test(name) || /\.estabele$/i.test(name),
-  empresas: (name) => /^empresas/i.test(name) || /\.empresa/i.test(name),
-  simples: (name) => /^simples/i.test(name),
+  estabele: (name) => /\.estabele$/i.test(name),
+  empresas: (name) => /\.emprecsv$/i.test(name) || /\.empresa/i.test(name),
+  simples: (name) => /simples/i.test(name) && !name.endsWith('.zip'),
 }
 
 export function listReceitaCsvFiles(dataDir, kind) {

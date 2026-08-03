@@ -29,6 +29,11 @@ import {
 } from './lib/execucoes.mjs'
 import { createServiceClient } from './lib/supabase.mjs'
 import { runReceitaUniverso } from './jobs/receita-universo.mjs'
+import { runGeocodeCnefe } from './jobs/geocode-cnefe.mjs'
+import { runScoreModelo } from './jobs/score-modelo.mjs'
+import { runCruzamento } from './jobs/cruzamento.mjs'
+import { runCobertura } from './jobs/cobertura.mjs'
+import { parseCodigosIbge, PILOTO_PETROLINA } from './lib/piloto.mjs'
 
 loadDotenv()
 
@@ -51,6 +56,17 @@ app.post('/api/pdv/receita-universo', async (req, res) => {
   const dataDir = String(req.body?.data_dir ?? process.env.RECEITA_DATA_DIR ?? '').trim()
   const limit = req.body?.limit != null ? Number(req.body.limit) : 0
   const dryRun = Boolean(req.body?.dry_run)
+  const codigosIbge = parseCodigosIbge(
+    Array.isArray(req.body?.codigo_ibge)
+      ? req.body.codigo_ibge.map(String)
+      : req.body?.codigo_ibge != null
+        ? [String(req.body.codigo_ibge)]
+        : req.body?.piloto === 'petrolina'
+          ? [String(PILOTO_PETROLINA.codigo_ibge)]
+          : []
+  )
+  const ufFinal =
+    req.body?.piloto === 'petrolina' ? PILOTO_PETROLINA.uf : uf
 
   if (!dataDir && !dryRun) {
     return res.status(400).json({
@@ -62,9 +78,10 @@ app.post('/api/pdv/receita-universo', async (req, res) => {
   let execId
   try {
     execId = await criarExecucao(supabase, ETAPAS.receita_universo, {
-      uf,
+      uf: ufFinal,
       data_dir: dataDir,
       limit: limit || null,
+      codigos_ibge: codigosIbge.length ? codigosIbge : null,
       dry_run: dryRun,
       origem: 'api',
     })
@@ -80,7 +97,15 @@ app.post('/api/pdv/receita-universo', async (req, res) => {
     message: 'Job aceito. Consulte GET /api/pdv/jobs/:id',
   })
 
-  runReceitaUniverso({ uf, dataDir, dryRun, limit, execId, gerenciaAuditoria: false })
+  runReceitaUniverso({
+    uf: ufFinal,
+    dataDir,
+    dryRun,
+    limit,
+    codigosIbge,
+    execId,
+    gerenciaAuditoria: false,
+  })
     .then((resultado) => concluirExecucao(supabase, execId, resultado))
     .catch(async (err) => {
       console.error('[pdv-pipeline]', execId, err)
@@ -88,14 +113,169 @@ app.post('/api/pdv/receita-universo', async (req, res) => {
     })
 })
 
-/** Placeholders das próximas etapas — implementação incremental. */
-const STUB_ETAPAS = [
-  ETAPAS.score_modelo,
-  ETAPAS.geocode_cnefe,
-  ETAPAS.cruzamento,
-  ETAPAS.cobertura,
-  ETAPAS.google_sinal,
-]
+/** Etapa CNEFE — geocode universo. */
+app.post('/api/pdv/geocode-cnefe', async (req, res) => {
+  if (!assertPipelineSecret(req, res)) return
+
+  const dataDir = String(req.body?.data_dir ?? process.env.CNEFE_DATA_DIR ?? './data/cnefe').trim()
+  const dryRun = Boolean(req.body?.dry_run)
+  const codigosIbge = parseCodigosIbge(
+    Array.isArray(req.body?.codigo_ibge)
+      ? req.body.codigo_ibge.map(String)
+      : req.body?.codigo_ibge != null
+        ? [String(req.body.codigo_ibge)]
+        : req.body?.piloto === 'petrolina'
+          ? [String(PILOTO_PETROLINA.codigo_ibge)]
+          : []
+  )
+
+  if (!codigosIbge.length) {
+    return res.status(400).json({ error: 'codigo_ibge_ausente' })
+  }
+
+  let execId
+  try {
+    execId = await criarExecucao(supabase, ETAPAS.geocode_cnefe, {
+      codigos_ibge: codigosIbge,
+      data_dir: dataDir,
+      dry_run: dryRun,
+      origem: 'api',
+    })
+  } catch (err) {
+    return res.status(500).json({ error: 'internal_error', message: err.message })
+  }
+
+  res.status(202).json({ id: execId, status: 'processando', etapa: ETAPAS.geocode_cnefe })
+
+  runGeocodeCnefe({
+    codigosIbge,
+    dataDir,
+    municipioSlug: req.body?.piloto === 'petrolina' ? PILOTO_PETROLINA.municipio : 'PETROLINA',
+    dryRun,
+    execId,
+    gerenciaAuditoria: false,
+  })
+    .then((resultado) => concluirExecucao(supabase, execId, resultado))
+    .catch(async (err) => {
+      console.error('[pdv-pipeline]', execId, err)
+      await falharExecucao(supabase, execId, err)
+    })
+})
+
+/** Etapa score v0. */
+app.post('/api/pdv/score-modelo', async (req, res) => {
+  if (!assertPipelineSecret(req, res)) return
+
+  const dryRun = Boolean(req.body?.dry_run)
+  const codigosIbge = parseCodigosIbge(
+    Array.isArray(req.body?.codigo_ibge)
+      ? req.body.codigo_ibge.map(String)
+      : req.body?.codigo_ibge != null
+        ? [String(req.body.codigo_ibge)]
+        : req.body?.piloto === 'petrolina'
+          ? [String(PILOTO_PETROLINA.codigo_ibge)]
+          : []
+  )
+
+  if (!codigosIbge.length) {
+    return res.status(400).json({ error: 'codigo_ibge_ausente' })
+  }
+
+  let execId
+  try {
+    execId = await criarExecucao(supabase, ETAPAS.score_modelo, {
+      codigos_ibge: codigosIbge,
+      dry_run: dryRun,
+      origem: 'api',
+    })
+  } catch (err) {
+    return res.status(500).json({ error: 'internal_error', message: err.message })
+  }
+
+  res.status(202).json({ id: execId, status: 'processando', etapa: ETAPAS.score_modelo })
+
+  runScoreModelo({ codigosIbge, dryRun, execId, gerenciaAuditoria: false })
+    .then((resultado) => concluirExecucao(supabase, execId, resultado))
+    .catch(async (err) => {
+      console.error('[pdv-pipeline]', execId, err)
+      await falharExecucao(supabase, execId, err)
+    })
+})
+
+function parsePilotoCruzamento(req) {
+  const codigosIbge = parseCodigosIbge(
+    Array.isArray(req.body?.codigo_ibge)
+      ? req.body.codigo_ibge.map(String)
+      : req.body?.codigo_ibge != null
+        ? [String(req.body.codigo_ibge)]
+        : req.body?.piloto === 'petrolina'
+          ? [String(PILOTO_PETROLINA.codigo_ibge)]
+          : []
+  )
+  const distribuidorId =
+    req.body?.distribuidor_id ??
+    (req.body?.piloto === 'petrolina' ? PILOTO_PETROLINA.distribuidor_id : null)
+  return { codigosIbge, distribuidorId }
+}
+
+/** Cruzamento carteira × potencial. */
+app.post('/api/pdv/cruzamento', async (req, res) => {
+  if (!assertPipelineSecret(req, res)) return
+  const { codigosIbge, distribuidorId } = parsePilotoCruzamento(req)
+  if (!codigosIbge.length || !distribuidorId) {
+    return res.status(400).json({ error: 'parametros_ausentes' })
+  }
+  const dryRun = Boolean(req.body?.dry_run)
+  let execId
+  try {
+    execId = await criarExecucao(supabase, ETAPAS.cruzamento, {
+      codigos_ibge: codigosIbge,
+      distribuidor_id: distribuidorId,
+      dry_run: dryRun,
+      origem: 'api',
+    })
+  } catch (err) {
+    return res.status(500).json({ error: 'internal_error', message: err.message })
+  }
+  res.status(202).json({ id: execId, status: 'processando', etapa: ETAPAS.cruzamento })
+  runCruzamento({ codigosIbge, distribuidorId, dryRun, execId, gerenciaAuditoria: false })
+    .then((r) => concluirExecucao(supabase, execId, r))
+    .catch(async (err) => {
+      console.error('[pdv-pipeline]', execId, err)
+      await falharExecucao(supabase, execId, err)
+    })
+})
+
+/** Cobertura por microrregião. */
+app.post('/api/pdv/cobertura', async (req, res) => {
+  if (!assertPipelineSecret(req, res)) return
+  const { codigosIbge, distribuidorId } = parsePilotoCruzamento(req)
+  if (!codigosIbge.length || !distribuidorId) {
+    return res.status(400).json({ error: 'parametros_ausentes' })
+  }
+  const dryRun = Boolean(req.body?.dry_run)
+  let execId
+  try {
+    execId = await criarExecucao(supabase, ETAPAS.cobertura, {
+      codigos_ibge: codigosIbge,
+      distribuidor_id: distribuidorId,
+      dry_run: dryRun,
+      origem: 'api',
+    })
+  } catch (err) {
+    return res.status(500).json({ error: 'internal_error', message: err.message })
+  }
+  res.status(202).json({ id: execId, status: 'processando', etapa: ETAPAS.cobertura })
+  runCobertura({ codigosIbge, distribuidorId, dryRun, execId, gerenciaAuditoria: false })
+    .then((r) => concluirExecucao(supabase, execId, r))
+    .catch(async (err) => {
+      console.error('[pdv-pipeline]', execId, err)
+      await falharExecucao(supabase, execId, err)
+    })
+})
+
+/** Placeholder Google sinal. */
+const STUB_ETAPAS = [ETAPAS.google_sinal]
 
 for (const etapa of STUB_ETAPAS) {
   app.post(`/api/pdv/${etapa.replace(/_/g, '-')}`, (req, res) => {

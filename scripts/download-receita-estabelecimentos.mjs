@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Baixa Estabelecimentos0-9.zip (snapshot Receita) e extrai em data/receita/.
+ * Baixa arquivos abertos CNPJ (Receita) e extrai em data/receita/.
  * Fonte: espelho dos dados abertos RF (mesmo layout oficial).
  *
- * Uso: node scripts/download-receita-estabelecimentos.mjs [--snapshot 2025-07-30]
+ * Uso:
+ *   node scripts/download-receita-estabelecimentos.mjs
+ *   node scripts/download-receita-estabelecimentos.mjs --only empresas simples
+ *   node scripts/download-receita-estabelecimentos.mjs --snapshot 2025-07-30
  */
 
 import * as fs from 'node:fs'
@@ -20,6 +23,12 @@ const ROOT = path.join(__dirname, '..')
 const snapshot = process.argv.includes('--snapshot')
   ? process.argv[process.argv.indexOf('--snapshot') + 1]
   : '2025-07-30'
+
+const onlyIdx = process.argv.indexOf('--only')
+const only =
+  onlyIdx >= 0
+    ? new Set(process.argv.slice(onlyIdx + 1).filter((a) => !a.startsWith('--')))
+    : new Set(['estabele', 'empresas', 'simples', 'municipios'])
 
 const BASE = `https://dados-abertos-rf-cnpj.casadosdados.com.br/arquivos/${snapshot}`
 const OUT_DIR = path.join(ROOT, 'data', 'receita', snapshot)
@@ -40,24 +49,59 @@ async function download(url, dest) {
   console.log(`[ok] ${path.basename(dest)} (${(stat.size / 1e6).toFixed(1)} MB)`)
 }
 
-async function unzip(zipPath, outDir) {
+function extractedForZip(baseName, files) {
+  const m = baseName.match(/^(Estabelecimentos|Empresas)(\d+)$/i)
+  if (m) {
+    const kind = m[1].toLowerCase().startsWith('estabele') ? 'ESTABELE' : 'EMPRE'
+    const idx = m[2]
+    return files.some(
+      (f) => !f.endsWith('.zip') && f.toUpperCase().includes(`.Y${idx}.`) && f.toUpperCase().includes(kind)
+    )
+  }
+  if (baseName.toLowerCase() === 'simples') {
+    return files.some((f) => !f.endsWith('.zip') && /simples/i.test(f))
+  }
+  if (baseName.toLowerCase() === 'municipios') {
+    return files.some((f) => !f.endsWith('.zip') && /\.munic/i.test(f))
+  }
+  return false
+}
+
+async function unzipIfNeeded(zipPath, outDir) {
   const base = path.basename(zipPath, '.zip')
-  const csvPath = path.join(outDir, `${base}.csv`)
-  if (fs.existsSync(csvPath)) {
-    console.log(`[skip unzip] ${base}.csv`)
+  const entries = fs.readdirSync(outDir)
+  if (extractedForZip(base, entries)) {
+    console.log(`[skip unzip] ${path.basename(zipPath)}`)
     return
   }
   console.log(`[unzip] ${path.basename(zipPath)}`)
   await execFileAsync('unzip', ['-o', zipPath, '-d', outDir])
 }
 
-async function main() {
-  fs.mkdirSync(OUT_DIR, { recursive: true })
-  for (let i = 0; i <= 9; i++) {
-    const name = `Estabelecimentos${i}.zip`
+async function downloadSeries(prefix, count) {
+  for (let i = 0; i < count; i++) {
+    const name = `${prefix}${i}.zip`
     const zipPath = path.join(OUT_DIR, name)
     await download(`${BASE}/${name}`, zipPath)
-    await unzip(zipPath, OUT_DIR)
+    await unzipIfNeeded(zipPath, OUT_DIR)
+  }
+}
+
+async function main() {
+  fs.mkdirSync(OUT_DIR, { recursive: true })
+  if (only.has('estabele')) await downloadSeries('Estabelecimentos', 10)
+  if (only.has('empresas')) await downloadSeries('Empresas', 10)
+  if (only.has('simples')) {
+    const name = 'Simples.zip'
+    const zipPath = path.join(OUT_DIR, name)
+    await download(`${BASE}/${name}`, zipPath)
+    await unzipIfNeeded(zipPath, OUT_DIR)
+  }
+  if (only.has('municipios')) {
+    const name = 'Municipios.zip'
+    const zipPath = path.join(OUT_DIR, name)
+    await download(`${BASE}/${name}`, zipPath)
+    await unzipIfNeeded(zipPath, OUT_DIR)
   }
   console.log(`\nPronto: ${OUT_DIR}`)
 }

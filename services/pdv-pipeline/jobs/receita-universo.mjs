@@ -10,7 +10,8 @@
  * Uso:
  *   node services/pdv-pipeline/jobs/receita-universo.mjs --uf PE --data-dir ./data/receita
  *   node services/pdv-pipeline/jobs/receita-universo.mjs --uf PE --data-dir ./data/receita --dry-run
- *   node services/pdv-pipeline/jobs/receita-universo.mjs --uf PE --data-dir ./data/receita --limit 100
+ *   node services/pdv-pipeline/jobs/receita-universo.mjs --uf PE --data-dir ./data/receita --codigo-ibge 2611101
+ *   node services/pdv-pipeline/jobs/receita-universo.mjs --piloto petrolina --data-dir ./data/receita --dry-run
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (via .env.local)
  */
@@ -26,24 +27,52 @@ import {
   falharExecucao,
 } from '../lib/execucoes.mjs'
 import { createServiceClient } from '../lib/supabase.mjs'
+import {
+  carregarMunicipiosReceita,
+  chaveReceitaMunicipio,
+  filtroReceitaPorIbge,
+  resolveCodigoIbge,
+} from '../lib/municipios-receita.mjs'
+import {
+  parseCodigosIbge,
+  PILOTO_PETROLINA,
+} from '../lib/piloto.mjs'
 
 loadDotenv()
 
 const BATCH = 400
 
 function parseArgs(argv) {
-  const out = { uf: 'PE', dataDir: process.env.RECEITA_DATA_DIR || '', dryRun: false, limit: 0 }
+  const out = {
+    uf: 'PE',
+    dataDir: process.env.RECEITA_DATA_DIR || '',
+    dryRun: false,
+    limit: 0,
+    codigosIbge: [],
+  }
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--uf') out.uf = String(argv[++i] ?? 'PE').toUpperCase()
     else if (a === '--data-dir') out.dataDir = String(argv[++i] ?? '')
     else if (a === '--dry-run') out.dryRun = true
     else if (a === '--limit') out.limit = Number(argv[++i] ?? 0)
-    else if (a === '--help' || a === '-h') {
-      console.log(`Uso: receita-universo.mjs --uf PE --data-dir PATH [--dry-run] [--limit N]`)
+    else if (a === '--codigo-ibge') out.codigosIbge.push(...parseCodigosIbge([argv[++i] ?? '']))
+    else if (a === '--piloto') {
+      const nome = String(argv[++i] ?? 'petrolina').toLowerCase()
+      if (nome !== 'petrolina') {
+        throw new Error(`Piloto desconhecido: ${nome}. Disponível: petrolina`)
+      }
+      out.uf = PILOTO_PETROLINA.uf
+      out.codigosIbge = [PILOTO_PETROLINA.codigo_ibge]
+    } else if (a === '--help' || a === '-h') {
+      console.log(
+        `Uso: receita-universo.mjs --piloto petrolina --data-dir PATH [--dry-run]\n` +
+          `     receita-universo.mjs --uf PE --codigo-ibge 2611101 --data-dir PATH`
+      )
       process.exit(0)
     }
   }
+  out.codigosIbge = [...new Set(out.codigosIbge)]
   return out
 }
 
@@ -59,7 +88,8 @@ async function carregarIbgePorCodigo(supabase) {
     if (error) throw error
     if (!data?.length) break
     for (const row of data) {
-      map.set(row.codigo_ibge, {
+      const codigo = Number(row.codigo_ibge)
+      map.set(codigo, {
         municipio: row.cidade_exibicao,
         uf: row.estado,
       })
@@ -112,7 +142,7 @@ function parseSecundarios(raw) {
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-function rowToUniverso(cols, empresas, simples, ibgeMap) {
+function rowToUniverso(cols, empresas, simples, ibgeMap, municipiosReceita, uf) {
   const cnaeHit = cnaeQualificado(cols[11], cols[12])
   if (!cnaeHit) return null
 
@@ -120,7 +150,7 @@ function rowToUniverso(cols, empresas, simples, ibgeMap) {
   const basico = cols[0]
   const emp = empresas.get(basico) ?? {}
   const sim = simples.get(basico) ?? {}
-  const codigoIbge = cols[20] ? Number(String(cols[20]).replace(/\D/g, '')) : null
+  const codigoIbge = resolveCodigoIbge(cols, uf, municipiosReceita, ibgeMap)
   const ibge = codigoIbge ? ibgeMap.get(codigoIbge) : null
 
   const logradouro = [cols[13], cols[14]].filter(Boolean).join(' ').trim() || cols[14] || null
@@ -151,14 +181,22 @@ function rowToUniverso(cols, empresas, simples, ibgeMap) {
   }
 }
 
-async function upsertLote(supabase, rows) {
+async function upsertLote(supabase, rows, ibgeMap) {
   if (!rows.length) return
-  const { error } = await supabase.from('alwayson_pdv_universo').upsert(rows, { onConflict: 'cnpj' })
+  const safe = rows.map((row) => {
+    const codigo = row.codigo_ibge != null ? Number(row.codigo_ibge) : null
+    if (codigo != null && !ibgeMap.has(codigo)) {
+      return { ...row, codigo_ibge: null }
+    }
+    return row
+  })
+  const { error } = await supabase.from('alwayson_pdv_universo').upsert(safe, { onConflict: 'cnpj' })
   if (error) throw error
 }
 
 export async function runReceitaUniverso(opts) {
-  const { uf, dataDir, dryRun, limit } = opts
+  const { uf, dataDir, dryRun, limit, codigosIbge } = opts
+  const filtroIbge = codigosIbge?.length ? new Set(codigosIbge.map(Number)) : null
   if (!dataDir) {
     throw new Error('Informe --data-dir ou RECEITA_DATA_DIR com os CSVs extraídos da Receita.')
   }
@@ -168,7 +206,26 @@ export async function runReceitaUniverso(opts) {
     throw new Error(`Nenhum Estabelecimentos*.CSV em ${dataDir}`)
   }
 
-  console.log(`[receita] UF=${uf} arquivos=${estabFiles.length} dryRun=${dryRun}`)
+  const supabase = dryRun ? null : createServiceClient()
+  const ibgeMap = await carregarIbgePorCodigo(supabase ?? createServiceClient())
+  let municipiosReceita = new Map()
+  if (filtroIbge || !dryRun) {
+    municipiosReceita = await carregarMunicipiosReceita(dataDir)
+  }
+  const filtroReceita = filtroIbge
+    ? filtroReceitaPorIbge([...filtroIbge], uf, municipiosReceita, ibgeMap)
+    : null
+
+  if (filtroIbge && filtroReceita.size === 0) {
+    throw new Error(
+      `Nenhum município Receita mapeado para IBGE [${[...filtroIbge].join(', ')}]. Confira Municipios.zip.`
+    )
+  }
+
+  console.log(
+    `[receita] UF=${uf} arquivos=${estabFiles.length} dryRun=${dryRun}` +
+      (filtroReceita ? ` municípios_receita=[${[...filtroReceita].join(',')}]` : '')
+  )
 
   /** @type {Map<string, string[]>} */
   const estabFiltrados = new Map()
@@ -179,6 +236,10 @@ export async function runReceitaUniverso(opts) {
   for (const file of estabFiles) {
     await streamReceitaCsv(file, (cols) => {
       lidas++
+      if (filtroReceita) {
+        const chave = chaveReceitaMunicipio(cols, uf)
+        if (!chave || !filtroReceita.has(chave)) return
+      }
       if (cols[19]?.toUpperCase() !== uf) return
       if (cols[5] !== SITUACAO_CADASTRAL_ATIVA) return
       if (!cnaeQualificado(cols[11], cols[12])) return
@@ -191,7 +252,11 @@ export async function runReceitaUniverso(opts) {
     if (limit > 0 && candidatas >= limit) break
   }
 
-  console.log(`[receita] linhas lidas≈${lidas} candidatas UF=${uf}: ${estabFiltrados.size}`)
+  console.log(
+    `[receita] linhas lidas≈${lidas} candidatas` +
+      (filtroIbge ? ` município(s)` : ` UF=${uf}`) +
+      `: ${estabFiltrados.size}`
+  )
 
   const empresas = dryRun ? new Map() : await indexarEmpresas(dataDir, basesNecessarios)
   const simples = dryRun ? new Map() : await indexarSimples(dataDir, basesNecessarios)
@@ -199,36 +264,39 @@ export async function runReceitaUniverso(opts) {
     console.log(`[receita] empresas indexadas=${empresas.size} simples=${simples.size}`)
   }
 
-  const supabase = dryRun ? null : createServiceClient()
-  const ibgeMap = dryRun ? new Map() : await carregarIbgePorCodigo(supabase)
-
   let execId = opts.execId ?? null
   const gerenciaAuditoria = opts.gerenciaAuditoria !== false
   if (supabase && !execId && gerenciaAuditoria) {
-    execId = await criarExecucao(supabase, ETAPAS.receita_universo, { uf, dataDir, limit: limit || null })
+    execId = await criarExecucao(supabase, ETAPAS.receita_universo, {
+      uf,
+      dataDir,
+      limit: limit || null,
+      codigos_ibge: filtroIbge ? [...filtroIbge] : null,
+    })
   }
 
   try {
     let buffer = []
     let gravadas = 0
     for (const cols of estabFiltrados.values()) {
-      const row = rowToUniverso(cols, empresas, simples, ibgeMap)
+      const row = rowToUniverso(cols, empresas, simples, ibgeMap, municipiosReceita, uf)
       if (!row) continue
       buffer.push(row)
       if (buffer.length >= BATCH) {
-        if (!dryRun) await upsertLote(supabase, buffer)
+        if (!dryRun) await upsertLote(supabase, buffer, ibgeMap)
         gravadas += buffer.length
         buffer = []
-        if (gravadas % 2000 === 0) console.log(`[receita] gravadas ${gravadas}`)
+        if (!dryRun && gravadas % 2000 === 0) console.log(`[receita] gravadas ${gravadas}`)
       }
     }
     if (buffer.length) {
-      if (!dryRun) await upsertLote(supabase, buffer)
+      if (!dryRun) await upsertLote(supabase, buffer, ibgeMap)
       gravadas += buffer.length
     }
 
     const resultado = {
       uf,
+      codigos_ibge: filtroIbge ? [...filtroIbge] : null,
       linhas_lidas: lidas,
       candidatas: estabFiltrados.size,
       gravadas: dryRun ? 0 : gravadas,

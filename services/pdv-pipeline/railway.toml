@@ -1,0 +1,10 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/pdv-pipeline/Dockerfile"
+
+[deploy]
+startCommand = "node services/pdv-pipeline/server.mjs"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

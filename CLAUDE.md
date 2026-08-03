@@ -40,3 +40,17 @@ Snapshot rápido para qualquer agente que chegue neste repo sem contexto prévio
 - **⚠️ A API de ingestão não é deployada por este repo.** O `docs/INGESTAO_API_RAILWAY.md` usa placeholder (`seu-servico.railway.app`) e o repo não registra a URL real. Ao mexer no contrato do `POST /api/ingest`, lembre que a instância em execução pode estar atrasada em relação ao `main`.
 - **Continuam abertos a qualquer autenticado, por decisão de produto:** todo `alwayson_insights_*` (benchmark territorial para todos os perfis) e `alwayson_ibge_municipio_populacao` (referência pública).
 - **Sem testes automatizados** (nenhum vitest/jest, nenhum `*.test.*`). Validação de mudança de frontend é manual: `npm run dev` + browser.
+
+## UI — nunca expor UUID na interface
+
+IDs internos (`distribuidor_id`, `fornecedor_tenant_id`, `cliente_id`, etc.) são **somente para API/estado React/query keys** — o utilizador vê **nome legível** (distribuidor, fornecedor, vendedor, cliente).
+
+- **Selects de tenant/entidade:** resolver rótulo com `labelFromOptions()` (`src/lib/entity-labels.ts`) ou `currentTenant.nome`; passar o texto explicitamente em `<SelectValue>{label}</SelectValue>`. Se o tenant está fixo (utilizador distribuidor/fornecedor), usar campo **somente leitura** — não um select com UUID.
+- **Nunca** deixar o Radix `SelectValue` cair no fallback do `value` bruto quando a lista ainda não carregou ou o item não está nas opções — mostrar placeholder ou skeleton, não o UUID.
+- **Referência:** filtros do Explorar em `src/components/explorar/ExplorarFiltros.tsx` (`FilterEntitySelect`, `FilterReadonly`).
+
+## Explorar (PDV Intelligence)
+
+- **Diferente do Insights:** potencial estimado na praça de atuação (Receita + CNEFE + score v0), não sell-out histórico.
+- **Relevância v1** (`consolidacao_v1`, `services/pdv-pipeline/lib/score-v1.mjs`): índice 0–100 = 55% rede (filiais mesma raiz CNPJ) + 45% maturidade (abertura). **Sem ticket CNAE** — faturamento declarado só entra quando houver fonte confiável. Faixa A–D = quartis na cidade. Coluna `potencial_estimado_mensal` guarda o índice (legado de nome). **Índice aberto** = soma dos índices dos PDVs não na carteira. Mapa: bolha ∝ relevância.
+- Pipeline Railway: `docs/PDV_PIPELINE_RAILWAY.md`. Piloto: Petrolina (`2611101`).

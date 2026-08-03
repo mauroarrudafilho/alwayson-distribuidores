@@ -53,3 +53,5 @@ supabase/.temp/
 
 # CSVs extraídos da Receita Federal (GB — pipeline PDV)
 data/receita/
+data/rais/
+data/cnefe/

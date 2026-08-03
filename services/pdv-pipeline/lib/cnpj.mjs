@@ -5,6 +5,10 @@ export function montaCnpj(basico, ordem, dv) {
   return `${b}${o}${d}`
 }
 
+/**
+ * Raiz do CNPJ — 8 primeiros dígitos (parte antes da filial).
+ * Ex.: 21.877.243/0001-82 → raiz `21877243`. Agrupa filiais do mesmo titular.
+ */
 export function cnpjRaiz(cnpj) {
   return String(cnpj ?? '').replace(/\D/g, '').slice(0, 8)
 }

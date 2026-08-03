@@ -28,7 +28,17 @@
     "produtos:import-campestre": "node scripts/import-produtos-cadastro-campestre.mjs",
     "ingest:api": "node services/ingest-api/server.mjs",
     "pdv:api": "node services/pdv-pipeline/server.mjs",
-    "pdv:receita": "node services/pdv-pipeline/jobs/receita-universo.mjs"
+    "pdv:receita": "node services/pdv-pipeline/jobs/receita-universo.mjs",
+    "pdv:receita:petrolina": "node services/pdv-pipeline/jobs/receita-universo.mjs --piloto petrolina --data-dir ./data/receita/2025-07-30",
+    "pdv:score": "node services/pdv-pipeline/jobs/score-modelo.mjs",
+    "pdv:score:petrolina": "node services/pdv-pipeline/jobs/score-modelo.mjs --piloto petrolina",
+    "pdv:score:v2:petrolina": "node services/pdv-pipeline/jobs/score-modelo.mjs --piloto petrolina --versao v2",
+    "pdv:piloto:v2:petrolina": "npm run pdv:score:v2:petrolina && npm run pdv:cruzamento:petrolina && npm run pdv:cobertura:petrolina",
+    "pdv:cnefe:download": "node scripts/download-cnefe-municipio.mjs --piloto petrolina",
+    "pdv:cnefe:petrolina": "node services/pdv-pipeline/jobs/geocode-cnefe.mjs --piloto petrolina --data-dir ./data/cnefe",
+    "pdv:cruzamento:petrolina": "node services/pdv-pipeline/jobs/cruzamento.mjs --piloto petrolina",
+    "pdv:cobertura:petrolina": "node services/pdv-pipeline/jobs/cobertura.mjs --piloto petrolina",
+    "pdv:piloto:petrolina": "npm run pdv:cruzamento:petrolina && npm run pdv:cobertura:petrolina"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
