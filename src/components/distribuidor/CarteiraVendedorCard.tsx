@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function CarteiraVendedorCard({ distribuidorId, vendedores }: Props) {
-  const { isAdmin } = useAuth()
+  const { canGerenciarOperacao } = useAuth()
   const [vendedorId, setVendedorId] = useState<string>('')
   const [movendo, setMovendo] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -125,7 +125,7 @@ export function CarteiraVendedorCard({ distribuidorId, vendedores }: Props) {
                       <Select
                         value=""
                         onValueChange={(v) => v && mover(c.id, v)}
-                        disabled={!isAdmin || movendo === c.id}
+                        disabled={!canGerenciarOperacao || movendo === c.id}
                       >
                         <SelectTrigger className="h-7 w-40 text-[11px]">
                           <SelectValue
@@ -150,9 +150,9 @@ export function CarteiraVendedorCard({ distribuidorId, vendedores }: Props) {
           </div>
         )}
 
-        {!isAdmin && (
+        {!canGerenciarOperacao && (
           <p className="text-[11px] text-muted-foreground">
-            Apenas administradores podem remanejar clientes.
+            Remanejo de clientes disponível para gestores comerciais no recorte.
           </p>
         )}
       </CardContent>

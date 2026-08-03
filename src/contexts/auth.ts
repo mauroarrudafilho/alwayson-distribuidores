@@ -39,6 +39,13 @@ export interface AuthState {
   memberships: TenantMembership[]
   currentTenant: TenantMembership | null
   isAdmin: boolean
+  /**
+   * Gestor comercial da ferramenta (KAM, gestor fornecedor ou admin global):
+   * metas, parceiros, cadastro operacional — sem acesso à área /admin da plataforma.
+   */
+  canGerenciarOperacao: boolean
+  /** @deprecated Preferir canGerenciarOperacao — alias mantido por compatibilidade. */
+  canGerenciarMetas: boolean
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   setCurrentTenantById: (tenantId: string) => void

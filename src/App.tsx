@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { RequireAuth } from '@/components/auth/RequireAuth'
+import { RequireAdmin } from '@/components/auth/RequireAdmin'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Login } from '@/pages/Login'
 import { RecuperarPassword } from '@/pages/RecuperarPassword'
@@ -112,7 +113,8 @@ function App() {
                     <Route path="hierarquia" element={<AdminDistribuidorHierarquia />} />
                   </Route>
 
-                  <Route path="/admin" element={<Admin />}>
+                  <Route path="/admin" element={<RequireAdmin />}>
+                    <Route element={<Admin />}>
                     <Route index element={<Navigate to="/admin/distribuidores" replace />} />
                     {/* Link salvo continua funcionando. */}
                     <Route path="distribuidores" element={<Navigate to="/parceiros" replace />} />
@@ -175,6 +177,7 @@ function App() {
                       element={<Navigate to="/admin/insights/cadastro-clientes" replace />}
                     />
                     <Route path="metas" element={<Navigate to="/metas" replace />} />
+                    </Route>
                   </Route>
                   <Route path="/ingestao" element={<Navigate to="/parceiros" replace />} />
                   <Route path="/insights" element={<InsightsPanel />} />

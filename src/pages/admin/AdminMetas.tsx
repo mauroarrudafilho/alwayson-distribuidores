@@ -138,7 +138,7 @@ export function AdminMetas() {
   const scoped = Boolean(routeDistribuidorId)
   const { data: metas, isLoading } = useMetas()
   const { data: distribuidores } = useDistribuidores()
-  const { isAdmin } = useAuth()
+  const { canGerenciarOperacao } = useAuth()
   const deleteMeta = useDeleteMeta()
   const [tab, setTab] = useState<MetasTab>('acompanhamento')
   const [distribuidorFilter, setDistribuidorFilter] = useState<string>('todos')
@@ -287,10 +287,10 @@ export function AdminMetas() {
 
                 <Button
                   onClick={abrirFluxo}
-                  disabled={!isAdmin || !distribuidorAlvo}
+                  disabled={!canGerenciarOperacao || !distribuidorAlvo}
                   title={
-                    !isAdmin
-                      ? 'Apenas administradores podem definir metas.'
+                    !canGerenciarOperacao
+                      ? 'Sem permissão para definir metas neste recorte.'
                       : !distribuidorAlvo
                         ? 'Selecione um distribuidor para criar a meta.'
                         : undefined
@@ -385,7 +385,7 @@ export function AdminMetas() {
                           size="sm"
                           variant="ghost"
                           className="h-7 px-2"
-                          disabled={!isAdmin}
+                          disabled={!canGerenciarOperacao}
                           onClick={() => abrirEdicao(m)}
                         >
                           <Pencil className="h-3 w-3" />
@@ -394,7 +394,7 @@ export function AdminMetas() {
                           size="sm"
                           variant="ghost"
                           className="h-7 px-2 text-muted-foreground hover:text-destructive"
-                          disabled={!isAdmin || deleteMeta.isPending}
+                          disabled={!canGerenciarOperacao || deleteMeta.isPending}
                           onClick={() => {
                             if (confirm('Excluir esta meta?')) deleteMeta.mutate(m.id)
                           }}

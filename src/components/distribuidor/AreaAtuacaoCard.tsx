@@ -54,7 +54,7 @@ function Indicador({
 }
 
 export function AreaAtuacaoCard({ distribuidor }: { distribuidor: Distribuidor }) {
-  const { isAdmin } = useAuth()
+  const { canGerenciarOperacao } = useAuth()
   const [editando, setEditando] = useState(false)
   const [busca, setBusca] = useState('')
 
@@ -94,8 +94,8 @@ export function AreaAtuacaoCard({ distribuidor }: { distribuidor: Distribuidor }
               size="sm"
               variant="outline"
               className="h-7 text-xs"
-              disabled={!isAdmin}
-              title={!isAdmin ? 'Apenas administradores editam o cadastro.' : undefined}
+              disabled={!canGerenciarOperacao}
+              title={!canGerenciarOperacao ? 'Sem permissão para editar o cadastro.' : undefined}
               onClick={() => setEditando(true)}
             >
               Editar
@@ -237,7 +237,7 @@ export function AreaAtuacaoCard({ distribuidor }: { distribuidor: Distribuidor }
             {(cidades ?? []).map((c) => (
               <Badge key={c.codigo_ibge} variant="secondary" className="gap-1 text-[11px] font-normal">
                 {c.cidade_exibicao}/{c.estado}
-                {isAdmin && (
+                {canGerenciarOperacao && (
                   <button
                     type="button"
                     aria-label={`Remover ${c.cidade_exibicao}`}
@@ -253,7 +253,7 @@ export function AreaAtuacaoCard({ distribuidor }: { distribuidor: Distribuidor }
             ))}
           </div>
 
-          {isAdmin && (
+          {canGerenciarOperacao && (
             <div className="space-y-1.5">
               <div className="relative max-w-sm">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />

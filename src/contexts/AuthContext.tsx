@@ -191,6 +191,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [memberships]
   )
 
+  const canGerenciarOperacao = useMemo(
+    () =>
+      isAdmin ||
+      memberships.some((m) => m.role === 'kam' || m.role === 'gestor_fornecedor'),
+    [memberships, isAdmin]
+  )
+
   const value = useMemo<AuthState>(
     () => ({
       loading,
@@ -201,6 +208,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       memberships,
       currentTenant,
       isAdmin,
+      canGerenciarOperacao,
+      canGerenciarMetas: canGerenciarOperacao,
       signIn,
       signOut,
       setCurrentTenantById,
@@ -214,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       memberships,
       currentTenant,
       isAdmin,
+      canGerenciarOperacao,
       signIn,
       signOut,
       setCurrentTenantById,

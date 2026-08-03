@@ -36,7 +36,7 @@ interface Props {
 
 export function HistoricoAjustesCard({ cliente }: Props) {
   const [open, setOpen] = useState(false)
-  const { isAdmin } = useAuth()
+  const { canGerenciarOperacao } = useAuth()
   const { data, isLoading } = useAjustesPorCliente(cliente.id)
   const ajustes = data ?? []
   const ativos = ajustes.filter((a) => !a.reverted_em)
@@ -57,8 +57,8 @@ export function HistoricoAjustesCard({ cliente }: Props) {
           size="sm"
           variant="outline"
           onClick={() => setOpen(true)}
-          disabled={!isAdmin}
-          title={!isAdmin ? 'Apenas administradores podem registrar ajustes.' : undefined}
+          disabled={!canGerenciarOperacao}
+          title={!canGerenciarOperacao ? 'Sem permissão para registrar ajustes.' : undefined}
           className="h-8 text-xs"
         >
           <Plus className="w-3.5 h-3.5 mr-1" />

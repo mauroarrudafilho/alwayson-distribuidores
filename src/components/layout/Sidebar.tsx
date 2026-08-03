@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { TenantSwitcher } from '@/components/auth/TenantSwitcher'
+import { useAuth } from '@/contexts/auth'
 import { BrandMark } from '@/components/brand/BrandMark'
 import { prefetchInsightsBootstrap } from '@/hooks/useInsightsQueries'
 
@@ -69,6 +70,11 @@ export function Sidebar({
 }: SidebarProps) {
   const location = useLocation()
   const queryClient = useQueryClient()
+  const { isAdmin } = useAuth()
+
+  const visibleMenuItems = menuItems.filter(
+    (item) => item.path !== '/admin' || isAdmin
+  )
 
   return (
     <aside
@@ -125,8 +131,8 @@ export function Sidebar({
       </div>
 
       <nav className="relative z-10 flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-        {menuItems.map((item, idx) => {
-          const prevGroup = idx > 0 ? menuItems[idx - 1].group : null
+        {visibleMenuItems.map((item, idx) => {
+          const prevGroup = idx > 0 ? visibleMenuItems[idx - 1].group : null
           const startsNewGroup = item.group !== prevGroup
 
           const isActive = isNavActive(location.pathname, item.path)
