@@ -50,3 +50,6 @@ supabase/.temp/
 
 # Esboços HTML/CSS de planeamento (local)
 .planning/sketches/
+
+# CSVs extraídos da Receita Federal (GB — pipeline PDV)
+data/receita/

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, MapPin, Search, Users } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
@@ -20,10 +20,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useClientesBusca } from '@/hooks/useClientesBusca'
-import { useInsightsCidadesByCnpj } from '@/hooks/useInsightsCidadesByCnpj'
-import { insightsCnpjKey } from '@/hooks/useInsightsQueries'
-import { resolveClienteCidadeUf } from '@/lib/cliente-cidade'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
+import { ClienteSemGeoBadge } from '@/components/cliente/ClienteSemGeoBadge'
 import { formatCnpj } from '@/lib/format'
 
 export function ClientesBusca() {
@@ -47,9 +45,6 @@ export function ClientesBusca() {
   const total = data?.total ?? 0
   const kpi = data?.kpi ?? { clientes: 0, ufs: 0, distribuidores: 0 }
   const ufOptions = data?.ufOptions ?? []
-
-  const rowCnpjs = useMemo(() => rows.map((c) => c.cnpj), [rows])
-  const { cidadesMap } = useInsightsCidadesByCnpj(rowCnpjs)
 
   const showEmptyState = !isLoading && total === 0
   const showResults = isLoading || total > 0
@@ -144,41 +139,36 @@ export function ClientesBusca() {
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       </TableRow>
                     ))
-                  : rows.map((c) => {
-                      const local = resolveClienteCidadeUf(
-                        c,
-                        cidadesMap.get(insightsCnpjKey(c.cnpj))
-                      )
-                      return (
-                        <TableRow key={c.id} className="cursor-pointer">
-                          <TableCell>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Link
-                                to={`/clientes/${c.id}`}
-                                className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                              >
-                                {c.nome_fantasia || '—'}
-                              </Link>
+                  : rows.map((c) => (
+                      <TableRow key={c.id} className="cursor-pointer">
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Link
+                              to={`/clientes/${c.id}`}
+                              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
+                            >
+                              {c.nome_fantasia || '—'}
+                            </Link>
                               <InsightsBadge cnpj={c.cnpj} />
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {c.razao_social}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
-                            {formatCnpj(c.cnpj)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                              {local.estado !== '—' ? local.estado : '—'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {local.cidade !== '—' ? local.cidade : '—'}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                              <ClienteSemGeoBadge cidade={c.cidade} estado={c.estado} />
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {c.razao_social}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
+                          {formatCnpj(c.cnpj)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="inline-flex h-[18px] items-center rounded border border-border/60 px-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {c.estado?.trim() && c.estado !== '—' ? c.estado : '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {c.cidade?.trim() && c.cidade !== '—' ? c.cidade : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
               </TableBody>
             </Table>
             {!isLoading && total > 0 && (

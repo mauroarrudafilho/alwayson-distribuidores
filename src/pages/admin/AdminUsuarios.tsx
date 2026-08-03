@@ -98,7 +98,7 @@ type TenantRow = {
 type InviteFnResponse =
   | {
       ok: true
-      delivery: 'signup_email' | 'magiclink'
+      delivery: 'signup_email' | 'magiclink' | 'resend' | 'manual'
       invite_id: string
       message?: string
       action_link?: string
@@ -322,7 +322,10 @@ export function AdminUsuarios() {
       setInviteError(null)
       await qc.invalidateQueries({ queryKey: ['admin', 'usuarios', 'invites'] })
       await refresh()
-      if (payload.delivery === 'magiclink' && payload.action_link) {
+      if (
+        (payload.delivery === 'magiclink' || payload.delivery === 'manual') &&
+        payload.action_link
+      ) {
         setMagicLinkShown(payload.action_link)
       } else {
         setInviteOpen(false)
@@ -513,8 +516,9 @@ export function AdminUsuarios() {
           <DialogHeader>
             <DialogTitle>Convidar utilizador</DialogTitle>
             <DialogDescription>
-              Envia e-mail via Supabase Auth com retorno para aceitar o convite nesta app. Se o e-mail
-              já tiver conta, é gerado um link mágico para copiar.
+              Envia e-mail de convite (Resend, quando configurado; senão Supabase Auth) com retorno para
+              aceitar o convite nesta app. Se o e-mail já tiver conta ou o envio falhar, é gerado um link
+              para copiar manualmente.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

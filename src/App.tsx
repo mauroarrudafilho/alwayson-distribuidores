@@ -40,8 +40,8 @@ import { AdminDistribuidorResumo } from '@/pages/admin/AdminDistribuidorResumo'
 import { AdminDistribuidorHierarquia } from '@/pages/admin/AdminDistribuidorHierarquia'
 import { AdminDistribuidorIngestao } from '@/pages/admin/AdminDistribuidorIngestao'
 import { AdminInsightsLayout } from '@/pages/admin/AdminInsightsLayout'
-import { IngestaoPanel } from '@/pages/IngestaoPanel'
 import { InsightsPanel } from '@/pages/InsightsPanel'
+import { ExplorarPanel } from '@/pages/ExplorarPanel'
 
 /** `/admin/distribuidores/:id/...` → `/parceiros/:id/...`, preservando a sub-rota. */
 function RedirecionaParceiro() {
@@ -167,8 +167,9 @@ function App() {
                     />
                     <Route path="metas" element={<Navigate to="/metas" replace />} />
                   </Route>
-                  <Route path="/ingestao" element={<IngestaoPanel />} />
+                  <Route path="/ingestao" element={<Navigate to="/parceiros" replace />} />
                   <Route path="/insights" element={<InsightsPanel />} />
+                  <Route path="/explorar" element={<ExplorarPanel />} />
                 </Route>
               </Route>
             </Routes>

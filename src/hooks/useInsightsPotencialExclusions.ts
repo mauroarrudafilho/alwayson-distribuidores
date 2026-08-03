@@ -37,7 +37,8 @@ function persist(keys: Set<string>) {
  */
 export function useInsightsPotencialExclusions(
   cidades: CidadePerCapita[],
-  clientes: InsightsTopCliente[]
+  clientes: InsightsTopCliente[],
+  computeGaps = true
 ) {
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set())
   const [hydrated, setHydrated] = useState(false)
@@ -57,9 +58,23 @@ export function useInsightsPotencialExclusions(
     [clientes, cidades]
   )
 
+  const emptyGapsCtx = useMemo(
+    (): GapsContext => ({
+      benchmark: null,
+      rows: [],
+      byKey: new Map(),
+      excludedCnpjs: excluded,
+      fatLimpo: new Map(),
+    }),
+    [excluded]
+  )
+
   const gapsCtx: GapsContext = useMemo(
-    () => buildGapsContext(cidades, clientes, excluded),
-    [cidades, clientes, excluded]
+    () =>
+      computeGaps && clientes.length > 0
+        ? buildGapsContext(cidades, clientes, excluded)
+        : emptyGapsCtx,
+    [computeGaps, cidades, clientes, excluded, emptyGapsCtx]
   )
 
   function commit(next: Set<string>) {

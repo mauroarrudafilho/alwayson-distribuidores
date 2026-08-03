@@ -10,6 +10,7 @@
 - Migrations em `docs/migrations/` e dados operacionais das tabelas `alwayson_*` vivem **somente** neste projeto.
 - Ao usar Supabase MCP, CLI (`supabase link`) ou SQL Editor, confira no dashboard que o **ref** é **`osukbalwykbqvoumddxz`** antes de executar DDL/DML.
 - **Não usar** o ref legado `kgzybpelluftexrewyke` para este produto: não há mais tabelas `alwayson_*` lá; apontar app, Railway ou scripts para ele quebra o fluxo.
+- **Fuso horário:** o banco grava e expõe timestamps em **UTC**; a operação é **America/Sao_Paulo (UTC−3)**. Ao reportar horários de logs/secrets/`criado_em`, converter para São Paulo ou rotular `(UTC)`. Períodos de negócio (metas, ingestão) são datas de calendário — ver [`docs/SUPABASE_PROJECT.md`](docs/SUPABASE_PROJECT.md).
 
 Documentação detalhada: [`docs/SUPABASE_PROJECT.md`](docs/SUPABASE_PROJECT.md).
 

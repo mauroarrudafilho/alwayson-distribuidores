@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   DollarSign,
@@ -21,6 +21,7 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { InsightsExplorarCard } from '@/components/insights/InsightsExplorarCard'
 import {
   TopAcionaveis,
@@ -48,7 +49,6 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { InsightsSearchField } from '@/components/insights/InsightsSearchField'
-import { InsightsTerritorioMap } from '@/components/insights/InsightsTerritorioMap'
 import { formatPerCapitaCurrency } from '@/lib/insights-per-capita'
 import { lookupCidadeGap } from '@/lib/insights-gap-per-capita'
 import { InsightsGapStatus } from '@/components/insights/InsightsGapStatus'
@@ -67,12 +67,10 @@ import type {
   InsightsRedeResumoRow,
   InsightsTopCliente,
 } from '@/types/insights'
-import { InsightsAbaProdutos } from '@/components/insights/InsightsAbaProdutos'
 import { InsightsBateOlhoModal } from '@/components/insights/InsightsBateOlhoModal'
 import { InsightsClienteBrasilBadge } from '@/components/insights/InsightsClienteBrasilBadge'
 import { InsightsContextKpis } from '@/components/insights/InsightsContextKpis'
 import { InsightsOticaIntro } from '@/components/insights/InsightsOticaIntro'
-import { InsightsTerritorioLens } from '@/components/insights/InsightsTerritorioLens'
 import {
   buildClientesKpis,
   buildTerritorioKpis,
@@ -81,7 +79,8 @@ import { enriquecerCidadesPerCapita } from '@/lib/insights-per-capita'
 import { useInsightsPopulacao } from '@/hooks/useInsightsPopulacao'
 import { useAuth } from '@/contexts/auth'
 import {
-  useInsightsBootstrap,
+  useInsightsBootstrapCore,
+  useInsightsClientes,
   useInsightsMesGlobal,
   useInsightsRedeResumo,
   useInsightsFiliaisGrupo,
@@ -98,6 +97,31 @@ import {
   type InsightsAcaoEstado,
 } from '@/hooks/useInsightsAcoes'
 import { InsightsAcaoMenu, INSIGHTS_ACAO_LABEL } from '@/components/insights/InsightsAcaoMenu'
+
+const InsightsTerritorioMap = lazy(() =>
+  import('@/components/insights/InsightsTerritorioMap').then((m) => ({
+    default: m.InsightsTerritorioMap,
+  }))
+)
+const InsightsTerritorioLens = lazy(() =>
+  import('@/components/insights/InsightsTerritorioLens').then((m) => ({
+    default: m.InsightsTerritorioLens,
+  }))
+)
+const InsightsAbaProdutos = lazy(() =>
+  import('@/components/insights/InsightsAbaProdutos').then((m) => ({
+    default: m.InsightsAbaProdutos,
+  }))
+)
+
+function InsightsTabFallback({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-sm">Carregando {label}…</p>
+    </div>
+  )
+}
 
 function cidadeTerritorioKey(cidade: string | undefined | null, estado: string | undefined | null) {
   const c = (cidade ?? '').trim() || '— sem cidade —'
@@ -243,10 +267,12 @@ export function InsightsPanel() {
   const distribuidorId =
     currentTenant?.tipo === 'distribuidor' ? currentTenant.tenant_id : undefined
 
-  const boot = useInsightsBootstrap()
-  const cidades = boot.data?.cidades ?? []
-  const clientes = boot.data?.clientes ?? []
-  const periodo = boot.data?.periodo ?? { inicio: '—', fim: '—' }
+  const bootCore = useInsightsBootstrapCore()
+  const clientesQ = useInsightsClientes()
+  const cidades = bootCore.data?.cidades ?? []
+  const clientes = clientesQ.data ?? []
+  const periodo = bootCore.data?.periodo ?? { inicio: '—', fim: '—' }
+  const clientesCarregando = clientesQ.isPending && !clientesQ.data
   const periodoLabel = `${formatPeriodoLabel(periodo.inicio)} – ${formatPeriodoLabel(periodo.fim)}`
 
   const [busca, setBusca] = useState('')
@@ -280,7 +306,7 @@ export function InsightsPanel() {
   // Deep-link: /insights?cnpj=... abre o cliente direto na aba Clientes.
   useEffect(() => {
     const cnpjParam = searchParams.get('cnpj')
-    if (!cnpjParam || !boot.data) return
+    if (!cnpjParam || !clientesQ.data) return
 
     const target = insightsCnpjKey(cnpjParam)
     if (target.length !== 14) {
@@ -289,7 +315,7 @@ export function InsightsPanel() {
       return
     }
 
-    const cliente = boot.data.clientes.find((c) => insightsCnpjKey(c.cnpj_cliente) === target)
+    const cliente = clientesQ.data.find((c) => insightsCnpjKey(c.cnpj_cliente) === target)
     if (cliente) {
       setTabBeforeDetail('clientes')
       setClienteDetalhe(cliente)
@@ -297,7 +323,7 @@ export function InsightsPanel() {
 
     searchParams.delete('cnpj')
     setSearchParams(searchParams, { replace: true })
-  }, [searchParams, setSearchParams, boot.data])
+  }, [searchParams, setSearchParams, clientesQ.data])
 
   const openClienteDetalhe = (c: InsightsTopCliente) => {
     setTabBeforeDetail(insightsTab)
@@ -498,7 +524,11 @@ export function InsightsPanel() {
     return m
   }, [perCapitaFiltrado])
 
-  const potencialExclusions = useInsightsPotencialExclusions(perCapitaFiltrado, clientes)
+  const potencialExclusions = useInsightsPotencialExclusions(
+    perCapitaFiltrado,
+    clientes,
+    insightsTab === 'territorio'
+  )
   const gapsCtx = potencialExclusions.gapsCtx
 
   type CidadeTabelaRow = InsightsCidadeRow & {
@@ -590,19 +620,19 @@ export function InsightsPanel() {
   }
 
   // ─── Visão principal (abas) ───────────────────────────────────────────────
-  if (boot.isPending) {
+  if (bootCore.isPending) {
     return (
       <div className="animate-page-in flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="text-sm">Carregando dados de Insights…</p>
+        <p className="text-sm">Carregando Insights…</p>
       </div>
     )
   }
 
-  if (boot.isError) {
+  if (bootCore.isError) {
     return (
       <div className="animate-page-in p-6 rounded-lg border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-        {queryErrorMessage(boot.error)}
+        {queryErrorMessage(bootCore.error)}
       </div>
     )
   }
@@ -629,7 +659,13 @@ export function InsightsPanel() {
       <PageHeader
         title="Insights"
         accent="acionáveis"
-        description={`${periodoLabel} · histórico Arruda · ${cidades.length} cidades`}
+        description={`${periodoLabel} · histórico Arruda · ${cidades.length} cidades${
+          clientesCarregando
+            ? ' · carregando clientes…'
+            : clientes.length > 0
+              ? ` · ${clientes.length.toLocaleString('pt-BR')} clientes`
+              : ''
+        }`}
         actions={
           <InsightsParametrizacaoDialog
             clientes={clientes}
@@ -737,6 +773,12 @@ export function InsightsPanel() {
             </FilterField>
           </FilterBar>
 
+          {clientesQ.isError && (
+            <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {queryErrorMessage(clientesQ.error)}
+            </div>
+          )}
+
           <InsightsContextKpis
             kpis={clientesKpis}
             icons={CLIENTES_KPI_ICONS}
@@ -815,7 +857,11 @@ export function InsightsPanel() {
 
           <InsightsExplorarCard
             title="Base filtrada"
-            countLabel={`${clientesListaFiltrada.length.toLocaleString('pt-BR')} clientes`}
+            countLabel={
+              clientesCarregando
+                ? 'Carregando clientes…'
+                : `${clientesListaFiltrada.length.toLocaleString('pt-BR')} clientes`
+            }
             search={buscaCliente}
             onSearchChange={setBuscaCliente}
             searchPlaceholder="CNPJ, nome, cidade, rede ou perfil…"
@@ -876,14 +922,23 @@ export function InsightsPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clientesListaFiltrada.length === 0 && (
+                  {clientesCarregando &&
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <TableRow key={`sk-${i}`}>
+                        <TableCell colSpan={7}>
+                          <Skeleton className="h-9 w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  {!clientesCarregando && clientesListaFiltrada.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
                         Nenhum cliente encontrado.
                       </TableCell>
                     </TableRow>
                   )}
-                  {clientesPag.paginated.map((c) => (
+                  {!clientesCarregando &&
+                    clientesPag.paginated.map((c) => (
                     <TableRow
                       key={c.cnpj_cliente}
                       className="cursor-pointer"
@@ -1120,42 +1175,46 @@ export function InsightsPanel() {
             className="mb-5"
           />
 
-          <InsightsTerritorioMap
-            cidades={cidadesParaMapa}
-            estadoFilter={estadoFilter}
-            cidadeFilter={busca}
-            onSelectUf={(uf) => {
-              // Clique de novo na mesma UF → visão macro (Nordeste)
-              if (uf && estadoFilter === uf) {
-                setEstadoFilter('')
-                setBusca('')
-                return
-              }
-              setEstadoFilter(uf)
-              if (!uf) setBusca('')
-            }}
-            onSelectCidade={(cidade, estado) => {
-              // Clique de novo na mesma cidade → volta ao Nordeste
-              if (
-                busca.trim().toLowerCase() === cidade.trim().toLowerCase() &&
-                estadoFilter === estado
-              ) {
-                setBusca('')
-                setEstadoFilter('')
-                return
-              }
-              setBusca(cidade)
-              setEstadoFilter(estado)
-            }}
-          />
+          <Suspense fallback={<InsightsTabFallback label="mapa" />}>
+            <InsightsTerritorioMap
+              cidades={cidadesParaMapa}
+              estadoFilter={estadoFilter}
+              cidadeFilter={busca}
+              onSelectUf={(uf) => {
+                // Clique de novo na mesma UF → visão macro (Nordeste)
+                if (uf && estadoFilter === uf) {
+                  setEstadoFilter('')
+                  setBusca('')
+                  return
+                }
+                setEstadoFilter(uf)
+                if (!uf) setBusca('')
+              }}
+              onSelectCidade={(cidade, estado) => {
+                // Clique de novo na mesma cidade → volta ao Nordeste
+                if (
+                  busca.trim().toLowerCase() === cidade.trim().toLowerCase() &&
+                  estadoFilter === estado
+                ) {
+                  setBusca('')
+                  setEstadoFilter('')
+                  return
+                }
+                setBusca(cidade)
+                setEstadoFilter(estado)
+              }}
+            />
+          </Suspense>
 
-          <InsightsTerritorioLens
-            cidades={cidadesFiltradas}
-            faturamentoFiltrado={faturamentoFiltrado}
-            mesGlobal={mesGlobalQ.data ?? []}
-            onOpenCidade={openCidadeDrawer}
-            gapsCtx={gapsCtx}
-          />
+          <Suspense fallback={<InsightsTabFallback label="lentes de território" />}>
+            <InsightsTerritorioLens
+              cidades={cidadesFiltradas}
+              faturamentoFiltrado={faturamentoFiltrado}
+              mesGlobal={mesGlobalQ.data ?? []}
+              onOpenCidade={openCidadeDrawer}
+              gapsCtx={gapsCtx}
+            />
+          </Suspense>
 
           <InsightsExplorarCard
             title="Explorar cidades"
@@ -1294,13 +1353,15 @@ export function InsightsPanel() {
         </TabsContent>
 
         <TabsContent value="produtos" className="mt-0">
-          <InsightsAbaProdutos
-            periodoLabel={periodoLabel}
-            active={insightsTab === 'produtos'}
-            estadoFilter={estadoFilter}
-            onEstadoChange={setEstadoFilter}
-            estados={estados}
-          />
+          <Suspense fallback={<InsightsTabFallback label="produtos" />}>
+            <InsightsAbaProdutos
+              periodoLabel={periodoLabel}
+              active={insightsTab === 'produtos'}
+              estadoFilter={estadoFilter}
+              onEstadoChange={setEstadoFilter}
+              estados={estados}
+            />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

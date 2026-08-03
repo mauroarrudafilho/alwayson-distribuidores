@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { monthEnd, monthStart } from '@/lib/periodo'
 import type { Meta } from '@/types/distribuidor'
 
 /**
@@ -28,26 +29,57 @@ export interface MetaAcompanhamento extends Meta {
 export interface MetaComNomes extends MetaAcompanhamento {
   distribuidor_nome: string
   vendedor_nome: string | null
+  /** Vendedor da hierarquia ou responsável comercial do distribuidor (meta de distribuidor). */
+  responsavel_nome: string
 }
 
 const KEY = 'metas' as const
 const VIEW = 'alwayson_metas_v_acompanhamento'
 const TABELA = 'alwayson_metas_distribuidor'
 
+interface NomesMetas {
+  distribuidores: Map<string, string>
+  responsaveis: Map<string, string>
+  vendedores: Map<string, string>
+}
+
+/** Nome exibido na coluna Responsável — alinhado ao cadastro de parceiros. */
+export function nomeResponsavelMeta(
+  m: Pick<Meta, 'hierarquia' | 'vendedor_id' | 'distribuidor_id'>,
+  nomes: NomesMetas
+): string {
+  if (m.hierarquia === 'distribuidor' || !m.vendedor_id) {
+    return nomes.responsaveis.get(m.distribuidor_id) ?? '—'
+  }
+  return nomes.vendedores.get(m.vendedor_id) ?? '—'
+}
+
+function enriquecerMeta(m: MetaAcompanhamento, nomes: NomesMetas): MetaComNomes {
+  return {
+    ...m,
+    distribuidor_nome: nomes.distribuidores.get(m.distribuidor_id) ?? '—',
+    vendedor_nome: m.vendedor_id ? (nomes.vendedores.get(m.vendedor_id) ?? '—') : null,
+    responsavel_nome: nomeResponsavelMeta(m, nomes),
+  }
+}
+
 /**
  * Nomes resolvidos por query separada em vez de embed do PostgREST: o embed a
  * partir de uma *view* depende de inferência de relacionamento e quebraria a
  * tela se falhasse. As duas tabelas são pequenas (1 distribuidor, 64 vendedores).
  */
-async function buscarNomes() {
+async function buscarNomes(): Promise<NomesMetas> {
   const [dist, vend] = await Promise.all([
-    supabase.from('alwayson_distribuidores').select('id, nome'),
+    supabase.from('alwayson_distribuidores').select('id, nome, responsavel'),
     supabase.from('alwayson_vendedores_distribuidor').select('id, nome'),
   ])
   if (dist.error) throw dist.error
   if (vend.error) throw vend.error
   return {
     distribuidores: new Map((dist.data ?? []).map((d) => [d.id as string, d.nome as string])),
+    responsaveis: new Map(
+      (dist.data ?? []).map((d) => [d.id as string, (d.responsavel as string)?.trim() || '—'])
+    ),
     vendedores: new Map((vend.data ?? []).map((v) => [v.id as string, v.nome as string])),
   }
 }
@@ -61,11 +93,7 @@ export function useMetas() {
         buscarNomes(),
       ])
       if (error) throw error
-      return (data as unknown as MetaAcompanhamento[]).map((m) => ({
-        ...m,
-        distribuidor_nome: nomes.distribuidores.get(m.distribuidor_id) ?? '—',
-        vendedor_nome: m.vendedor_id ? (nomes.vendedores.get(m.vendedor_id) ?? '—') : null,
-      }))
+      return (data as unknown as MetaAcompanhamento[]).map((m) => enriquecerMeta(m, nomes))
     },
   })
 }
@@ -82,6 +110,45 @@ export interface MetaInput {
   observacao?: string | null
 }
 
+async function upsertMetaRecord(input: MetaInput, userId: string | null) {
+  let busca = supabase
+    .from(TABELA)
+    .select('id')
+    .eq('distribuidor_id', input.distribuidor_id)
+    .eq('tipo', input.tipo)
+    .eq('periodo_inicio', input.periodo_inicio)
+    .eq('periodo_fim', input.periodo_fim)
+
+  busca = input.vendedor_id
+    ? busca.eq('vendedor_id', input.vendedor_id)
+    : busca.is('vendedor_id', null)
+
+  const { data: existente, error: erroBusca } = await busca.maybeSingle()
+  if (erroBusca) throw erroBusca
+
+  if (existente?.id) {
+    const { error } = await supabase
+      .from(TABELA)
+      .update({
+        hierarquia: input.hierarquia,
+        valor_meta: input.valor_meta,
+        observacao: input.observacao ?? null,
+        atualizado_por: userId,
+      })
+      .eq('id', existente.id)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase.from(TABELA).insert({
+    ...input,
+    observacao: input.observacao ?? null,
+    criado_por: userId,
+    atualizado_por: userId,
+  })
+  if (error) throw error
+}
+
 /**
  * Grava a meta respeitando a chave natural da migration 045
  * (vendedor|distribuidor + tipo + período) — re-gravar substitui, não duplica.
@@ -96,46 +163,121 @@ export function useUpsertMeta() {
   return useMutation({
     mutationFn: async (input: MetaInput) => {
       const { data: userResp } = await supabase.auth.getUser()
-      const userId = userResp.user?.id ?? null
-
-      let busca = supabase
-        .from(TABELA)
-        .select('id')
-        .eq('distribuidor_id', input.distribuidor_id)
-        .eq('tipo', input.tipo)
-        .eq('periodo_inicio', input.periodo_inicio)
-        .eq('periodo_fim', input.periodo_fim)
-
-      busca = input.vendedor_id
-        ? busca.eq('vendedor_id', input.vendedor_id)
-        : busca.is('vendedor_id', null)
-
-      const { data: existente, error: erroBusca } = await busca.maybeSingle()
-      if (erroBusca) throw erroBusca
-
-      if (existente?.id) {
-        const { error } = await supabase
-          .from(TABELA)
-          .update({
-            hierarquia: input.hierarquia,
-            valor_meta: input.valor_meta,
-            observacao: input.observacao ?? null,
-            atualizado_por: userId,
-          })
-          .eq('id', existente.id)
-        if (error) throw error
-        return
-      }
-
-      const { error } = await supabase.from(TABELA).insert({
-        ...input,
-        observacao: input.observacao ?? null,
-        criado_por: userId,
-        atualizado_por: userId,
-      })
-      if (error) throw error
+      await upsertMetaRecord(input, userResp.user?.id ?? null)
     },
     onSuccess: invalidarMetas(qc),
+  })
+}
+
+/** Grava várias metas em sequência (fluxo top-down ou importação). */
+export function useBulkUpsertMetas() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (inputs: MetaInput[]) => {
+      const { data: userResp } = await supabase.auth.getUser()
+      const userId = userResp.user?.id ?? null
+      for (const input of inputs) {
+        await upsertMetaRecord(input, userId)
+      }
+    },
+    onSuccess: invalidarMetas(qc),
+  })
+}
+
+/**
+ * Faturamento ou clientes positivados por vendedor — base proporcional top-down.
+ * `mesReferencia` é o mês civil (YYYY-MM) cujo realizado será usado como proporção.
+ */
+export function useHistoricoEquipe(params: {
+  distribuidorId?: string
+  mesReferencia?: string
+  tipo?: Meta['tipo']
+  enabled?: boolean
+}) {
+  const { distribuidorId, mesReferencia, tipo = 'faturamento', enabled = true } = params
+  return useQuery({
+    queryKey: [KEY, 'hist-equipe', distribuidorId, mesReferencia, tipo],
+    enabled:
+      enabled &&
+      !!distribuidorId &&
+      !!mesReferencia &&
+      tipo !== 'mix' &&
+      tipo !== 'clientes_estrategicos',
+    queryFn: async (): Promise<Map<string, number>> => {
+      const inicio = monthStart(mesReferencia!)
+      const fim = monthEnd(mesReferencia!)
+
+      const { data, error } = await supabase
+        .from('alwayson_faturamento')
+        .select('vendedor_id, valor_total, cliente_id')
+        .eq('distribuidor_id', distribuidorId!)
+        .gte('data_emissao', inicio)
+        .lte('data_emissao', fim)
+
+      if (error) throw error
+
+      if (tipo === 'positivacao') {
+        const porVendedor = new Map<string, Set<string>>()
+        for (const row of data ?? []) {
+          if (!row.vendedor_id) continue
+          if (!porVendedor.has(row.vendedor_id)) porVendedor.set(row.vendedor_id, new Set())
+          porVendedor.get(row.vendedor_id)!.add(row.cliente_id)
+        }
+        const map = new Map<string, number>()
+        porVendedor.forEach((clientes, vid) => map.set(vid, clientes.size))
+        return map
+      }
+
+      const map = new Map<string, number>()
+      for (const row of data ?? []) {
+        if (!row.vendedor_id) continue
+        const atual = map.get(row.vendedor_id) ?? 0
+        map.set(row.vendedor_id, atual + Number(row.valor_total ?? 0))
+      }
+      return map
+    },
+  })
+}
+
+/** Meses com sell-out registrado — base para escolher referência na sugestão top-down. */
+export function useMesesComResultado(params: {
+  distribuidorId?: string
+  tipo?: Meta['tipo']
+  enabled?: boolean
+}) {
+  const { distribuidorId, tipo = 'faturamento', enabled = true } = params
+  return useQuery({
+    queryKey: [KEY, 'meses-resultado', distribuidorId, tipo],
+    enabled:
+      enabled &&
+      !!distribuidorId &&
+      tipo !== 'mix' &&
+      tipo !== 'clientes_estrategicos',
+    queryFn: async (): Promise<{ mes: string; total: number }[]> => {
+      const { data, error } = await supabase
+        .from('alwayson_faturamento')
+        .select('data_emissao, valor_total, cliente_id')
+        .eq('distribuidor_id', distribuidorId!)
+
+      if (error) throw error
+
+      const porMes = new Map<string, { faturamento: number; clientes: Set<string> }>()
+      for (const row of data ?? []) {
+        const mes = String(row.data_emissao).substring(0, 7)
+        if (!porMes.has(mes)) porMes.set(mes, { faturamento: 0, clientes: new Set() })
+        const cur = porMes.get(mes)!
+        cur.faturamento += Number(row.valor_total ?? 0)
+        if (row.cliente_id) cur.clientes.add(row.cliente_id as string)
+      }
+
+      return [...porMes.entries()]
+        .map(([mes, v]) => ({
+          mes,
+          total: tipo === 'positivacao' ? v.clientes.size : v.faturamento,
+        }))
+        .filter((x) => x.total > 0)
+        .sort((a, b) => b.mes.localeCompare(a.mes))
+    },
   })
 }
 
@@ -232,11 +374,7 @@ export function useMetasPanorama(params: {
         buscarNomes(),
       ])
       if (error) throw error
-      return (data as unknown as MetaAcompanhamento[]).map((m) => ({
-        ...m,
-        distribuidor_nome: nomes.distribuidores.get(m.distribuidor_id) ?? '—',
-        vendedor_nome: m.vendedor_id ? (nomes.vendedores.get(m.vendedor_id) ?? '—') : null,
-      }))
+      return (data as unknown as MetaAcompanhamento[]).map((m) => enriquecerMeta(m, nomes))
     },
   })
 }

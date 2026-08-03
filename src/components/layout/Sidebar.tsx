@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   LayoutDashboard,
   TrendingUp,
@@ -8,8 +9,8 @@ import {
   Package,
   Settings,
   Handshake,
-  Upload,
   BarChart3,
+  Compass,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { TenantSwitcher } from '@/components/auth/TenantSwitcher'
 import { BrandMark } from '@/components/brand/BrandMark'
+import { prefetchInsightsBootstrap } from '@/hooks/useInsightsQueries'
 
 interface SidebarProps {
   collapsed: boolean
@@ -43,15 +45,20 @@ const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; gr
   { path: '/metas', label: 'Metas', icon: Target, group: 'analise' },
   { path: '/clientes-estrategicos', label: 'Clientes Estratégicos', icon: Star, group: 'analise' },
   { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
+  { path: '/explorar', label: 'Explorar', icon: Compass, group: 'analise' },
   { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },
   { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacao' },
-  // O que é de um parceiro mora dentro dele — inclusive a ingestão, que assim
-  // herda distribuidor e fornecedor do contexto.
+  // Ingestão fica dentro de cada parceiro (/parceiros/:id/ingestao).
   { path: '/parceiros', label: 'Distribuidores', icon: Handshake, group: 'parceiros' },
-  { path: '/ingestao', label: 'Ingestão (geral)', icon: Upload, group: 'parceiros' },
   // Sistema: só o que é transversal à plataforma.
   { path: '/admin', label: 'Administração', icon: Settings, group: 'sistema' },
 ]
+
+function isNavActive(pathname: string, itemPath: string): boolean {
+  if (itemPath === '/') return pathname === '/'
+  if (pathname === itemPath) return true
+  return pathname.startsWith(`${itemPath}/`)
+}
 
 export function Sidebar({
   collapsed,
@@ -61,6 +68,7 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const location = useLocation()
+  const queryClient = useQueryClient()
 
   return (
     <aside
@@ -121,10 +129,7 @@ export function Sidebar({
           const prevGroup = idx > 0 ? menuItems[idx - 1].group : null
           const startsNewGroup = item.group !== prevGroup
 
-          const isActive =
-            item.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(item.path)
+          const isActive = isNavActive(location.pathname, item.path)
 
           return (
             <div key={item.path} title={collapsed ? item.label : undefined}>
@@ -144,6 +149,11 @@ export function Sidebar({
               <Link
                 to={item.path}
                 onClick={onNavigate}
+                onMouseEnter={() => {
+                  if (item.path === '/insights') {
+                    void prefetchInsightsBootstrap(queryClient)
+                  }
+                }}
                 className={cn(
                   'group relative flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors',
                   collapsed && 'justify-center px-0',

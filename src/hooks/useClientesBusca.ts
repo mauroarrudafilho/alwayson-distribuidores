@@ -3,8 +3,15 @@ import { supabase } from '@/lib/supabase'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
 const PAGE_SIZE_FETCH = 1000
+const GEO_VIEW = 'alwayson_v_clientes_distribuidor_geo'
 
-type StatsRow = { estado: string | null; distribuidor_id: string | null }
+type StatsRow = { estado_exibicao: string | null; distribuidor_id: string | null }
+
+function estadoValido(estado: string | null | undefined): string {
+  const e = String(estado ?? '').trim()
+  if (!e || e === '—' || e === '-') return ''
+  return e
+}
 
 function applySearchFilters<T extends { or: Function; eq: Function }>(
   query: T,
@@ -19,7 +26,7 @@ function applySearchFilters<T extends { or: Function; eq: Function }>(
     ) as T
   }
   if (ufFilter) {
-    q = q.eq('estado', ufFilter) as T
+    q = q.eq('estado_exibicao', ufFilter) as T
   }
   return q
 }
@@ -28,7 +35,7 @@ async function fetchAllStatsRows(search: string, ufFilter: string): Promise<Stat
   const rows: StatsRow[] = []
   for (let from = 0; ; from += PAGE_SIZE_FETCH) {
     const { data, error } = await applySearchFilters(
-      supabase.from('alwayson_clientes_distribuidor').select('estado, distribuidor_id'),
+      supabase.from(GEO_VIEW).select('estado_exibicao, distribuidor_id'),
       search,
       ufFilter
     ).range(from, from + PAGE_SIZE_FETCH - 1)
@@ -44,7 +51,7 @@ async function fetchUfOptions(search: string): Promise<string[]> {
   const rows: StatsRow[] = []
   for (let from = 0; ; from += PAGE_SIZE_FETCH) {
     const { data, error } = await applySearchFilters(
-      supabase.from('alwayson_clientes_distribuidor').select('estado'),
+      supabase.from(GEO_VIEW).select('estado_exibicao'),
       search,
       ''
     ).range(from, from + PAGE_SIZE_FETCH - 1)
@@ -53,7 +60,7 @@ async function fetchUfOptions(search: string): Promise<string[]> {
     rows.push(...chunk)
     if (chunk.length < PAGE_SIZE_FETCH) break
   }
-  return [...new Set(rows.map((r) => (r.estado ?? '').trim()).filter(Boolean))].sort()
+  return [...new Set(rows.map((r) => estadoValido(r.estado_exibicao)).filter(Boolean))].sort()
 }
 
 export type ClientesBuscaResult = {
@@ -82,7 +89,7 @@ export function useClientesBusca(
       ])
 
       const total = statsRows.length
-      const ufs = new Set(statsRows.map((r) => (r.estado ?? '').trim()).filter(Boolean))
+      const ufs = new Set(statsRows.map((r) => estadoValido(r.estado_exibicao)).filter(Boolean))
       const distribuidores = new Set(
         statsRows.map((r) => r.distribuidor_id).filter(Boolean)
       )
@@ -91,7 +98,7 @@ export function useClientesBusca(
       const to = from + pageSize - 1
 
       const { data, error } = await applySearchFilters(
-        supabase.from('alwayson_clientes_distribuidor').select('*'),
+        supabase.from(GEO_VIEW).select('*'),
         search,
         ufFilter
       )
@@ -100,8 +107,22 @@ export function useClientesBusca(
 
       if (error) throw error
 
+      const rows = ((data ?? []) as Array<
+        ClienteDistribuidor & {
+          cidade_exibicao?: string | null
+          estado_exibicao?: string | null
+        }
+      >).map((row) => {
+        const { cidade_exibicao, estado_exibicao, ...rest } = row
+        return {
+          ...rest,
+          cidade: cidade_exibicao ?? rest.cidade,
+          estado: estado_exibicao ?? rest.estado,
+        } satisfies ClienteDistribuidor
+      })
+
       return {
-        rows: (data ?? []) as ClienteDistribuidor[],
+        rows,
         total,
         kpi: {
           clientes: total,

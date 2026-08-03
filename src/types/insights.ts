@@ -23,6 +23,14 @@ export interface InsightsProdutoNaoMapeado {
   total_linhas: number
 }
 
+/** Código Insights marcado como fora do mix indústria (fila de pendentes). */
+export interface InsightsProdutoDesconsiderado {
+  id: string
+  codigo_origem: string
+  motivo: string | null
+  criado_em: string
+}
+
 export interface InsightsUpload {
   id: string
   nome: string

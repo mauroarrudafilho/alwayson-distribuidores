@@ -216,6 +216,30 @@ console.log(
   '✓ Gerado: public/templates/template-de-para-insights-produtos.xlsx'
 )
 
+// Template metas (cadastro em lote)
+const COLUNAS_METAS = [
+  'hierarquia',
+  'codigo_externo',
+  'responsavel',
+  'tipo',
+  'periodo',
+  'valor_meta',
+]
+const EXEMPLO_METAS = [
+  ['distribuidor', '', '', 'faturamento', '2026-05', 500000],
+  ['gerente', 'G001', 'Gerente Norte', 'faturamento', '2026-05', 200000],
+  ['supervisor', 'S010', 'Supervisor A', 'faturamento', '2026-05', 80000],
+  ['vendedor', 'V100', 'João Silva', 'faturamento', '2026-05', 25000],
+]
+
+const wsMetas = XLSX.utils.aoa_to_sheet([COLUNAS_METAS, ...EXEMPLO_METAS])
+wsMetas['!cols'] = [{ wch: 14 }, { wch: 16 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 12 }]
+
+const wbMetas = XLSX.utils.book_new()
+XLSX.utils.book_append_sheet(wbMetas, wsMetas, 'Metas')
+XLSX.writeFile(wbMetas, join(publicTemplatesDir, 'template-metas.xlsx'))
+console.log('✓ Gerado: public/templates/template-metas.xlsx')
+
 console.log('\nColunas Vendas:', COLUNAS_VENDAS.join(', '))
 console.log('Colunas Estoque:', COLUNAS_ESTOQUE.join(', '))
 console.log('Colunas Clientes:', COLUNAS_CLIENTES.join(', '))

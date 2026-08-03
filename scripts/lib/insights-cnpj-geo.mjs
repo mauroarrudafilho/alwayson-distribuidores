@@ -262,6 +262,10 @@ export async function enrichCnpjGeo(digits14, opts = {}) {
     lat,
     lng,
     geoTs,
+    logradouro: postal.logr || null,
+    numero: postal.numero || null,
+    bairro: postal.bairro || null,
+    cep: postal.cep || null,
     cadastro_ativo,
     descricao_situacao_cadastral: situacaoDesc || null,
   }

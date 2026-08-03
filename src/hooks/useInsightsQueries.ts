@@ -111,12 +111,15 @@ export type InsightsBootstrap = {
   periodo: { inicio: string; fim: string }
 }
 
+/** Dados históricos Arruda — cache longo; invalidar só após ingestão/admin. */
+const INSIGHTS_STALE_MS = 30 * 60 * 1000
+
+export type InsightsBootstrapCore = Omit<InsightsBootstrap, 'clientes'>
+
 /**
  * Busca todos os clientes da view paginando pelo cap do PostgREST (db.max-rows).
  * Sem isso o Pareto, ranking e KPIs ficavam restritos a 1000 de ~8.5k clientes
  * — distorcendo os charts da aba Clientes do Insights.
- *
- * Estratégia: primeira página com count exact + páginas restantes em paralelo.
  */
 const CLIENTES_PAGE_SIZE = 1000
 const CLIENTES_SELECT =
@@ -153,141 +156,190 @@ async function fetchAllInsightsClientes(): Promise<Record<string, unknown>[]> {
   return rows
 }
 
+function mapInsightsCidadeRows(cidadeRows: Record<string, unknown>[]): InsightsCidadeRow[] {
+  return filterInsightsByNordeste(
+    cidadeRows.map((row) => ({
+      cidade: String(row.cidade ?? ''),
+      estado: String(row.estado ?? ''),
+      faturamento_total: n(row.faturamento_total),
+      total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
+      total_clientes: Math.trunc(Number(row.total_clientes)) || 0,
+      ticket_medio_cliente: n(row.ticket_medio_cliente),
+      total_skus: Math.trunc(Number(row.total_skus)) || 0,
+      quantidade_total: n(row.quantidade_total),
+      quantidade_litros: n(row.quantidade_litros),
+      unidade_predominante:
+        row.unidade_predominante != null && String(row.unidade_predominante).trim() !== ''
+          ? String(row.unidade_predominante).trim()
+          : undefined,
+    }))
+  )
+}
+
+function mapInsightsClienteRows(clienteRows: Record<string, unknown>[]): InsightsTopCliente[] {
+  return filterInsightsByNordeste(
+    clienteRows.map((row) => ({
+      cnpj_cliente: String(row.cnpj_cliente ?? ''),
+      nome_cliente: String(row.nome_cliente ?? '—').trim() || '—',
+      razao_social: (() => {
+        const r = row.razao_social
+        if (r == null) return undefined
+        const t = String(r).trim()
+        return t || undefined
+      })(),
+      cidade: row.cidade != null ? String(row.cidade) : undefined,
+      estado: row.estado != null ? String(row.estado) : undefined,
+      faturamento_total: n(row.faturamento_total),
+      total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
+      ultima_compra: isoDateOnly(row.ultima_compra),
+      total_skus: Math.trunc(Number(row.total_skus)) || 0,
+      nome_rede: (() => {
+        const g = row.grupo_label
+        if (g == null) return undefined
+        const t = String(g).trim()
+        return t || undefined
+      })(),
+      perfil: (() => {
+        const p = row.perfil
+        if (p == null) return undefined
+        const t = String(p).trim()
+        return t || undefined
+      })(),
+      brasil_enriquecimento_status: parseInsightsClienteBrasilStatus(row.brasil_enriquecimento_status),
+    }))
+  ).sort((a, b) => b.faturamento_total - a.faturamento_total)
+}
+
+function parseResumoGlobal(resumoGlobalRes: {
+  error: unknown
+  data: unknown
+}): InsightsResumoGlobal | null {
+  if (resumoGlobalRes.error || !resumoGlobalRes.data || typeof resumoGlobalRes.data !== 'object') {
+    return null
+  }
+  const rg = resumoGlobalRes.data as Record<string, unknown>
+  return {
+    total_nfs: Math.trunc(Number(rg.total_nfs)) || 0,
+    total_linhas_itens: Math.trunc(Number(rg.total_linhas_itens)) || 0,
+    total_cnps_com_nf: Math.trunc(Number(rg.total_cnps_com_nf)) || 0,
+    total_cnps_dimensao: Math.trunc(Number(rg.total_cnps_dimensao)) || 0,
+    faturamento_soma_linhas_itens: n(rg.faturamento_soma_linhas_itens),
+  }
+}
+
+function assertInsightsViewsAvailable(cidadesError: unknown) {
+  const miss =
+    ([cidadesError].find((e) => String((e as { message?: string })?.message ?? '').includes('does not exist')) ??
+      [cidadesError].find((e) =>
+        String((e as { message?: string })?.message ?? '').includes('schema cache')
+      )) ??
+    null
+  if (miss) {
+    throw new Error(
+      'Views de Insights não encontradas. Execute as migrations Insights no SQL Editor (≥012 e 015_insights_clientes_dim.sql quando aplicável).'
+    )
+  }
+}
+
+async function fetchInsightsBootstrapCore(): Promise<InsightsBootstrapCore> {
+  const [cidadesRes, uploadsRes, skuHeadRes, resumoGlobalRes] = await Promise.all([
+    supabase
+      .from('alwayson_insights_v_cidades')
+      .select('*')
+      .order('faturamento_total', { ascending: false }),
+    supabase
+      .from('alwayson_insights_uploads')
+      .select('periodo_inicio, periodo_fim, status, criado_em')
+      .eq('status', 'concluido')
+      .order('criado_em', { ascending: false }),
+    supabase.from('alwayson_insights_v_produtos').select('sku', { count: 'exact', head: true }),
+    supabase.from('alwayson_insights_v_resumo_global').select('*').maybeSingle(),
+  ])
+
+  const resumoGlobal = parseResumoGlobal(resumoGlobalRes)
+  assertInsightsViewsAvailable(cidadesRes.error)
+  if (cidadesRes.error) throwQueryError(cidadesRes.error)
+
+  const cidades = mapInsightsCidadeRows((cidadesRes.data ?? []) as Record<string, unknown>[])
+  const uploads = (uploadsRes.data ?? []) as InsightsUpload[]
+  const periodo = periodoFromUploads(uploads)
+
+  const faturamentoSomadoCidades = cidades.reduce((s, c) => s + c.faturamento_total, 0)
+  const total_nfsSomadoCidades = cidades.reduce((s, c) => s + c.total_nfs, 0)
+
+  return {
+    cidades,
+    resumoGlobal,
+    kpiGeral: {
+      faturamento_total: resumoGlobal?.faturamento_soma_linhas_itens ?? faturamentoSomadoCidades,
+      total_nfs: resumoGlobal?.total_nfs ?? total_nfsSomadoCidades,
+      total_clientes: resumoGlobal?.total_cnps_com_nf ?? 0,
+      total_cidades: cidades.length,
+      total_skus: skuHeadRes.count ?? 0,
+    },
+    periodo,
+  }
+}
+
+/** Cidades, KPIs e período — rápido; libera o shell da página. */
+export function useInsightsBootstrapCore() {
+  return useQuery({
+    queryKey: ['insights', 'bootstrap', 'core'],
+    staleTime: INSIGHTS_STALE_MS,
+    gcTime: 60 * 60 * 1000,
+    queryFn: fetchInsightsBootstrapCore,
+  })
+}
+
+/** ~8k clientes paginados — roda em paralelo após o core. */
+export function useInsightsClientes(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['insights', 'bootstrap', 'clientes'],
+    staleTime: INSIGHTS_STALE_MS,
+    gcTime: 60 * 60 * 1000,
+    enabled: options?.enabled ?? true,
+    queryFn: async () => mapInsightsClienteRows(await fetchAllInsightsClientes()),
+  })
+}
+
+export function prefetchInsightsBootstrap(queryClient: {
+  prefetchQuery: (opts: {
+    queryKey: readonly unknown[]
+    queryFn: () => Promise<unknown>
+    staleTime?: number
+  }) => Promise<void>
+}) {
+  return Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: ['insights', 'bootstrap', 'core'],
+      queryFn: fetchInsightsBootstrapCore,
+      staleTime: INSIGHTS_STALE_MS,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: ['insights', 'bootstrap', 'clientes'],
+      queryFn: async () => mapInsightsClienteRows(await fetchAllInsightsClientes()),
+      staleTime: INSIGHTS_STALE_MS,
+    }),
+  ])
+}
+
+/** Bootstrap monolítico — preferir core + clientes separados na UI. */
 export function useInsightsBootstrap() {
   return useQuery({
     queryKey: ['insights', 'bootstrap'],
-    staleTime: 60_000,
+    staleTime: INSIGHTS_STALE_MS,
     queryFn: async (): Promise<InsightsBootstrap> => {
-      const [cidadesRes, clientesAll, uploadsRes, skuHeadRes, resumoGlobalRes] = await Promise.all([
-        supabase
-          .from('alwayson_insights_v_cidades')
-          .select('*')
-          .order('faturamento_total', { ascending: false }),
-        fetchAllInsightsClientes(),
-        supabase
-          .from('alwayson_insights_uploads')
-          .select('periodo_inicio, periodo_fim, status, criado_em')
-          .eq('status', 'concluido')
-          .order('criado_em', { ascending: false }),
-        supabase.from('alwayson_insights_v_produtos').select('sku', { count: 'exact', head: true }),
-        supabase.from('alwayson_insights_v_resumo_global').select('*').maybeSingle(),
+      const [core, clientes] = await Promise.all([
+        fetchInsightsBootstrapCore(),
+        mapInsightsClienteRows(await fetchAllInsightsClientes()),
       ])
-
-      /** View 024 opcional até migration aplicada no projeto */
-      let resumoGlobal: InsightsResumoGlobal | null = null
-      if (
-        !resumoGlobalRes.error &&
-        resumoGlobalRes.data &&
-        typeof resumoGlobalRes.data === 'object'
-      ) {
-        const rg = resumoGlobalRes.data as Record<string, unknown>
-        resumoGlobal = {
-          total_nfs: Math.trunc(Number(rg.total_nfs)) || 0,
-          total_linhas_itens: Math.trunc(Number(rg.total_linhas_itens)) || 0,
-          total_cnps_com_nf: Math.trunc(Number(rg.total_cnps_com_nf)) || 0,
-          total_cnps_dimensao: Math.trunc(Number(rg.total_cnps_dimensao)) || 0,
-          faturamento_soma_linhas_itens: n(rg.faturamento_soma_linhas_itens),
-        }
-      }
-
-      const miss =
-        ([cidadesRes.error].find((e) =>
-          String(e?.message ?? '').includes('does not exist')
-        ) ??
-          [cidadesRes.error].find((e) =>
-            String(e?.message ?? '').includes('schema cache')
-          )) ??
-        null
-
-      if (miss) {
-        throw new Error(
-          'Views de Insights não encontradas. Execute as migrations Insights no SQL Editor (≥012 e 015_insights_clientes_dim.sql quando aplicável).'
-        )
-      }
-      if (cidadesRes.error) throwQueryError(cidadesRes.error)
-      // clientesAll já vem com erros propagados via fetchAllInsightsClientes
-
-      const cidadeRows = (cidadesRes.data ?? []) as Record<string, unknown>[]
-      const cidades: InsightsCidadeRow[] = filterInsightsByNordeste(
-        cidadeRows.map((row) => ({
-          cidade: String(row.cidade ?? ''),
-          estado: String(row.estado ?? ''),
-          faturamento_total: n(row.faturamento_total),
-          total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
-          total_clientes: Math.trunc(Number(row.total_clientes)) || 0,
-          ticket_medio_cliente: n(row.ticket_medio_cliente),
-          total_skus: Math.trunc(Number(row.total_skus)) || 0,
-          quantidade_total: n(row.quantidade_total),
-          quantidade_litros: n(row.quantidade_litros),
-          unidade_predominante:
-            row.unidade_predominante != null && String(row.unidade_predominante).trim() !== ''
-              ? String(row.unidade_predominante).trim()
-              : undefined,
-        }))
-      )
-
-      const clienteRows = clientesAll
-      const clientes: InsightsTopCliente[] = filterInsightsByNordeste(
-        clienteRows.map((row) => ({
-          cnpj_cliente: String(row.cnpj_cliente ?? ''),
-          nome_cliente: String(row.nome_cliente ?? '—').trim() || '—',
-          razao_social: (() => {
-            const r = row.razao_social
-            if (r == null) return undefined
-            const t = String(r).trim()
-            return t || undefined
-          })(),
-          cidade: row.cidade != null ? String(row.cidade) : undefined,
-          estado: row.estado != null ? String(row.estado) : undefined,
-          faturamento_total: n(row.faturamento_total),
-          total_nfs: Math.trunc(Number(row.total_nfs)) || 0,
-          ultima_compra: isoDateOnly(row.ultima_compra),
-          total_skus: Math.trunc(Number(row.total_skus)) || 0,
-          nome_rede: (() => {
-            const g = row.grupo_label
-            if (g == null) return undefined
-            const t = String(g).trim()
-            return t || undefined
-          })(),
-          perfil: (() => {
-            const p = row.perfil
-            if (p == null) return undefined
-            const t = String(p).trim()
-            return t || undefined
-          })(),
-          brasil_enriquecimento_status: parseInsightsClienteBrasilStatus(
-            row.brasil_enriquecimento_status
-          ),
-        }))
-      ).sort((a, b) => b.faturamento_total - a.faturamento_total)
-
-      const uploads = (uploadsRes.data ?? []) as InsightsUpload[]
-      const periodo = periodoFromUploads(uploads)
-
-      const faturamentoSomadoCidades = cidades.reduce((s, c) => s + c.faturamento_total, 0)
-      const total_nfsSomadoCidades = cidades.reduce((s, c) => s + c.total_nfs, 0)
-
-      /** View 024: totais físicos na base — evita depender só da soma das linhas da view cidades (ex.: paginação). */
-      const faturamento_total =
-        resumoGlobal?.faturamento_soma_linhas_itens ?? faturamentoSomadoCidades
-      const total_nfs = resumoGlobal?.total_nfs ?? total_nfsSomadoCidades
-      const total_clientes = resumoGlobal?.total_cnps_com_nf ?? clientes.length
-
-      const total_cidades = cidades.length
-      const total_skus = skuHeadRes.count ?? 0
-
       return {
-        cidades,
+        ...core,
         clientes,
-        resumoGlobal,
         kpiGeral: {
-          faturamento_total,
-          total_cidades,
-          total_clientes,
-          total_nfs,
-          total_skus,
+          ...core.kpiGeral,
+          total_clientes: core.resumoGlobal?.total_cnps_com_nf ?? clientes.length,
         },
-        periodo,
       }
     },
   })

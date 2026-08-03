@@ -3,9 +3,12 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   Download,
+  EyeOff,
   FileSpreadsheet,
   Link2,
   Loader2,
+  MoreVertical,
+  RotateCcw,
   Unlink,
   Upload,
 } from 'lucide-react'
@@ -24,13 +27,23 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
   useInsightsProdutoDePara,
+  useInsightsProdutosDesconsiderados,
   useInsightsProdutosNaoMapeados,
+  useDesconsiderarInsightsProduto,
+  useRestaurarInsightsProduto,
   useUpsertInsightsProdutoDePara,
 } from '@/hooks/useInsightsProdutoDePara'
 import { useProdutos } from '@/hooks/useProdutos'
@@ -80,11 +93,17 @@ export function AdminInsightsDeParaProdutos() {
   const [linkError, setLinkError] = useState<string | null>(null)
   const [linkNotice, setLinkNotice] = useState<string | null>(null)
   const [linkingOrigem, setLinkingOrigem] = useState<string | null>(null)
+  const [desconsiderandoOrigem, setDesconsiderandoOrigem] = useState<string | null>(null)
+  const [desconsiderarNotice, setDesconsiderarNotice] = useState<string | null>(null)
 
   const { data: existentes, isLoading: loadingMap } = useInsightsProdutoDePara()
   const { data: naoMapeados = [], isPending: loadingNaoMap } = useInsightsProdutosNaoMapeados()
+  const { data: desconsiderados = [], isPending: loadingDesconsiderados } =
+    useInsightsProdutosDesconsiderados()
   const { data: produtos, isPending: loadingProdutos } = useProdutos()
   const upsert = useUpsertInsightsProdutoDePara()
+  const desconsiderar = useDesconsiderarInsightsProduto()
+  const restaurar = useRestaurarInsightsProduto()
 
   const skuValidos = useMemo(() => {
     const s = new Set<string>()
@@ -215,6 +234,43 @@ export function AdminInsightsDeParaProdutos() {
     }
   }
 
+  const handleDesconsiderar = async (codigoOrigem: string, descricao?: string) => {
+    const rotulo = descricao?.trim() || codigoOrigem
+    if (
+      !confirm(
+        `Desconsiderar "${rotulo}"?\n\nEste código não entrará no mix Insights e sairá da fila de pendentes. Você pode restaurar depois.`
+      )
+    ) {
+      return
+    }
+    setLinkError(null)
+    setDesconsiderarNotice(null)
+    setDesconsiderandoOrigem(codigoOrigem)
+    try {
+      await desconsiderar.mutateAsync({ codigo_origem: codigoOrigem })
+      setSkuDraft((prev) => {
+        const next = { ...prev }
+        delete next[codigoOrigem]
+        return next
+      })
+      setDesconsiderarNotice(`Desconsiderado: ${codigoOrigem}.`)
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Falha ao desconsiderar')
+    } finally {
+      setDesconsiderandoOrigem(null)
+    }
+  }
+
+  const handleRestaurar = async (codigoOrigem: string) => {
+    setDesconsiderarNotice(null)
+    try {
+      await restaurar.mutateAsync(codigoOrigem)
+      setDesconsiderarNotice(`Restaurado ${codigoOrigem} — voltou para a fila de pendentes.`)
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Falha ao restaurar')
+    }
+  }
+
   const handleGravar = async () => {
     setSaveError(null)
     setSaveNotice(null)
@@ -270,7 +326,7 @@ export function AdminInsightsDeParaProdutos() {
               <SectionTitle title="Não mapeados" icon={Unlink} />
               <p className="mt-1 text-xs text-muted-foreground max-w-2xl">
                 Sell-out Nordeste cujo código ainda não bate no catálogo indústria — fora dos gráficos
-                até o vínculo. Informe o SKU oficial e vincule.
+                até o vínculo. Informe o SKU oficial e vincule, ou desconsidere se for fora de escopo.
               </p>
             </div>
             <Badge variant="secondary" className="tabular-nums">
@@ -287,6 +343,9 @@ export function AdminInsightsDeParaProdutos() {
           {linkError && <p className="text-xs text-destructive">{linkError}</p>}
           {linkNotice && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">{linkNotice}</p>
+          )}
+          {desconsiderarNotice && (
+            <p className="text-xs text-muted-foreground">{desconsiderarNotice}</p>
           )}
 
           {loadingNaoMap ? (
@@ -314,6 +373,9 @@ export function AdminInsightsDeParaProdutos() {
                     const draftNorm = normalizeDeParaCellValue(draft)
                     const ok = draftNorm ? skuEstaNoCatalogo(draftNorm) : false
                     const busy = linkingOrigem === r.codigo_origem
+                    const desconsiderando = desconsiderandoOrigem === r.codigo_origem
+                    const rowBusy =
+                      busy || desconsiderando || upsert.isPending || desconsiderar.isPending
                     const descNf = r.descricao.trim()
                     const descCadastro = draftNorm
                       ? produtoBySkuNorm.get(draftNorm)?.trim() || ''
@@ -401,20 +463,45 @@ export function AdminInsightsDeParaProdutos() {
                                 </Tooltip>
                               )}
                             </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 shrink-0 gap-1 text-xs"
-                              disabled={!ok || busy || upsert.isPending}
-                              onClick={() => void handleVincularManual(r.codigo_origem)}
-                            >
-                              {busy ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Link2 className="h-3.5 w-3.5" />
-                              )}
-                              Vincular
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                type="button"
+                                className={cn(
+                                  buttonVariants({ variant: 'outline', size: 'icon' }),
+                                  'h-8 w-8 shrink-0'
+                                )}
+                                disabled={rowBusy}
+                                aria-label="Ações do código"
+                                title="Ações"
+                              >
+                                {rowBusy ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                )}
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" sideOffset={4} className="min-w-44">
+                                <DropdownMenuItem
+                                  className="gap-2"
+                                  disabled={!ok || rowBusy}
+                                  onClick={() => void handleVincularManual(r.codigo_origem)}
+                                >
+                                  <Link2 className="h-3.5 w-3.5" />
+                                  Vincular
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="gap-2 text-amber-800 focus:text-amber-800 dark:text-amber-400"
+                                  disabled={rowBusy}
+                                  onClick={() =>
+                                    void handleDesconsiderar(r.codigo_origem, descExibicao)
+                                  }
+                                >
+                                  <EyeOff className="h-3.5 w-3.5" />
+                                  Desconsiderar
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -432,6 +519,56 @@ export function AdminInsightsDeParaProdutos() {
               </option>
             ))}
           </datalist>
+
+          {desconsiderados.length > 0 && (
+            <details className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+              <summary className="cursor-pointer select-none text-xs font-medium text-foreground">
+                Desconsiderados ({desconsiderados.length.toLocaleString('pt-BR')})
+              </summary>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Códigos fora do mix Insights — não entram nos gráficos. Restaure se precisar mapear
+                depois.
+              </p>
+              {loadingDesconsiderados ? (
+                <Skeleton className="mt-2 h-16 w-full" />
+              ) : (
+                <div className="mt-2 max-h-48 overflow-auto rounded-md border bg-background">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs">Código</TableHead>
+                        <TableHead className="text-xs">Desde</TableHead>
+                        <TableHead className="text-right text-xs">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {desconsiderados.map((d) => (
+                        <TableRow key={d.id}>
+                          <TableCell className="py-2 font-mono text-xs">{d.codigo_origem}</TableCell>
+                          <TableCell className="py-2 text-[11px] text-muted-foreground">
+                            {new Date(d.criado_em).toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell className="py-2 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              disabled={restaurar.isPending}
+                              onClick={() => void handleRestaurar(d.codigo_origem)}
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              Restaurar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </details>
+          )}
         </CardContent>
       </Card>
 

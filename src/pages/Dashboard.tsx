@@ -137,7 +137,7 @@ export function Dashboard() {
       value: String(relatoriosPendentes),
       hint: 'pendentes de processamento',
       icon: FileText,
-      to: '/ingestao',
+      to: '/parceiros',
       hot: relatoriosPendentes > 0,
     },
   ]
@@ -285,7 +285,7 @@ export function Dashboard() {
               title="Últimos relatórios"
               icon={FileText}
               action={
-                <Link to="/ingestao">
+                <Link to="/parceiros">
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
                     Enviar
                   </Button>

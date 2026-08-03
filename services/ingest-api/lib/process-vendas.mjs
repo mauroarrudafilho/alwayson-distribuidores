@@ -12,6 +12,7 @@ import {
   isCidadeVazia,
   normalizeCnpjDigits,
   resolveClienteCidadesBatch,
+  clienteGeoPatchFromResolved,
 } from './resolve-cliente-cidade.mjs'
 
 const REQUIRED = [
@@ -303,29 +304,45 @@ export async function processVendas(supabase, { buffer, distribuidorId, forneced
       continue
     }
     const resolved = cidadesResolvidas.get(normalizeCnpjDigits(g.cnpj))
+    const geoPatch = clienteGeoPatchFromResolved(resolved)
     clientePayloadByCnpj.set(g.cnpj, {
       distribuidor_id: distribuidorId,
       cnpj: g.cnpj,
       razao_social: g.razao,
       nome_fantasia: g.nome,
-      cidade: resolved?.cidade ?? '—',
-      estado: resolved?.estado ?? '—',
+      cidade: geoPatch?.cidade ?? '—',
+      estado: geoPatch?.estado ?? '—',
       vendedor_id: vendedorId,
       status: 'ativo',
       atualizado_em: new Date().toISOString(),
+      ...(geoPatch ?? {}),
     })
   }
 
   const toUpdateCli = []
   const toInsertCli = []
-  const toBackfillCidade = []
+  const toBackfillGeo = []
   for (const [cnpj, payload] of clientePayloadByCnpj) {
     const existing = existingByCnpj.get(cnpj)
+    const geoPatch = clienteGeoPatchFromResolved(
+      cidadesResolvidas.get(normalizeCnpjDigits(cnpj))
+    )
     if (existing) {
-      const { cidade, estado, ...rest } = payload
+      const {
+        cidade: _c,
+        estado: _e,
+        endereco_logradouro: _l,
+        endereco_numero: _n,
+        endereco_bairro: _b,
+        endereco_cep: _cep,
+        lat: _lat,
+        lng: _lng,
+        geo_enriquecido_em: _geo,
+        ...rest
+      } = payload
       toUpdateCli.push({ id: existing.id, ...rest })
-      if (isCidadeVazia(existing.cidade, existing.estado) && !isCidadeVazia(cidade, estado)) {
-        toBackfillCidade.push({ id: existing.id, cidade, estado, geo_enriquecido_em: new Date().toISOString() })
+      if (isCidadeVazia(existing.cidade, existing.estado) && geoPatch) {
+        toBackfillGeo.push({ id: existing.id, ...geoPatch })
       }
     } else {
       toInsertCli.push(payload)
@@ -340,7 +357,7 @@ export async function processVendas(supabase, { buffer, distribuidorId, forneced
     )
   }
 
-  for (const chunk of chunkArr(toBackfillCidade, 40)) {
+  for (const chunk of chunkArr(toBackfillGeo, 40)) {
     await Promise.all(
       chunk.map(({ id, ...payload }) =>
         supabase.from('alwayson_clientes_distribuidor').update(payload).eq('id', id)

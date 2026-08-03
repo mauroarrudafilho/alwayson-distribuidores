@@ -18,12 +18,17 @@
     "insights:deploy-process-worker": "supabase functions deploy process-insights-pendentes --project-ref osukbalwykbqvoumddxz",
     "admin:deploy-invite-fn": "supabase functions deploy admin-invite-user --project-ref osukbalwykbqvoumddxz",
     "insights:enrich-geo:cidades": "node scripts/enrich-insights-nf-geo.mjs --last-upload --no-nominatim",
+    "clientes:enrich-geo": "node scripts/backfill-cliente-carteira-geo.mjs",
     "insights:delete-cliente": "node scripts/delete-insights-cliente.mjs",
     "insights:delete-upload-arquivo": "node scripts/delete-insights-upload-by-arquivo.mjs",
     "db:migrate": "node scripts/apply-migrations.mjs",
+    "metas:seed-demo-maio": "node scripts/seed-metas-demo-maio-2026.mjs",
+    "metas:rollup-maio": "node scripts/seed-metas-demo-maio-2026.mjs --rollup-only",
     "admin:bootstrap": "node scripts/admin-bootstrap.mjs",
     "produtos:import-campestre": "node scripts/import-produtos-cadastro-campestre.mjs",
-    "ingest:api": "node services/ingest-api/server.mjs"
+    "ingest:api": "node services/ingest-api/server.mjs",
+    "pdv:api": "node services/pdv-pipeline/server.mjs",
+    "pdv:receita": "node services/pdv-pipeline/jobs/receita-universo.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

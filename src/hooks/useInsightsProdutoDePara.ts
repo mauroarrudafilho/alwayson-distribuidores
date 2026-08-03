@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { InsightsProdutoDePara, InsightsProdutoNaoMapeado } from '@/types/insights'
+import type {
+  InsightsProdutoDePara,
+  InsightsProdutoDesconsiderado,
+  InsightsProdutoNaoMapeado,
+} from '@/types/insights'
 
 function n(x: unknown): number {
   const v = Number(x)
@@ -78,6 +82,61 @@ export function useUpsertInsightsProdutoDePara() {
       void qc.invalidateQueries({ queryKey: ['insights-produto-de-para'] })
       void qc.invalidateQueries({ queryKey: ['insights-produto-nao-mapeados'] })
       void qc.invalidateQueries({ queryKey: ['insights'] })
+    },
+  })
+}
+
+export function useInsightsProdutosDesconsiderados() {
+  return useQuery({
+    queryKey: ['insights-produto-desconsiderados'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('alwayson_insights_produto_desconsiderados')
+        .select('id, codigo_origem, motivo, criado_em')
+        .order('criado_em', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as InsightsProdutoDesconsiderado[]
+    },
+  })
+}
+
+export function useDesconsiderarInsightsProduto() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (args: { codigo_origem: string; motivo?: string }) => {
+      const codigo = args.codigo_origem.trim()
+      if (!codigo) return
+      const { error } = await supabase.from('alwayson_insights_produto_desconsiderados').upsert(
+        {
+          codigo_origem: codigo,
+          motivo: args.motivo?.trim() || null,
+        },
+        { onConflict: 'codigo_origem' }
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['insights-produto-desconsiderados'] })
+      void qc.invalidateQueries({ queryKey: ['insights-produto-nao-mapeados'] })
+    },
+  })
+}
+
+export function useRestaurarInsightsProduto() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (codigo_origem: string) => {
+      const codigo = codigo_origem.trim()
+      if (!codigo) return
+      const { error } = await supabase
+        .from('alwayson_insights_produto_desconsiderados')
+        .delete()
+        .eq('codigo_origem', codigo)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['insights-produto-desconsiderados'] })
+      void qc.invalidateQueries({ queryKey: ['insights-produto-nao-mapeados'] })
     },
   })
 }
