@@ -252,7 +252,7 @@ function CabecalhoOrdenavel({
   label,
   field,
   sortField,
-  sortDir,
+  sortDir: _sortDir,
   onSort,
   className,
   align = 'right',
