@@ -1,9 +1,8 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.99.1'
-import {
-  corpoConviteHtml,
-  corpoConviteTexto,
-  type InviteEmailAcesso,
-} from '../_shared/invite-email-template.ts'
+import { resolveAppOrigin } from '../_shared/app-origin.ts'
+import { enviarAuthEmail } from '../_shared/auth-email-delivery.ts'
+import type { InviteEmailAcesso } from '../_shared/auth-email-template.ts'
+import { resendConfigurado } from '../_shared/resend-client.ts'
 
 type MembershipRole =
   | 'admin'
@@ -28,100 +27,10 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   })
 }
 
-const RESEND_ENDPOINT = 'https://api.resend.com/emails'
-
-/**
- * Entrega o convite pelo Resend. Opt-in: sem `RESEND_API_KEY` a função mantém o
- * caminho antigo (e-mail nativo do Supabase), então publicar isto não altera
- * comportamento enquanto o segredo não estiver definido.
- */
-async function enviarPorResend(
-  email: string,
-  actionLink: string,
-  nome?: string,
-  acesso?: InviteEmailAcesso,
-): Promise<{ ok: boolean; message?: string }> {
-  const apiKey = Deno.env.get('RESEND_API_KEY')
-  if (!apiKey) return { ok: false, message: 'RESEND_API_KEY não definida' }
-  const from = Deno.env.get('RESEND_FROM') ?? 'Always On <onboarding@resend.dev>'
-
-  const content = { actionLink, nome, acesso }
-
-  try {
-    const res = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from,
-        to: [email],
-        subject: 'Seu acesso à plataforma Always On',
-        html: corpoConviteHtml(content),
-        text: corpoConviteTexto(content),
-      }),
-    })
-    if (!res.ok) {
-      const corpo = await res.text().catch(() => '')
-      return { ok: false, message: `Resend ${res.status}: ${corpo.slice(0, 300)}` }
-    }
-    return { ok: true }
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) }
-  }
-}
-
 function randomToken(): string {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-const DEFAULT_ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://alwayson-distribuidores.vercel.app',
-]
-
-function canonicalAppOrigin(): string {
-  return (Deno.env.get('APP_PUBLIC_URL') ?? '').trim().replace(/\/$/, '')
-}
-
-function parseAllowedOrigins(): string[] {
-  const extra = (Deno.env.get('ALLOWED_APP_ORIGINS') ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const merged = [...DEFAULT_ALLOWED_ORIGINS, ...extra]
-  const canonical = canonicalAppOrigin()
-  if (canonical) merged.push(canonical)
-  return [...new Set(merged)]
-}
-
-/** Convites a parceiros devem apontar para produção, não localhost do admin. */
-function resolveInviteAppOrigin(requestedOrigin: string):
-  | { ok: true; origin: string }
-  | { ok: false; error: string; message: string } {
-  const allowed = parseAllowedOrigins()
-  const canonical = canonicalAppOrigin()
-  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestedOrigin)
-
-  if (isLocal && canonical && allowed.includes(canonical)) {
-    return { ok: true, origin: canonical }
-  }
-
-  if (requestedOrigin && allowed.includes(requestedOrigin)) {
-    return { ok: true, origin: requestedOrigin }
-  }
-
-  if (canonical && allowed.includes(canonical)) {
-    return { ok: true, origin: canonical }
-  }
-
-  return {
-    ok: false,
-    error: 'origin_nao_autorizada',
-    message:
-      'app_origin deve ser a origem exata da aplicação e estar na lista permitida na função.',
-  }
 }
 
 function isRole(v: unknown): v is MembershipRole {
@@ -208,7 +117,7 @@ function looksRegisteredError(msg: string) {
 
 type DeliveryResult = {
   ok: boolean
-  delivery?: 'resend' | 'signup_email' | 'magiclink' | 'manual'
+  delivery?: 'resend' | 'manual'
   action_link?: string
   message?: string
   error?: string
@@ -228,94 +137,71 @@ async function entregarConviteEmail(
   opts?: { reenvio?: boolean },
 ): Promise<DeliveryResult> {
   const reenvio = opts?.reenvio ?? false
-  if (Deno.env.get('RESEND_API_KEY')) {
-    let actionLink: string | null = null
 
-    const convite = await adminSb.auth.admin.generateLink({
-      type: 'invite',
-      email,
-      options: {
-        redirectTo,
-        data: { ...(nome ? { nome } : {}), needs_password_setup: true },
-      },
-    })
-
-    if (convite.data?.properties?.action_link) {
-      actionLink = convite.data.properties.action_link
-    } else if (looksRegisteredError(convite.error?.message ?? '')) {
-      const ml = await adminSb.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: { redirectTo },
-      })
-      actionLink = ml.data?.properties?.action_link ?? null
-    }
-
-    if (!actionLink) {
-      return {
-        ok: false,
-        error: 'link_falhou',
-        message: convite.error?.message ?? 'Sem action_link',
-      }
-    }
-
-    const envio = await enviarPorResend(email, actionLink, nome, acesso)
-    if (envio.ok) {
-      return {
-        ok: true,
-        delivery: 'resend',
-        message: reenvio
-          ? 'Convite reenviado por e-mail (Resend).'
-          : 'Convite enviado por e-mail (Resend).',
-      }
-    }
-
-    return {
-      ok: true,
-      delivery: 'manual',
-      action_link: actionLink,
-      message: `Não foi possível enviar pelo Resend (${envio.message}). Copie o link e envie manualmente.`,
-    }
-  }
-
-  const { error: inviteEmailErr } = await adminSb.auth.admin.inviteUserByEmail(email, {
-    data: { ...(nome ? { nome } : {}), needs_password_setup: true },
-    redirectTo,
-  })
-
-  if (!inviteEmailErr) {
-    return {
-      ok: true,
-      delivery: 'signup_email',
-      message: 'Convite enviado por e-mail (Supabase Auth).',
-    }
-  }
-
-  const em = inviteEmailErr.message ?? ''
-  if (!looksRegisteredError(em)) {
-    return { ok: false, error: 'email_envio_falhou', message: em }
-  }
-
-  const { data: linkData, error: linkErr } = await adminSb.auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-    options: { redirectTo },
-  })
-
-  if (linkErr || !linkData?.properties?.action_link) {
+  if (!resendConfigurado()) {
     return {
       ok: false,
-      error: 'magiclink_falhou',
-      message: linkErr?.message ?? 'Sem action_link',
+      error: 'resend_nao_configurado',
+      message:
+        'RESEND_API_KEY não configurada. Convites exigem entrega pelo Resend (mesmo template Always On).',
+    }
+  }
+
+  let actionLink: string | null = null
+  let variant: 'convite' | 'acesso_existente' = 'convite'
+
+  const convite = await adminSb.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      redirectTo,
+      data: { ...(nome ? { nome } : {}), needs_password_setup: true },
+    },
+  })
+
+  if (convite.data?.properties?.action_link) {
+    actionLink = convite.data.properties.action_link
+  } else if (looksRegisteredError(convite.error?.message ?? '')) {
+    variant = 'acesso_existente'
+    const ml = await adminSb.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+      options: { redirectTo },
+    })
+    actionLink = ml.data?.properties?.action_link ?? null
+  }
+
+  if (!actionLink) {
+    return {
+      ok: false,
+      error: 'link_falhou',
+      message: convite.error?.message ?? 'Sem action_link',
+    }
+  }
+
+  const envio = await enviarAuthEmail({
+    variant,
+    email,
+    actionLink,
+    nome,
+    acesso,
+  })
+
+  if (envio.ok) {
+    return {
+      ok: true,
+      delivery: 'resend',
+      message: reenvio
+        ? 'Convite reenviado por e-mail (Resend).'
+        : 'Convite enviado por e-mail (Resend).',
     }
   }
 
   return {
     ok: true,
-    delivery: 'magiclink',
-    action_link: linkData.properties.action_link,
-    message:
-      'Este e-mail já tem conta. Copie o link mágico e envie manualmente — abre login e redireciona para aceitar o convite.',
+    delivery: 'manual',
+    action_link: actionLink,
+    message: `Não foi possível enviar pelo Resend (${envio.message}). Copie o link e envie manualmente.`,
   }
 }
 
@@ -384,7 +270,7 @@ Deno.serve(async (req) => {
   const requestedOrigin =
     typeof body.app_origin === 'string' ? body.app_origin.trim().replace(/\/$/, '') : ''
 
-  const originResolved = resolveInviteAppOrigin(requestedOrigin)
+  const originResolved = resolveAppOrigin(requestedOrigin)
   if (!originResolved.ok) {
     return jsonResponse(
       { ok: false, error: originResolved.error, message: originResolved.message },

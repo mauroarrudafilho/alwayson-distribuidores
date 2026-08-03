@@ -5,6 +5,7 @@ import { AuthShell } from '@/components/auth/AuthShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
+import { getAppOrigin } from '@/lib/appOrigin'
 
 export function RecuperarPassword() {
   const [email, setEmail] = useState('')
@@ -17,12 +18,23 @@ export function RecuperarPassword() {
     setErro(null)
     setSubmitting(true)
     try {
-      const redirectTo = `${window.location.origin}/redefinir-password`
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
+      const app_origin = getAppOrigin() || window.location.origin.replace(/\/$/, '')
+      const { data, error } = await supabase.functions.invoke('auth-recuperar-senha', {
+        body: { email: email.trim().toLowerCase(), app_origin },
+      })
       if (error) throw error
+      const payload = data as { ok?: boolean; message?: string; error?: string } | null
+      if (!payload?.ok) {
+        throw new Error(payload?.message ?? payload?.error ?? 'Falha ao enviar e-mail.')
+      }
       setEnviado(true)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Falha ao enviar e-mail.')
+      const msg = err instanceof Error ? err.message : 'Falha ao enviar e-mail.'
+      setErro(
+        /function not found|404/i.test(msg)
+          ? 'Serviço de e-mail indisponível. Peça ao administrador para publicar auth-recuperar-senha.'
+          : msg
+      )
     } finally {
       setSubmitting(false)
     }
@@ -31,8 +43,8 @@ export function RecuperarPassword() {
   return (
     <AuthShell eyebrow="Recuperar acesso" title="Esqueceu a senha?" italic="Sem problema.">
       <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
-        Informe o e-mail vinculado à sua conta e enviaremos um link seguro para você definir uma
-        nova senha.
+        Informe o e-mail vinculado à sua conta. Enviaremos um link com a mesma identidade visual
+        Always On para você definir uma nova senha.
       </p>
 
       {enviado ? (
