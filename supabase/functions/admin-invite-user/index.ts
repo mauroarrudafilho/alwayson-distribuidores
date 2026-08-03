@@ -1,4 +1,9 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.99.1'
+import {
+  corpoConviteHtml,
+  corpoConviteTexto,
+  type InviteEmailAcesso,
+} from '../_shared/invite-email-template.ts'
 
 type MembershipRole =
   | 'admin'
@@ -25,28 +30,6 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
-function corpoConvite(actionLink: string, nome?: string): string {
-  const saudacao = nome ? `Olá, ${nome}!` : 'Olá!'
-  return `
-    <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <h2 style="font-size:18px;margin:0 0 16px">${saudacao}</h2>
-      <p style="font-size:14px;line-height:1.6;margin:0 0 16px">
-        Você foi convidado para a plataforma <strong>AlwaysOn Distribuidores</strong>.
-        Clique abaixo para definir o seu acesso.
-      </p>
-      <p style="margin:24px 0">
-        <a href="${actionLink}"
-           style="background:#1a1a1a;color:#fff;text-decoration:none;padding:11px 20px;border-radius:6px;font-size:14px;display:inline-block">
-          Aceitar convite
-        </a>
-      </p>
-      <p style="font-size:12px;color:#666;line-height:1.6;margin:0">
-        Se o botão não funcionar, copie e cole este endereço no navegador:<br>
-        <span style="word-break:break-all">${actionLink}</span>
-      </p>
-    </div>`
-}
-
 /**
  * Entrega o convite pelo Resend. Opt-in: sem `RESEND_API_KEY` a função mantém o
  * caminho antigo (e-mail nativo do Supabase), então publicar isto não altera
@@ -56,10 +39,13 @@ async function enviarPorResend(
   email: string,
   actionLink: string,
   nome?: string,
+  acesso?: InviteEmailAcesso,
 ): Promise<{ ok: boolean; message?: string }> {
   const apiKey = Deno.env.get('RESEND_API_KEY')
   if (!apiKey) return { ok: false, message: 'RESEND_API_KEY não definida' }
-  const from = Deno.env.get('RESEND_FROM') ?? 'AlwaysOn <onboarding@resend.dev>'
+  const from = Deno.env.get('RESEND_FROM') ?? 'Always On <onboarding@resend.dev>'
+
+  const content = { actionLink, nome, acesso }
 
   try {
     const res = await fetch(RESEND_ENDPOINT, {
@@ -68,8 +54,9 @@ async function enviarPorResend(
       body: JSON.stringify({
         from,
         to: [email],
-        subject: 'Seu acesso ao AlwaysOn Distribuidores',
-        html: corpoConvite(actionLink, nome),
+        subject: 'Seu acesso à plataforma Always On',
+        html: corpoConviteHtml(content),
+        text: corpoConviteTexto(content),
       }),
     })
     if (!res.ok) {
@@ -115,6 +102,60 @@ function isRole(v: unknown): v is MembershipRole {
     'gerente',
   ]
   return typeof v === 'string' && roles.includes(v as MembershipRole)
+}
+
+function asStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((s) => s.trim())
+}
+
+type MembershipSpec = { tenant_id: string; role: MembershipRole }
+
+function rolePrecisaFornecedor(role: MembershipRole): boolean {
+  return role === 'gestor_fornecedor' || role === 'kam'
+}
+
+function rolePrecisaDistribuidor(role: MembershipRole): boolean {
+  return role !== 'admin' && role !== 'gestor_fornecedor'
+}
+
+function buildMemberships(
+  role: MembershipRole,
+  fornecedorIds: string[],
+  distribuidorIds: string[],
+  adminTenantId: string | null,
+): MembershipSpec[] {
+  if (role === 'admin') {
+    return adminTenantId ? [{ tenant_id: adminTenantId, role: 'admin' }] : []
+  }
+  const specs: MembershipSpec[] = []
+  if (rolePrecisaFornecedor(role)) {
+    for (const tenant_id of fornecedorIds) specs.push({ tenant_id, role })
+  }
+  if (rolePrecisaDistribuidor(role)) {
+    for (const tenant_id of distribuidorIds) specs.push({ tenant_id, role })
+  }
+  return specs
+}
+
+async function buildAcessoConvite(
+  adminSb: SupabaseClient,
+  fornecedorIds: string[],
+  distribuidorIds: string[],
+): Promise<InviteEmailAcesso | undefined> {
+  const acesso: InviteEmailAcesso = { fornecedores: [], parceiros: [] }
+
+  if (fornecedorIds.length) {
+    const { data } = await adminSb.from('alwayson_tenants').select('nome').in('id', fornecedorIds)
+    acesso.fornecedores = (data ?? []).map((t) => t.nome as string).filter(Boolean)
+  }
+  if (distribuidorIds.length) {
+    const { data } = await adminSb.from('alwayson_tenants').select('nome').in('id', distribuidorIds)
+    acesso.parceiros = (data ?? []).map((t) => t.nome as string).filter(Boolean)
+  }
+
+  if (!acesso.fornecedores.length && !acesso.parceiros.length) return undefined
+  return acesso
 }
 
 async function deleteInvite(adminSb: SupabaseClient, id: string) {
@@ -183,16 +224,15 @@ Deno.serve(async (req) => {
 
   const emailRaw = typeof body.email === 'string' ? body.email.trim() : ''
   const email = emailRaw.toLowerCase()
-  const tenant_id = typeof body.tenant_id === 'string' ? body.tenant_id.trim() : ''
+  const tenant_id_legacy = typeof body.tenant_id === 'string' ? body.tenant_id.trim() : ''
+  const fornecedor_tenant_ids = asStringArray(body.fornecedor_tenant_ids)
+  const distribuidor_tenant_ids = asStringArray(body.distribuidor_tenant_ids)
   const nome = typeof body.nome === 'string' ? body.nome.trim() : ''
   const app_origin =
     typeof body.app_origin === 'string' ? body.app_origin.trim().replace(/\/$/, '') : ''
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return jsonResponse({ ok: false, error: 'email_invalido' }, 400)
-  }
-  if (!tenant_id) {
-    return jsonResponse({ ok: false, error: 'tenant_id_obrigatorio' }, 400)
   }
   if (!isRole(body.role)) {
     return jsonResponse({ ok: false, error: 'role_invalida' }, 400)
@@ -215,6 +255,58 @@ Deno.serve(async (req) => {
   const adminSb = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+
+  let adminGlobalTenantId: string | null = null
+  if (role === 'admin') {
+    const { data: adminTenant } = await adminSb
+      .from('alwayson_tenants')
+      .select('id')
+      .eq('tipo', 'admin_global')
+      .eq('ativo', true)
+      .order('criado_em', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    adminGlobalTenantId = adminTenant?.id ?? null
+    if (!adminGlobalTenantId) {
+      return jsonResponse({ ok: false, error: 'admin_tenant_ausente' }, 500)
+    }
+  }
+
+  const memberships =
+    fornecedor_tenant_ids.length > 0 || distribuidor_tenant_ids.length > 0 || role === 'admin'
+      ? buildMemberships(role, fornecedor_tenant_ids, distribuidor_tenant_ids, adminGlobalTenantId)
+      : tenant_id_legacy
+        ? [{ tenant_id: tenant_id_legacy, role }]
+        : []
+
+  if (memberships.length === 0) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: 'vinculos_obrigatorios',
+        message: 'Informe fornecedor e/ou distribuidor conforme o papel escolhido.',
+      },
+      400,
+    )
+  }
+
+  if (role === 'kam' && (fornecedor_tenant_ids.length === 0 || distribuidor_tenant_ids.length === 0)) {
+    return jsonResponse(
+      {
+        ok: false,
+        error: 'kam_precisa_dois_eixos',
+        message: 'KAM exige fornecedor e distribuidor — o acesso é a interseção dos dois.',
+      },
+      400,
+    )
+  }
+
+  const tenant_id = memberships[0].tenant_id
+  const escopo = {
+    memberships,
+    fornecedor_tenant_ids,
+    distribuidor_tenant_ids,
+  }
 
   const { data: pend, error: pendErr } = await adminSb
     .from('alwayson_user_invites')
@@ -241,6 +333,7 @@ Deno.serve(async (req) => {
       email,
       tenant_id,
       role,
+      escopo,
       token,
       convidado_por: inviter.id,
       status: 'pending',
@@ -254,6 +347,11 @@ Deno.serve(async (req) => {
   }
 
   const inviteRowId = inserted.id as string
+  const acessoConvite = await buildAcessoConvite(
+    adminSb,
+    fornecedor_tenant_ids,
+    distribuidor_tenant_ids,
+  )
 
   // ─── Entrega por Resend (quando configurado) ──────────────────────────────
   // Gera o link sem disparar o e-mail nativo e entrega pelo Resend, que tem
@@ -289,7 +387,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const envio = await enviarPorResend(email, actionLink, nome)
+    const envio = await enviarPorResend(email, actionLink, nome, acessoConvite)
     if (envio.ok) {
       return jsonResponse({
         ok: true,

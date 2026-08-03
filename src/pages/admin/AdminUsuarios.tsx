@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Building2,
@@ -56,6 +56,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuth, type MembershipRole, type TenantTipo } from '@/contexts/auth'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { cn } from '@/lib/utils'
+import {
+  buildInviteMemberships,
+  resumoVinculosConvite,
+  rolePrecisaDistribuidor,
+  rolePrecisaFornecedor,
+  roleEhAdminGlobal,
+  validarConviteAcesso,
+} from '@/lib/inviteAccess'
 
 type ProfileRow = {
   user_id: string
@@ -83,6 +91,7 @@ type InviteRow = {
   status: 'pending' | 'accepted' | 'expired' | 'revoked'
   criado_em: string
   expira_em: string
+  escopo: { memberships?: unknown[]; fornecedor_tenant_ids?: string[]; distribuidor_tenant_ids?: string[] } | null
   alwayson_tenants: TenantEmbed | TenantEmbed[]
 }
 
@@ -131,6 +140,7 @@ const roleLabel: Record<MembershipRole, string> = {
   gestor: 'Gestor',
   gestor_cliente: 'Gestor cliente',
   gestor_fornecedor: 'Gestor fornecedor',
+  kam: 'KAM',
   vendedor: 'Vendedor',
   supervisor: 'Supervisor',
   gerente: 'Gerente',
@@ -169,6 +179,64 @@ function TenantRoleBadge({
   )
 }
 
+function TenantAccessPicker({
+  label,
+  items,
+  selected,
+  onToggle,
+  emptyMessage,
+}: {
+  label: string
+  items: TenantRow[]
+  selected: string[]
+  onToggle: (id: string, checked: boolean) => void
+  emptyMessage: string
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="min-w-0 space-y-1">
+        <span className="text-xs font-medium text-foreground">{label}</span>
+        <p className="text-[11px] text-muted-foreground">{emptyMessage}</p>
+      </div>
+    )
+  }
+
+  if (items.length === 1) {
+    const t = items[0]
+    return (
+      <div className="min-w-0 space-y-1">
+        <span className="text-xs font-medium text-foreground">{label}</span>
+        <p className="truncate rounded-md border border-border/60 bg-muted/20 px-2 py-1.5 text-xs">
+          {t.nome}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <span className="text-xs font-medium text-foreground">{label}</span>
+      <div className="max-h-24 overflow-y-auto rounded-md border border-border/60 bg-muted/10 p-1.5">
+        <ul className="space-y-0.5">
+          {items.map((t) => (
+            <li key={t.id}>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-muted/40">
+                <input
+                  type="checkbox"
+                  className="size-3.5 shrink-0"
+                  checked={selected.includes(t.id)}
+                  onChange={(e) => onToggle(t.id, e.target.checked)}
+                />
+                <span className="truncate text-xs">{t.nome}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 export function AdminUsuarios() {
   const qc = useQueryClient()
   const { isAdmin, session, refresh } = useAuth()
@@ -178,8 +246,9 @@ export function AdminUsuarios() {
   const [tenantOpen, setTenantOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteNome, setInviteNome] = useState('')
-  const [inviteTenantId, setInviteTenantId] = useState('')
-  const [inviteRole, setInviteRole] = useState<MembershipRole>('gestor')
+  const [inviteFornecedorIds, setInviteFornecedorIds] = useState<string[]>([])
+  const [inviteDistribuidorIds, setInviteDistribuidorIds] = useState<string[]>([])
+  const [inviteRole, setInviteRole] = useState<MembershipRole>('kam')
   const [magicLinkShown, setMagicLinkShown] = useState('')
   const [inviteError, setInviteError] = useState<string | null>(null)
 
@@ -188,8 +257,9 @@ export function AdminUsuarios() {
   const [editNomeValor, setEditNomeValor] = useState('')
   const [membershipsOpen, setMembershipsOpen] = useState(false)
   const [membershipsUserId, setMembershipsUserId] = useState<string | null>(null)
-  const [newMbTenantId, setNewMbTenantId] = useState('')
-  const [newMbRole, setNewMbRole] = useState<MembershipRole>('gestor')
+  const [newMbFornecedorIds, setNewMbFornecedorIds] = useState<string[]>([])
+  const [newMbDistribuidorIds, setNewMbDistribuidorIds] = useState<string[]>([])
+  const [newMbRole, setNewMbRole] = useState<MembershipRole>('kam')
   const [createTenantDistribuidorId, setCreateTenantDistribuidorId] = useState('')
 
   const { data: distribuidores = [] } = useDistribuidores()
@@ -261,7 +331,7 @@ export function AdminUsuarios() {
       const { data, error } = await supabase
         .from('alwayson_user_invites')
         .select(
-          'id, email, role, status, criado_em, expira_em, alwayson_tenants (nome, slug, tipo)',
+          'id, email, role, status, criado_em, expira_em, escopo, alwayson_tenants (nome, slug, tipo)',
         )
         .order('criado_em', { ascending: false })
       if (error) throw error
@@ -291,17 +361,58 @@ export function AdminUsuarios() {
     [profiles.data, membershipsUserId],
   )
 
+  const fornecedorTenants = useMemo(
+    () => (tenants.data ?? []).filter((t) => t.tipo === 'fornecedor' && t.ativo),
+    [tenants.data],
+  )
+
+  const distribuidorTenants = useMemo(
+    () => (tenants.data ?? []).filter((t) => t.tipo === 'distribuidor' && t.ativo),
+    [tenants.data],
+  )
+
+  const adminGlobalTenant = useMemo(
+    () => (tenants.data ?? []).find((t) => t.tipo === 'admin_global' && t.ativo) ?? null,
+    [tenants.data],
+  )
+
+  const inviteResumoAcesso = useMemo(() => {
+    const fn = fornecedorTenants.filter((t) => inviteFornecedorIds.includes(t.id)).map((t) => t.nome)
+    const dn = distribuidorTenants.filter((t) => inviteDistribuidorIds.includes(t.id)).map((t) => t.nome)
+    return resumoVinculosConvite(inviteRole, fn, dn)
+  }, [inviteRole, inviteFornecedorIds, inviteDistribuidorIds, fornecedorTenants, distribuidorTenants])
+
+  const inviteValidacao = useMemo(
+    () =>
+      validarConviteAcesso(
+        inviteRole,
+        inviteFornecedorIds,
+        inviteDistribuidorIds,
+        adminGlobalTenant?.id ?? null,
+      ),
+    [inviteRole, inviteFornecedorIds, inviteDistribuidorIds, adminGlobalTenant],
+  )
+
   const sendInvite = useMutation({
     mutationFn: async () => {
       setInviteError(null)
       setMagicLinkShown('')
       const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
+      const validationError = validarConviteAcesso(
+        inviteRole,
+        inviteFornecedorIds,
+        inviteDistribuidorIds,
+        adminGlobalTenant?.id ?? null,
+      )
+      if (validationError) throw new Error(validationError)
+
       const { data, error } = await supabase.functions.invoke('admin-invite-user', {
         body: {
           email: inviteEmail.trim(),
           nome: inviteNome.trim() || undefined,
-          tenant_id: inviteTenantId,
           role: inviteRole,
+          fornecedor_tenant_ids: inviteFornecedorIds,
+          distribuidor_tenant_ids: inviteDistribuidorIds,
           app_origin: origin,
         },
       })
@@ -437,36 +548,89 @@ export function AdminUsuarios() {
   const addMembership = useMutation({
     mutationFn: async ({
       userId,
-      tenantId,
+      fornecedorTenantIds,
+      distribuidorTenantIds,
       role,
     }: {
       userId: string
-      tenantId: string
+      fornecedorTenantIds: string[]
+      distribuidorTenantIds: string[]
       role: MembershipRole
     }) => {
-      const { error } = await supabase.from('alwayson_memberships').insert({
-        user_id: userId,
-        tenant_id: tenantId,
+      const specs = buildInviteMemberships(
         role,
-        ativo: true,
-        aceito_em: new Date().toISOString(),
-      })
-      if (error) throw error
+        fornecedorTenantIds,
+        distribuidorTenantIds,
+        adminGlobalTenant?.id ?? null,
+      )
+      if (specs.length === 0) throw new Error('Nenhum vínculo a criar para este papel.')
+
+      for (const spec of specs) {
+        const { error } = await supabase.from('alwayson_memberships').insert({
+          user_id: userId,
+          tenant_id: spec.tenant_id,
+          role: spec.role,
+          ativo: true,
+          aceito_em: new Date().toISOString(),
+        })
+        if (error) throw error
+      }
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['admin', 'usuarios'] })
       await allMemberships.refetch()
-      setNewMbTenantId('')
+      setNewMbFornecedorIds([])
+      setNewMbDistribuidorIds([])
       await refresh()
     },
   })
 
+  const newMbValidacao = useMemo(
+    () =>
+      validarConviteAcesso(
+        newMbRole,
+        newMbFornecedorIds,
+        newMbDistribuidorIds,
+        adminGlobalTenant?.id ?? null,
+      ),
+    [newMbRole, newMbFornecedorIds, newMbDistribuidorIds, adminGlobalTenant],
+  )
+
+  const newMbResumo = useMemo(() => {
+    const fn = fornecedorTenants.filter((t) => newMbFornecedorIds.includes(t.id)).map((t) => t.nome)
+    const dn = distribuidorTenants.filter((t) => newMbDistribuidorIds.includes(t.id)).map((t) => t.nome)
+    return resumoVinculosConvite(newMbRole, fn, dn)
+  }, [newMbRole, newMbFornecedorIds, newMbDistribuidorIds, fornecedorTenants, distribuidorTenants])
+
+  function formatInviteEscopo(inv: InviteRow): string {
+    const fnIds = inv.escopo?.fornecedor_tenant_ids ?? []
+    const dnIds = inv.escopo?.distribuidor_tenant_ids ?? []
+    if (fnIds.length || dnIds.length) {
+      const fn = fornecedorTenants.filter((t) => fnIds.includes(t.id)).map((t) => t.nome)
+      const dn = distribuidorTenants.filter((t) => dnIds.includes(t.id)).map((t) => t.nome)
+      return resumoVinculosConvite(inv.role, fn, dn)
+    }
+    const tenant = unwrapTenant(inv.alwayson_tenants)
+    return tenant?.nome ?? '—'
+  }
+
   const openInvite = () => {
     setInviteError(null)
     setMagicLinkShown('')
-    const first = tenants.data?.[0]?.id ?? ''
-    setInviteTenantId((prev) => prev || first)
+    const campestre = fornecedorTenants.find((t) => t.slug.includes('campestre'))
+    const paraty = distribuidorTenants.find((t) => t.nome.toLowerCase().includes('paraty'))
+    setInviteFornecedorIds(campestre ? [campestre.id] : fornecedorTenants[0]?.id ? [fornecedorTenants[0].id] : [])
+    setInviteDistribuidorIds(paraty ? [paraty.id] : distribuidorTenants[0]?.id ? [distribuidorTenants[0].id] : [])
+    setInviteRole('kam')
     setInviteOpen(true)
+  }
+
+  const toggleInviteSelection = (
+    setter: Dispatch<SetStateAction<string[]>>,
+    id: string,
+    checked: boolean,
+  ) => {
+    setter((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)))
   }
 
   if (!isAdmin) {
@@ -512,131 +676,152 @@ export function AdminUsuarios() {
       )}
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90vh,36rem)] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="shrink-0 border-b border-border/60 px-4 py-3">
             <DialogTitle>Convidar utilizador</DialogTitle>
-            <DialogDescription>
-              Envia e-mail de convite (Resend, quando configurado; senão Supabase Auth) com retorno para
-              aceitar o convite nesta app. Se o e-mail já tiver conta ou o envio falhar, é gerado um link
-              para copiar manualmente.
+            <DialogDescription className="text-xs leading-snug">
+              Escolha fornecedor, parceiro e papel. KAM precisa dos dois eixos.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            {magicLinkShown ? (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Copie o link e envie ao utilizador (ex.: WhatsApp). Expira em poucos minutos.
-                </p>
-                <textarea
-                  readOnly
-                  className="min-h-[100px] w-full rounded-lg border border-border bg-muted/30 p-2 font-mono text-[11px]"
-                  value={magicLinkShown}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void navigator.clipboard.writeText(magicLinkShown)}
+
+          {magicLinkShown ? (
+            <div className="space-y-3 overflow-y-auto px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                Copie o link e envie ao utilizador. Expira em poucos minutos.
+              </p>
+              <textarea
+                readOnly
+                className="min-h-[88px] w-full rounded-lg border border-border bg-muted/30 p-2 font-mono text-[11px]"
+                value={magicLinkShown}
+              />
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void navigator.clipboard.writeText(magicLinkShown)}
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  Copiar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setInviteOpen(false)
+                    setMagicLinkShown('')
+                    setInviteEmail('')
+                    setInviteNome('')
+                  }}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-foreground">E-mail</span>
+                    <Input
+                      type="email"
+                      autoComplete="off"
+                      className="h-8"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="nome@empresa.com"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-foreground">Nome</span>
+                    <Input
+                      className="h-8"
+                      value={inviteNome}
+                      onChange={(e) => setInviteNome(e.target.value)}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-foreground">Papel</span>
+                  <Select
+                    value={inviteRole}
+                    onValueChange={(v) => v && setInviteRole(v as MembershipRole)}
                   >
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    Copiar
-                  </Button>
+                    <SelectTrigger className="h-8 w-full min-w-0 text-sm">
+                      <SelectValue placeholder="Escolher papel">
+                        {roleLabel[inviteRole]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!roleEhAdminGlobal(inviteRole) && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {rolePrecisaFornecedor(inviteRole) && (
+                      <TenantAccessPicker
+                        label="Fornecedor"
+                        items={fornecedorTenants}
+                        selected={inviteFornecedorIds}
+                        onToggle={(id, checked) =>
+                          toggleInviteSelection(setInviteFornecedorIds, id, checked)
+                        }
+                        emptyMessage="Nenhum fornecedor."
+                      />
+                    )}
+                    {rolePrecisaDistribuidor(inviteRole) && (
+                      <TenantAccessPicker
+                        label="Parceiro"
+                        items={distribuidorTenants}
+                        selected={inviteDistribuidorIds}
+                        onToggle={(id, checked) =>
+                          toggleInviteSelection(setInviteDistribuidorIds, id, checked)
+                        }
+                        emptyMessage="Nenhum parceiro com tenant."
+                      />
+                    )}
+                  </div>
+                )}
+
+                {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
+              </div>
+
+              <DialogFooter className="shrink-0 gap-2 sm:flex-col sm:items-stretch">
+                <p className="w-full truncate text-[11px] text-muted-foreground" title={inviteResumoAcesso}>
+                  {inviteValidacao ?? inviteResumoAcesso}
+                </p>
+                <div className="flex w-full justify-end gap-2">
                   <Button
                     type="button"
+                    variant="ghost"
                     size="sm"
                     onClick={() => {
                       setInviteOpen(false)
-                      setMagicLinkShown('')
-                      setInviteEmail('')
-                      setInviteNome('')
+                      setInviteError(null)
                     }}
                   >
-                    Fechar
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!inviteEmail.trim() || !!inviteValidacao || sendInvite.isPending}
+                    onClick={() => void sendInvite.mutateAsync()}
+                  >
+                    {sendInvite.isPending ? 'A enviar…' : 'Enviar convite'}
                   </Button>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-foreground">E-mail</span>
-                  <Input
-                    type="email"
-                    autoComplete="off"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="nome@empresa.com"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-foreground">Nome (opcional)</span>
-                  <Input
-                    value={inviteNome}
-                    onChange={(e) => setInviteNome(e.target.value)}
-                    placeholder="Como aparece no perfil"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground">Organização</span>
-                    <Select value={inviteTenantId} onValueChange={(v) => setInviteTenantId(v ?? '')}>
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Escolher tenant" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(tenants.data ?? []).map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.nome} ({t.slug})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-medium text-foreground">Papel</span>
-                    <Select
-                      value={inviteRole}
-                      onValueChange={(v) => v && setInviteRole(v as MembershipRole)}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map(([key, label]) => (
-                          <SelectItem key={key} value={key}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
-              </>
-            )}
-          </div>
-          {!magicLinkShown && (
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setInviteOpen(false)
-                  setInviteError(null)
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!inviteEmail.trim() || !inviteTenantId || sendInvite.isPending}
-                onClick={() => void sendInvite.mutateAsync()}
-              >
-                {sendInvite.isPending ? 'A enviar…' : 'Enviar convite'}
-              </Button>
-            </DialogFooter>
+              </DialogFooter>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -720,11 +905,12 @@ export function AdminUsuarios() {
       </Dialog>
 
       <Dialog open={membershipsOpen} onOpenChange={setMembershipsOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Organizações e papéis</DialogTitle>
+            <DialogTitle>Vínculos de acesso</DialogTitle>
             <DialogDescription>
-              {membershipsTargetProfile?.email ?? membershipsUserId}
+              {membershipsTargetProfile?.email ?? membershipsUserId} — fornecedor e parceiro
+              (distribuidor) definem o que o utilizador enxerga.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] space-y-4 overflow-y-auto px-1 py-2">
@@ -739,6 +925,13 @@ export function AdminUsuarios() {
                     className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 sm:flex-row sm:items-end"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {tenant?.tipo === 'fornecedor'
+                          ? 'Fornecedor'
+                          : tenant?.tipo === 'distribuidor'
+                            ? 'Parceiro'
+                            : 'Organização'}
+                      </p>
                       <p className="text-sm font-medium leading-tight">{tenant?.nome ?? m.tenant_id}</p>
                       <div className="flex flex-wrap items-center gap-2">
                         {tenant?.tipo && <TenantRoleBadge tipo={tenant.tipo} />}
@@ -754,7 +947,7 @@ export function AdminUsuarios() {
                         }}
                       >
                         <SelectTrigger className="h-8 w-[140px] text-xs">
-                          <SelectValue />
+                          <SelectValue>{roleLabel[m.role]}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {ROLE_OPTIONS.map(([key, label]) => (
@@ -775,7 +968,7 @@ export function AdminUsuarios() {
                         }}
                       >
                         <SelectTrigger className="h-8 w-[100px] text-xs">
-                          <SelectValue />
+                          <SelectValue>{m.ativo ? 'Ativo' : 'Inativo'}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="1">Ativo</SelectItem>
@@ -800,50 +993,74 @@ export function AdminUsuarios() {
             )}
 
             <div className="border-t border-border/60 pt-3">
-              <p className="mb-2 text-xs font-medium text-foreground">Adicionar vínculo</p>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <Select value={newMbTenantId} onValueChange={(v) => setNewMbTenantId(v ?? '')}>
-                  <SelectTrigger className="h-8 flex-1 text-xs">
-                    <SelectValue placeholder="Tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(tenants.data ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={newMbRole}
-                  onValueChange={(v) => v && setNewMbRole(v as MembershipRole)}
-                >
-                  <SelectTrigger className="h-8 w-[130px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLE_OPTIONS.map(([key, label]) => (
-                      <SelectItem key={key} value={key}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <p className="mb-2 text-xs font-medium text-foreground">Adicionar vínculos</p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-foreground">Papel</span>
+                  <Select
+                    value={newMbRole}
+                    onValueChange={(v) => v && setNewMbRole(v as MembershipRole)}
+                  >
+                    <SelectTrigger className="h-8 w-full text-xs">
+                      <SelectValue>{roleLabel[newMbRole]}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!roleEhAdminGlobal(newMbRole) && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {rolePrecisaFornecedor(newMbRole) && (
+                      <TenantAccessPicker
+                        label="Fornecedor"
+                        items={fornecedorTenants}
+                        selected={newMbFornecedorIds}
+                        onToggle={(id, checked) =>
+                          toggleInviteSelection(setNewMbFornecedorIds, id, checked)
+                        }
+                        emptyMessage="Nenhum fornecedor."
+                      />
+                    )}
+                    {rolePrecisaDistribuidor(newMbRole) && (
+                      <TenantAccessPicker
+                        label="Parceiro"
+                        items={distribuidorTenants}
+                        selected={newMbDistribuidorIds}
+                        onToggle={(id, checked) =>
+                          toggleInviteSelection(setNewMbDistribuidorIds, id, checked)
+                        }
+                        emptyMessage="Nenhum parceiro com tenant."
+                      />
+                    )}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">{newMbResumo}</p>
                 <Button
                   type="button"
                   size="sm"
-                  disabled={!membershipsUserId || !newMbTenantId || addMembership.isPending}
+                  disabled={
+                    !membershipsUserId || !!newMbValidacao || addMembership.isPending
+                  }
                   onClick={() => {
-                    if (!membershipsUserId || !newMbTenantId) return
+                    if (!membershipsUserId || newMbValidacao) return
                     void addMembership.mutateAsync({
                       userId: membershipsUserId,
-                      tenantId: newMbTenantId,
+                      fornecedorTenantIds: newMbFornecedorIds,
+                      distribuidorTenantIds: newMbDistribuidorIds,
                       role: newMbRole,
                     })
                   }}
                 >
-                  Adicionar
+                  Adicionar vínculos
                 </Button>
+                {newMbValidacao && (
+                  <p className="text-[11px] text-destructive">{newMbValidacao}</p>
+                )}
               </div>
             </div>
           </div>
@@ -963,10 +1180,13 @@ export function AdminUsuarios() {
                               <DropdownMenuItem
                                 onClick={() => {
                                   setMembershipsUserId(p.user_id)
+                                  setNewMbFornecedorIds([])
+                                  setNewMbDistribuidorIds([])
+                                  setNewMbRole('kam')
                                   setMembershipsOpen(true)
                                 }}
                               >
-                                <Building2 className="mr-2 h-3.5 w-3.5" /> Organizações e papéis
+                                <Building2 className="mr-2 h-3.5 w-3.5" /> Vínculos de acesso
                               </DropdownMenuItem>
                               {!isSelf && p.status !== 'suspended' && (
                                 <DropdownMenuItem
@@ -1043,12 +1263,10 @@ export function AdminUsuarios() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invites.data!.map((inv) => {
-                    const tenant = unwrapTenant(inv.alwayson_tenants)
-                    return (
+                  invites.data!.map((inv) => (
                       <TableRow key={inv.id}>
                         <TableCell className="text-xs">{inv.email}</TableCell>
-                        <TableCell>{tenant?.nome || '—'}</TableCell>
+                        <TableCell className="max-w-[220px] text-xs">{formatInviteEscopo(inv)}</TableCell>
                         <TableCell>{roleLabel[inv.role]}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{inv.status}</Badge>
@@ -1074,8 +1292,7 @@ export function AdminUsuarios() {
                           )}
                         </TableCell>
                       </TableRow>
-                    )
-                  })
+                  ))
                 )}
               </TableBody>
             </Table>

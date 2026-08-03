@@ -8,6 +8,7 @@ export type MembershipRole =
   | 'gestor'
   | 'gestor_cliente'
   | 'gestor_fornecedor'
+  | 'kam'
   | 'vendedor'
   | 'supervisor'
   | 'gerente'

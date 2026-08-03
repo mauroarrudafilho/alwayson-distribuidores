@@ -17,6 +17,7 @@ const roleLabel: Record<MembershipRole, string> = {
   gestor: 'Gestor',
   gestor_cliente: 'Gestor cliente',
   gestor_fornecedor: 'Gestor fornecedor',
+  kam: 'KAM',
   vendedor: 'Vendedor',
   supervisor: 'Supervisor',
   gerente: 'Gerente',
