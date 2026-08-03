@@ -1248,7 +1248,8 @@ export function AdminUsuarios() {
                 ) : (
                   profiles.data!.map((p) => {
                     const ms = byUser.get(p.user_id) ?? []
-                    const pendingInvite = pendingInviteByEmail.get(p.email.trim().toLowerCase())
+                    const emailKey = p.email?.trim().toLowerCase() ?? ''
+                    const pendingInvite = emailKey ? pendingInviteByEmail.get(emailKey) : undefined
                     const pendingEscopo = pendingInvite ? inviteEscopoFromRow(pendingInvite) : null
                     const isSelf = p.user_id === currentUserId
                     return (
