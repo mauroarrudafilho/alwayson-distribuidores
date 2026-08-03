@@ -66,6 +66,7 @@ import {
   roleEhAdminGlobal,
   validarConviteAcesso,
 } from '@/lib/inviteAccess'
+import { getAppOrigin } from '@/lib/appOrigin'
 
 type ProfileRow = {
   user_id: string
@@ -463,7 +464,7 @@ export function AdminUsuarios() {
     mutationFn: async () => {
       setInviteError(null)
       setMagicLinkShown('')
-      const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
+      const origin = getAppOrigin()
       const validationError = validarConviteAcesso(
         inviteRole,
         inviteFornecedorIds,
@@ -539,7 +540,7 @@ export function AdminUsuarios() {
       setResendingInviteId(inviteId)
       setInviteActionMessage(null)
       setResendLinkShown('')
-      const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
+      const origin = getAppOrigin()
       const { data, error } = await supabase.functions.invoke('admin-invite-user', {
         body: {
           action: 'resend',
@@ -1475,15 +1476,19 @@ export function AdminUsuarios() {
                             compact
                           />
                         </TableCell>
-                        <TableCell className="whitespace-nowrap align-top">{roleLabel[inv.role]}</TableCell>
-                        <TableCell>
+                        <TableCell className="w-28 align-middle">
+                          <Badge variant="secondary" className="font-normal">
+                            {roleLabel[inv.role]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="align-middle">
                           <Badge variant="outline">{inv.status}</Badge>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                        <TableCell className="align-middle whitespace-nowrap text-xs text-muted-foreground">
                           <Clock className="mr-1 inline h-3 w-3" />
                           {new Date(inv.expira_em).toLocaleDateString('pt-BR')}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="align-middle text-right">
                           {(inv.status === 'pending' || inv.status === 'expired') && (
                             <div className="flex justify-end gap-1">
                               <Button

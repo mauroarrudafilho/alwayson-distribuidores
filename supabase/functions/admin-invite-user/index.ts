@@ -81,13 +81,47 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://alwayson-distribuidores.vercel.app',
 ]
 
+function canonicalAppOrigin(): string {
+  return (Deno.env.get('APP_PUBLIC_URL') ?? '').trim().replace(/\/$/, '')
+}
+
 function parseAllowedOrigins(): string[] {
   const extra = (Deno.env.get('ALLOWED_APP_ORIGINS') ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
   const merged = [...DEFAULT_ALLOWED_ORIGINS, ...extra]
+  const canonical = canonicalAppOrigin()
+  if (canonical) merged.push(canonical)
   return [...new Set(merged)]
+}
+
+/** Convites a parceiros devem apontar para produção, não localhost do admin. */
+function resolveInviteAppOrigin(requestedOrigin: string):
+  | { ok: true; origin: string }
+  | { ok: false; error: string; message: string } {
+  const allowed = parseAllowedOrigins()
+  const canonical = canonicalAppOrigin()
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestedOrigin)
+
+  if (isLocal && canonical && allowed.includes(canonical)) {
+    return { ok: true, origin: canonical }
+  }
+
+  if (requestedOrigin && allowed.includes(requestedOrigin)) {
+    return { ok: true, origin: requestedOrigin }
+  }
+
+  if (canonical && allowed.includes(canonical)) {
+    return { ok: true, origin: canonical }
+  }
+
+  return {
+    ok: false,
+    error: 'origin_nao_autorizada',
+    message:
+      'app_origin deve ser a origem exata da aplicação e estar na lista permitida na função.',
+  }
 }
 
 function isRole(v: unknown): v is MembershipRole {
@@ -339,21 +373,17 @@ Deno.serve(async (req) => {
   }
 
   const action = typeof body.action === 'string' ? body.action.trim() : 'create'
-  const app_origin =
+  const requestedOrigin =
     typeof body.app_origin === 'string' ? body.app_origin.trim().replace(/\/$/, '') : ''
 
-  const allowed = parseAllowedOrigins()
-  if (!app_origin || !allowed.includes(app_origin)) {
+  const originResolved = resolveInviteAppOrigin(requestedOrigin)
+  if (!originResolved.ok) {
     return jsonResponse(
-      {
-        ok: false,
-        error: 'origin_nao_autorizada',
-        message:
-          'app_origin deve ser a origem exata da aplicação e estar na lista permitida na função.',
-      },
+      { ok: false, error: originResolved.error, message: originResolved.message },
       403,
     )
   }
+  const app_origin = originResolved.origin
 
   const adminSb = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
