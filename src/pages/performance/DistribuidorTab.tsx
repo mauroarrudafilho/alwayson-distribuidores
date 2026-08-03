@@ -23,10 +23,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
-import type { PerfTab } from './usePerfFilters'
-
 export function DistribuidorTab() {
-  const { drillDown, availableTabs, filters } = usePerformanceContext()
+  const { drillDown, filters } = usePerformanceContext()
   const { periodoInicio, periodoFim } = filters
   const { data: distribuidores, isLoading: loadingDist } = useDistribuidores()
   const { data: sales = [], isLoading: loadingPerf } = useAllFaturamentoSales(
@@ -89,15 +87,8 @@ export function DistribuidorTab() {
     }
   }, [metas, periodoInicio])
 
-  const nextTab = useMemo<PerfTab>(() => {
-    const afterDist = availableTabs.find(
-      (t) => t !== 'distribuidor' && t !== 'cliente'
-    )
-    return afterDist ?? 'vendas'
-  }, [availableTabs])
-
   const handleRowClick = (distribuidorId: string) => {
-    drillDown(nextTab, { distribuidorId })
+    drillDown('gerencia', { distribuidorId })
   }
 
   return (

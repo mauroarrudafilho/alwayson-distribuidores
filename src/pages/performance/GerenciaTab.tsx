@@ -20,10 +20,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { nextTabInOrder } from './usePerfFilters'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 
 export function GerenciaTab() {
-  const { filters, drillDown } = usePerformanceContext()
+  const { filters, drillDown, availableTabs } = usePerformanceContext()
   const { distribuidorId, periodoInicio, periodoFim } = filters
 
   const { data: hierarchy, isLoading: loadingHierarchy } =
@@ -77,7 +78,7 @@ export function GerenciaTab() {
   }, [metas])
 
   const handleRowClick = (gerenteId: string) => {
-    drillDown('supervisao', { distribuidorId, gerenteId })
+    drillDown(nextTabInOrder('gerencia', availableTabs), { distribuidorId, gerenteId })
   }
 
   if (!distribuidorId) {

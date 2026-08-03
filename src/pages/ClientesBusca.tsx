@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Building2, MapPin, Search, Users } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { EmptyState } from '@/components/distribuidor/EmptyState'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
+import { ClienteResumoModal } from '@/components/cliente/ClienteResumoModal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
@@ -23,6 +23,8 @@ import { useClientesBusca } from '@/hooks/useClientesBusca'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
 import { ClienteSemGeoBadge } from '@/components/cliente/ClienteSemGeoBadge'
 import { formatCnpj } from '@/lib/format'
+import { getMonthOffset } from '@/lib/periodo'
+import type { ClienteDistribuidor } from '@/types/distribuidor'
 
 export function ClientesBusca() {
   const [search, setSearch] = useState('')
@@ -30,6 +32,8 @@ export function ClientesBusca() {
   const [ufFilter, setUfFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [selectedCliente, setSelectedCliente] = useState<ClienteDistribuidor | null>(null)
+  const periodoMes = getMonthOffset(2)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -51,6 +55,16 @@ export function ClientesBusca() {
 
   return (
     <div className="animate-page-in">
+      <ClienteResumoModal
+        clienteId={selectedCliente?.id ?? null}
+        open={selectedCliente != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedCliente(null)
+        }}
+        periodoMes={periodoMes}
+        distribuidorId={selectedCliente?.distribuidor_id}
+      />
+
       <PageHeader
         title="Clientes"
         accent="por recorte"
@@ -140,15 +154,16 @@ export function ClientesBusca() {
                       </TableRow>
                     ))
                   : rows.map((c) => (
-                      <TableRow key={c.id} className="cursor-pointer">
+                      <TableRow
+                        key={c.id}
+                        className="cursor-pointer"
+                        onClick={() => setSelectedCliente(c)}
+                      >
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5">
-                            <Link
-                              to={`/clientes/${c.id}`}
-                              className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-                            >
+                            <span className="text-sm font-medium text-foreground">
                               {c.nome_fantasia || '—'}
-                            </Link>
+                            </span>
                               <InsightsBadge cnpj={c.cnpj} />
                               <ClienteSemGeoBadge cidade={c.cidade} estado={c.estado} />
                           </span>

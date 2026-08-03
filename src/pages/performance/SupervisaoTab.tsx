@@ -28,11 +28,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
+import { nextTabInOrder } from './usePerfFilters'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 import { hierarchyPersonLabel } from './hierarchyLabels'
 
 export function SupervisaoTab() {
-  const { filters, setFilter, drillDown } = usePerformanceContext()
+  const { filters, setFilter, drillDown, availableTabs } = usePerformanceContext()
   const { distribuidorId, gerenteId, periodoInicio, periodoFim } = filters
 
   const { data: hierarchy, isLoading: loadingHierarchy } =
@@ -109,7 +110,11 @@ export function SupervisaoTab() {
   }, [metas])
 
   const handleRowClick = (supervisorId: string) => {
-    drillDown('vendas', { distribuidorId, gerenteId, supervisorId })
+    drillDown(nextTabInOrder('supervisao', availableTabs), {
+      distribuidorId,
+      gerenteId,
+      supervisorId,
+    })
   }
 
   if (!distribuidorId) {

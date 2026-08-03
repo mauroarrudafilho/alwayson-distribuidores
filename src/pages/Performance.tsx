@@ -15,7 +15,12 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PerformanceProvider, usePerformanceContext } from './performance/PerformanceContext'
-import { TAB_LABELS, type PerfTab } from './performance/usePerfFilters'
+import {
+  TAB_LABELS,
+  TAB_ORDER,
+  resolvePerfTab,
+  type PerfTab,
+} from './performance/usePerfFilters'
 import { DistribuidorTab } from './performance/DistribuidorTab'
 import { GerenciaTab } from './performance/GerenciaTab'
 import { SupervisaoTab } from './performance/SupervisaoTab'
@@ -45,10 +50,21 @@ function PerformanceContent() {
   const { data: hierarchy } = useVendedorHierarchy(filters.distribuidorId)
 
   useEffect(() => {
-    if (hierarchy) {
-      setAvailableTabs(hierarchy.availableLevels)
+    if (!filters.distribuidorId) {
+      setAvailableTabs(['distribuidor', 'vendas', 'cliente'])
+      return
     }
-  }, [hierarchy, setAvailableTabs])
+    if (hierarchy) {
+      const levels = hierarchy.availableLevels
+      setAvailableTabs(levels)
+      const resolved = resolvePerfTab(filters.tab, levels)
+      if (resolved !== filters.tab) {
+        setFilter('tab', resolved)
+      }
+      return
+    }
+    setAvailableTabs(TAB_ORDER)
+  }, [filters.distribuidorId, filters.tab, hierarchy, setAvailableTabs, setFilter])
 
   useEffect(() => {
     if (!distribuidores) return
@@ -68,7 +84,7 @@ function PerformanceContent() {
     registerNames(map)
   }, [hierarchy, registerNames])
 
-  const currentTab = availableTabs.includes(filters.tab) ? filters.tab : availableTabs[0]
+  const currentTab = resolvePerfTab(filters.tab, availableTabs)
 
   const ActiveTab = useMemo(() => TAB_COMPONENTS[currentTab], [currentTab])
 

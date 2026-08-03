@@ -359,7 +359,7 @@ export function ClienteResumoModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex max-h-[min(90vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+        className="flex max-h-[min(92vh,820px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         showCloseButton={false}
         onPointerDown={stopRowClick}
       >
@@ -538,8 +538,14 @@ export function ClienteResumoModal({
                 {loadingMix ? (
                   <Skeleton className="h-24 w-full" />
                 ) : mixVisivel.length > 0 ? (
-                  <div className="max-h-44 overflow-y-auto rounded-md border">
-                    <Table>
+                  <div className="max-h-52 overflow-y-auto overflow-x-auto rounded-md border">
+                    <Table className="table-fixed w-full min-w-[32rem]">
+                      <colgroup>
+                        <col className="w-[4.75rem]" />
+                        <col />
+                        <col className="w-[4.25rem]" />
+                        <col className="w-[5.75rem]" />
+                      </colgroup>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="h-8 text-xs">SKU</TableHead>
@@ -551,16 +557,16 @@ export function ClienteResumoModal({
                       <TableBody>
                         {mixVisivel.map((p) => (
                           <TableRow key={p.sku} className="hover:bg-muted/30">
-                            <TableCell className="py-1.5 font-mono text-[10px]">
+                            <TableCell className="py-1.5 font-mono text-[10px] truncate">
                               {p.sku}
                             </TableCell>
-                            <TableCell className="max-w-[10rem] py-1.5 text-xs break-words leading-snug">
+                            <TableCell className="min-w-0 py-1.5 text-xs break-words leading-snug">
                               {p.descricao}
                             </TableCell>
-                            <TableCell className="py-1.5 text-right text-xs tabular-nums">
+                            <TableCell className="whitespace-nowrap py-1.5 text-right text-xs tabular-nums">
                               {p.quantidade_total.toLocaleString('pt-BR')}
                             </TableCell>
-                            <TableCell className="py-1.5 text-right text-xs tabular-nums">
+                            <TableCell className="whitespace-nowrap py-1.5 text-right text-xs tabular-nums">
                               {formatCurrency(p.faturamento_total)}
                             </TableCell>
                           </TableRow>

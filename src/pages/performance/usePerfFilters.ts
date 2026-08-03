@@ -16,6 +16,27 @@ export type PerfTab = 'distribuidor' | 'gerencia' | 'supervisao' | 'vendas' | 'c
 
 export const TAB_ORDER: PerfTab[] = ['distribuidor', 'gerencia', 'supervisao', 'vendas', 'cliente']
 
+/** Próximo nível hierárquico disponível após `current`. */
+export function nextTabInOrder(current: PerfTab, available: PerfTab[]): PerfTab {
+  const start = TAB_ORDER.indexOf(current)
+  for (let i = start + 1; i < TAB_ORDER.length; i++) {
+    const candidate = TAB_ORDER[i]
+    if (available.includes(candidate)) return candidate
+  }
+  return current
+}
+
+/** Garante aba válida; se o nível pedido não existir, avança para o próximo disponível. */
+export function resolvePerfTab(requested: PerfTab, available: PerfTab[]): PerfTab {
+  if (available.includes(requested)) return requested
+  const start = TAB_ORDER.indexOf(requested)
+  for (let i = start; i < TAB_ORDER.length; i++) {
+    const candidate = TAB_ORDER[i]
+    if (available.includes(candidate)) return candidate
+  }
+  return available[0] ?? 'distribuidor'
+}
+
 export const TAB_LABELS: Record<PerfTab, string> = {
   distribuidor: 'Distribuidor',
   gerencia: 'Gerência',
