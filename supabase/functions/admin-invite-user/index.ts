@@ -172,6 +172,122 @@ function looksRegisteredError(msg: string) {
   )
 }
 
+type DeliveryResult = {
+  ok: boolean
+  delivery?: 'resend' | 'signup_email' | 'magiclink' | 'manual'
+  action_link?: string
+  message?: string
+  error?: string
+}
+
+async function entregarConviteEmail(
+  adminSb: SupabaseClient,
+  email: string,
+  redirectTo: string,
+  nome: string | undefined,
+  acesso: InviteEmailAcesso | undefined,
+  opts?: { reenvio?: boolean },
+): Promise<DeliveryResult> {
+  const reenvio = opts?.reenvio ?? false
+  if (Deno.env.get('RESEND_API_KEY')) {
+    let actionLink: string | null = null
+
+    const convite = await adminSb.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: { redirectTo, data: nome ? { nome } : undefined },
+    })
+
+    if (convite.data?.properties?.action_link) {
+      actionLink = convite.data.properties.action_link
+    } else if (looksRegisteredError(convite.error?.message ?? '')) {
+      const ml = await adminSb.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo },
+      })
+      actionLink = ml.data?.properties?.action_link ?? null
+    }
+
+    if (!actionLink) {
+      return {
+        ok: false,
+        error: 'link_falhou',
+        message: convite.error?.message ?? 'Sem action_link',
+      }
+    }
+
+    const envio = await enviarPorResend(email, actionLink, nome, acesso)
+    if (envio.ok) {
+      return {
+        ok: true,
+        delivery: 'resend',
+        message: reenvio
+          ? 'Convite reenviado por e-mail (Resend).'
+          : 'Convite enviado por e-mail (Resend).',
+      }
+    }
+
+    return {
+      ok: true,
+      delivery: 'manual',
+      action_link: actionLink,
+      message: `Não foi possível enviar pelo Resend (${envio.message}). Copie o link e envie manualmente.`,
+    }
+  }
+
+  const { error: inviteEmailErr } = await adminSb.auth.admin.inviteUserByEmail(email, {
+    data: nome ? { nome } : undefined,
+    redirectTo,
+  })
+
+  if (!inviteEmailErr) {
+    return {
+      ok: true,
+      delivery: 'signup_email',
+      message: 'Convite enviado por e-mail (Supabase Auth).',
+    }
+  }
+
+  const em = inviteEmailErr.message ?? ''
+  if (!looksRegisteredError(em)) {
+    return { ok: false, error: 'email_envio_falhou', message: em }
+  }
+
+  const { data: linkData, error: linkErr } = await adminSb.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+    options: { redirectTo },
+  })
+
+  if (linkErr || !linkData?.properties?.action_link) {
+    return {
+      ok: false,
+      error: 'magiclink_falhou',
+      message: linkErr?.message ?? 'Sem action_link',
+    }
+  }
+
+  return {
+    ok: true,
+    delivery: 'magiclink',
+    action_link: linkData.properties.action_link,
+    message:
+      'Este e-mail já tem conta. Copie o link mágico e envie manualmente — abre login e redireciona para aceitar o convite.',
+  }
+}
+
+function escopoTenantIds(escopo: unknown): { fornecedorIds: string[]; distribuidorIds: string[] } {
+  if (!escopo || typeof escopo !== 'object') {
+    return { fornecedorIds: [], distribuidorIds: [] }
+  }
+  const e = escopo as Record<string, unknown>
+  return {
+    fornecedorIds: asStringArray(e.fornecedor_tenant_ids),
+    distribuidorIds: asStringArray(e.distribuidor_tenant_ids),
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -222,22 +338,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: 'invalid_json' }, 400)
   }
 
-  const emailRaw = typeof body.email === 'string' ? body.email.trim() : ''
-  const email = emailRaw.toLowerCase()
-  const tenant_id_legacy = typeof body.tenant_id === 'string' ? body.tenant_id.trim() : ''
-  const fornecedor_tenant_ids = asStringArray(body.fornecedor_tenant_ids)
-  const distribuidor_tenant_ids = asStringArray(body.distribuidor_tenant_ids)
-  const nome = typeof body.nome === 'string' ? body.nome.trim() : ''
+  const action = typeof body.action === 'string' ? body.action.trim() : 'create'
   const app_origin =
     typeof body.app_origin === 'string' ? body.app_origin.trim().replace(/\/$/, '') : ''
-
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return jsonResponse({ ok: false, error: 'email_invalido' }, 400)
-  }
-  if (!isRole(body.role)) {
-    return jsonResponse({ ok: false, error: 'role_invalida' }, 400)
-  }
-  const role = body.role
 
   const allowed = parseAllowedOrigins()
   if (!app_origin || !allowed.includes(app_origin)) {
@@ -255,6 +358,108 @@ Deno.serve(async (req) => {
   const adminSb = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+
+  if (action === 'resend') {
+    const invite_id = typeof body.invite_id === 'string' ? body.invite_id.trim() : ''
+    if (!invite_id) {
+      return jsonResponse({ ok: false, error: 'invite_id_obrigatorio' }, 400)
+    }
+
+    const { data: inv, error: invErr } = await adminSb
+      .from('alwayson_user_invites')
+      .select('id, email, role, status, escopo')
+      .eq('id', invite_id)
+      .maybeSingle()
+
+    if (invErr) {
+      console.error('resend lookup:', invErr.message)
+      return jsonResponse({ ok: false, error: 'invite_lookup_failed' }, 500)
+    }
+    if (!inv) {
+      return jsonResponse({ ok: false, error: 'convite_nao_encontrado' }, 404)
+    }
+    if (inv.status === 'accepted' || inv.status === 'revoked') {
+      return jsonResponse(
+        {
+          ok: false,
+          error: 'convite_nao_reenviavel',
+          message: 'Só é possível reenviar convites pendentes ou expirados.',
+        },
+        409,
+      )
+    }
+
+    const token = randomToken()
+    const redirectTo = `${app_origin}/aceitar-convite/${token}`
+    const expira_em = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { error: updErr } = await adminSb
+      .from('alwayson_user_invites')
+      .update({
+        token,
+        status: 'pending',
+        expira_em,
+        convidado_por: inviter.id,
+      })
+      .eq('id', invite_id)
+
+    if (updErr) {
+      console.error('resend update:', updErr.message)
+      return jsonResponse({ ok: false, error: 'invite_update_failed' }, 500)
+    }
+
+    const { fornecedorIds, distribuidorIds } = escopoTenantIds(inv.escopo)
+    const acessoConvite = await buildAcessoConvite(adminSb, fornecedorIds, distribuidorIds)
+
+    const { data: profile } = await adminSb
+      .from('alwayson_user_profiles')
+      .select('nome')
+      .eq('email', inv.email)
+      .maybeSingle()
+    const nomeConvidado = typeof profile?.nome === 'string' ? profile.nome.trim() : ''
+
+    const entrega = await entregarConviteEmail(
+      adminSb,
+      inv.email,
+      redirectTo,
+      nomeConvidado || undefined,
+      acessoConvite,
+      { reenvio: true },
+    )
+
+    if (!entrega.ok) {
+      return jsonResponse(
+        {
+          ok: false,
+          error: entrega.error ?? 'email_envio_falhou',
+          message: entrega.message,
+          invite_id,
+        },
+        502,
+      )
+    }
+
+    return jsonResponse({
+      ok: true,
+      delivery: entrega.delivery,
+      invite_id,
+      action_link: entrega.action_link,
+      message: entrega.message ?? 'Convite reenviado.',
+    })
+  }
+
+  const emailRaw = typeof body.email === 'string' ? body.email.trim() : ''
+  const email = emailRaw.toLowerCase()
+  const tenant_id_legacy = typeof body.tenant_id === 'string' ? body.tenant_id.trim() : ''
+  const fornecedor_tenant_ids = asStringArray(body.fornecedor_tenant_ids)
+  const distribuidor_tenant_ids = asStringArray(body.distribuidor_tenant_ids)
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return jsonResponse({ ok: false, error: 'email_invalido' }, 400)
+  }
+  if (!isRole(body.role)) {
+    return jsonResponse({ ok: false, error: 'role_invalida' }, 400)
+  }
+  const role = body.role
 
   let adminGlobalTenantId: string | null = null
   if (role === 'admin') {
@@ -353,86 +558,21 @@ Deno.serve(async (req) => {
     distribuidor_tenant_ids,
   )
 
-  // ─── Entrega por Resend (quando configurado) ──────────────────────────────
-  // Gera o link sem disparar o e-mail nativo e entrega pelo Resend, que tem
-  // domínio verificado e limites de produção — o e-mail embutido do Supabase
-  // serve para desenvolvimento, não para convidar parceiros.
-  if (Deno.env.get('RESEND_API_KEY')) {
-    let actionLink: string | null = null
-
-    const convite = await adminSb.auth.admin.generateLink({
-      type: 'invite',
-      email,
-      options: { redirectTo, data: nome ? { nome } : undefined },
-    })
-
-    if (convite.data?.properties?.action_link) {
-      actionLink = convite.data.properties.action_link
-    } else if (looksRegisteredError(convite.error?.message ?? '')) {
-      // Já tem conta: link mágico leva ao login e depois ao aceite.
-      const ml = await adminSb.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: { redirectTo },
-      })
-      actionLink = ml.data?.properties?.action_link ?? null
-    }
-
-    if (!actionLink) {
-      await deleteInvite(adminSb, inviteRowId)
-      console.error('generateLink (resend):', convite.error?.message)
-      return jsonResponse(
-        { ok: false, error: 'link_falhou', message: convite.error?.message ?? 'Sem action_link' },
-        502,
-      )
-    }
-
-    const envio = await enviarPorResend(email, actionLink, nome, acessoConvite)
-    if (envio.ok) {
-      return jsonResponse({
-        ok: true,
-        delivery: 'resend',
-        invite_id: inviteRowId,
-        message: 'Convite enviado por e-mail (Resend).',
-      })
-    }
-
-    // Resend falhou: o convite continua válido, então devolve o link em vez de
-    // descartar o trabalho — o admin envia manualmente.
-    console.error('resend:', envio.message)
-    return jsonResponse({
-      ok: true,
-      delivery: 'manual',
-      invite_id: inviteRowId,
-      action_link: actionLink,
-      message: `Não foi possível enviar pelo Resend (${envio.message}). Copie o link e envie manualmente.`,
-    })
-  }
-
-  // ─── Caminho original: e-mail nativo do Supabase ──────────────────────────
-  const { error: inviteEmailErr } = await adminSb.auth.admin.inviteUserByEmail(email, {
-    data: nome ? { nome } : undefined,
+  const entrega = await entregarConviteEmail(
+    adminSb,
+    email,
     redirectTo,
-  })
+    nome || undefined,
+    acessoConvite,
+  )
 
-  if (!inviteEmailErr) {
-    return jsonResponse({
-      ok: true,
-      delivery: 'signup_email',
-      invite_id: inviteRowId,
-      message: 'Convite enviado por e-mail (Supabase Auth).',
-    })
-  }
-
-  const em = inviteEmailErr.message ?? ''
-  console.error('inviteUserByEmail:', em)
-
-  if (!looksRegisteredError(em)) {
+  if (!entrega.ok) {
+    await deleteInvite(adminSb, inviteRowId)
     return jsonResponse(
       {
         ok: false,
-        error: 'email_envio_falhou',
-        message: em,
+        error: entrega.error ?? 'email_envio_falhou',
+        message: entrega.message,
         invite_id: inviteRowId,
         hint: 'O registo do convite ficou pendente na base de dados. Revogue na UI se quiser cancelar, ou corrija a configuração de e-mail no Supabase.',
       },
@@ -440,31 +580,11 @@ Deno.serve(async (req) => {
     )
   }
 
-  const { data: linkData, error: linkErr } = await adminSb.auth.admin.generateLink({
-    type: 'magiclink',
-    email,
-    options: { redirectTo },
-  })
-
-  if (linkErr || !linkData?.properties?.action_link) {
-    await deleteInvite(adminSb, inviteRowId)
-    console.error('generateLink magiclink:', linkErr?.message)
-    return jsonResponse(
-      {
-        ok: false,
-        error: 'magiclink_falhou',
-        message: linkErr?.message ?? 'Sem action_link',
-      },
-      502,
-    )
-  }
-
   return jsonResponse({
     ok: true,
-    delivery: 'magiclink',
+    delivery: entrega.delivery,
     invite_id: inviteRowId,
-    action_link: linkData.properties.action_link,
-    message:
-      'Este e-mail já tem conta. Copie o link mágico e envie manualmente — abre login e redireciona para aceitar o convite.',
+    action_link: entrega.action_link,
+    message: entrega.message,
   })
 })

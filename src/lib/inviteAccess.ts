@@ -69,6 +69,12 @@ export function validarConviteAcesso(
   return null
 }
 
+export function formatParceiroCurto(nome: string): string {
+  const token = nome.trim().split(/\s+/)[0] ?? nome
+  if (!token) return nome
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+}
+
 export function resumoVinculosConvite(
   role: MembershipRole,
   fornecedorNomes: string[],

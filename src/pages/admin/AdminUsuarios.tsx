@@ -16,6 +16,7 @@ import {
   Link2,
   Copy,
   XCircle,
+  RotateCw,
 } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
@@ -58,6 +59,7 @@ import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { cn } from '@/lib/utils'
 import {
   buildInviteMemberships,
+  formatParceiroCurto,
   resumoVinculosConvite,
   rolePrecisaDistribuidor,
   rolePrecisaFornecedor,
@@ -237,6 +239,54 @@ function TenantAccessPicker({
   )
 }
 
+function InviteEscopoResumo({
+  fornecedorNomes,
+  parceiroNomes,
+  role,
+  compact = false,
+  showRole = true,
+}: {
+  fornecedorNomes: string[]
+  parceiroNomes: string[]
+  role: MembershipRole
+  compact?: boolean
+  showRole?: boolean
+}) {
+  if (roleEhAdminGlobal(role)) {
+    return <span className="text-xs text-muted-foreground">Admin global (DevTech Labs)</span>
+  }
+
+  if (!fornecedorNomes.length && !parceiroNomes.length) {
+    return <span className="text-xs text-muted-foreground">{roleLabel[role]}</span>
+  }
+
+  return (
+    <div className={cn('space-y-1.5', compact ? 'text-[11px]' : 'text-xs')}>
+      {fornecedorNomes.map((nome) => (
+        <div key={`fn-${nome}`}>
+          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Fornecedor
+          </span>
+          <p className="mt-0.5 font-medium leading-snug text-foreground">{nome}</p>
+        </div>
+      ))}
+      {parceiroNomes.map((nome) => (
+        <div key={`dn-${nome}`}>
+          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Parceiro vinculado
+          </span>
+          <p className="mt-0.5 font-medium leading-snug text-foreground">{formatParceiroCurto(nome)}</p>
+        </div>
+      ))}
+      {showRole && (
+        <p className="pt-0.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+          {roleLabel[role]}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function AdminUsuarios() {
   const qc = useQueryClient()
   const { isAdmin, session, refresh } = useAuth()
@@ -250,6 +300,12 @@ export function AdminUsuarios() {
   const [inviteDistribuidorIds, setInviteDistribuidorIds] = useState<string[]>([])
   const [inviteRole, setInviteRole] = useState<MembershipRole>('kam')
   const [magicLinkShown, setMagicLinkShown] = useState('')
+  const [resendLinkShown, setResendLinkShown] = useState('')
+  const [inviteActionMessage, setInviteActionMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
   const [editNomeOpen, setEditNomeOpen] = useState(false)
@@ -349,6 +405,16 @@ export function AdminUsuarios() {
     return map
   }, [memberships.data])
 
+  const pendingInviteByEmail = useMemo(() => {
+    const map = new Map<string, InviteRow>()
+    for (const inv of invites.data ?? []) {
+      if (inv.status === 'pending') {
+        map.set(inv.email.trim().toLowerCase(), inv)
+      }
+    }
+    return map
+  }, [invites.data])
+
   const distribuidoresSemTenant = useMemo(() => {
     const used = new Set(
       (tenants.data ?? []).map((t) => t.distribuidor_id).filter(Boolean) as string[],
@@ -379,8 +445,8 @@ export function AdminUsuarios() {
   const inviteResumoAcesso = useMemo(() => {
     const fn = fornecedorTenants.filter((t) => inviteFornecedorIds.includes(t.id)).map((t) => t.nome)
     const dn = distribuidorTenants.filter((t) => inviteDistribuidorIds.includes(t.id)).map((t) => t.nome)
-    return resumoVinculosConvite(inviteRole, fn, dn)
-  }, [inviteRole, inviteFornecedorIds, inviteDistribuidorIds, fornecedorTenants, distribuidorTenants])
+    return { fn, dn }
+  }, [inviteFornecedorIds, inviteDistribuidorIds, fornecedorTenants, distribuidorTenants])
 
   const inviteValidacao = useMemo(
     () =>
@@ -442,6 +508,10 @@ export function AdminUsuarios() {
         setInviteOpen(false)
         setInviteEmail('')
         setInviteNome('')
+        setInviteActionMessage({
+          type: 'success',
+          text: payload.message ?? 'Convite enviado por e-mail.',
+        })
       }
     },
     onError: (e: unknown) => {
@@ -459,7 +529,62 @@ export function AdminUsuarios() {
       if (error) throw error
     },
     onSuccess: async () => {
+      setInviteActionMessage({ type: 'success', text: 'Convite revogado.' })
       await qc.invalidateQueries({ queryKey: ['admin', 'usuarios', 'invites'] })
+    },
+  })
+
+  const resendInvite = useMutation({
+    mutationFn: async (inviteId: string) => {
+      setResendingInviteId(inviteId)
+      setInviteActionMessage(null)
+      setResendLinkShown('')
+      const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
+      const { data, error } = await supabase.functions.invoke('admin-invite-user', {
+        body: {
+          action: 'resend',
+          invite_id: inviteId,
+          app_origin: origin,
+        },
+      })
+      if (error) throw new Error(error.message)
+      const payload = data as InviteFnResponse | null
+      if (!payload) throw new Error('Resposta vazia da função.')
+      if (!payload.ok) {
+        const msg =
+          typeof payload.message === 'string'
+            ? payload.message
+            : payload.error ?? 'resend_failed'
+        throw new Error(msg)
+      }
+      return payload
+    },
+    onSuccess: async (payload) => {
+      await qc.invalidateQueries({ queryKey: ['admin', 'usuarios', 'invites'] })
+      if (
+        (payload.delivery === 'magiclink' || payload.delivery === 'manual') &&
+        payload.action_link
+      ) {
+        setResendLinkShown(payload.action_link)
+        setInviteActionMessage({
+          type: 'success',
+          text: payload.message ?? 'Não foi possível enviar por e-mail — copie o link abaixo.',
+        })
+      } else {
+        setInviteActionMessage({
+          type: 'success',
+          text: payload.message ?? 'Convite reenviado por e-mail.',
+        })
+      }
+    },
+    onError: (e: unknown) => {
+      setInviteActionMessage({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Erro ao reenviar convite.',
+      })
+    },
+    onSettled: () => {
+      setResendingInviteId(null)
     },
   })
 
@@ -602,16 +727,20 @@ export function AdminUsuarios() {
     return resumoVinculosConvite(newMbRole, fn, dn)
   }, [newMbRole, newMbFornecedorIds, newMbDistribuidorIds, fornecedorTenants, distribuidorTenants])
 
-  function formatInviteEscopo(inv: InviteRow): string {
+  function inviteEscopoFromRow(inv: InviteRow): { fn: string[]; dn: string[] } {
     const fnIds = inv.escopo?.fornecedor_tenant_ids ?? []
     const dnIds = inv.escopo?.distribuidor_tenant_ids ?? []
     if (fnIds.length || dnIds.length) {
-      const fn = fornecedorTenants.filter((t) => fnIds.includes(t.id)).map((t) => t.nome)
-      const dn = distribuidorTenants.filter((t) => dnIds.includes(t.id)).map((t) => t.nome)
-      return resumoVinculosConvite(inv.role, fn, dn)
+      return {
+        fn: fornecedorTenants.filter((t) => fnIds.includes(t.id)).map((t) => t.nome),
+        dn: distribuidorTenants.filter((t) => dnIds.includes(t.id)).map((t) => t.nome),
+      }
     }
     const tenant = unwrapTenant(inv.alwayson_tenants)
-    return tenant?.nome ?? '—'
+    if (!tenant) return { fn: [], dn: [] }
+    if (tenant.tipo === 'fornecedor') return { fn: [tenant.nome], dn: [] }
+    if (tenant.tipo === 'distribuidor') return { fn: [], dn: [tenant.nome] }
+    return { fn: [], dn: [] }
   }
 
   const openInvite = () => {
@@ -795,10 +924,19 @@ export function AdminUsuarios() {
                 {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
               </div>
 
-              <DialogFooter className="shrink-0 gap-2 sm:flex-col sm:items-stretch">
-                <p className="w-full truncate text-[11px] text-muted-foreground" title={inviteResumoAcesso}>
-                  {inviteValidacao ?? inviteResumoAcesso}
-                </p>
+              <DialogFooter className="shrink-0 gap-3 border-t border-border/60 px-4 py-3 sm:flex-col sm:items-stretch">
+                {inviteValidacao ? (
+                  <p className="w-full text-[11px] text-destructive">{inviteValidacao}</p>
+                ) : (
+                  <div className="w-full rounded-md border border-border/60 bg-muted/15 px-3 py-2">
+                    <InviteEscopoResumo
+                      fornecedorNomes={inviteResumoAcesso.fn}
+                      parceiroNomes={inviteResumoAcesso.dn}
+                      role={inviteRole}
+                      compact
+                    />
+                  </div>
+                )}
                 <div className="flex w-full justify-end gap-2">
                   <Button
                     type="button"
@@ -1110,6 +1248,8 @@ export function AdminUsuarios() {
                 ) : (
                   profiles.data!.map((p) => {
                     const ms = byUser.get(p.user_id) ?? []
+                    const pendingInvite = pendingInviteByEmail.get(p.email.trim().toLowerCase())
+                    const pendingEscopo = pendingInvite ? inviteEscopoFromRow(pendingInvite) : null
                     const isSelf = p.user_id === currentUserId
                     return (
                       <TableRow key={p.user_id}>
@@ -1120,17 +1260,33 @@ export function AdminUsuarios() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{p.email}</TableCell>
                         <TableCell>
-                          <Badge variant={p.status === 'active' ? 'secondary' : 'outline'}>
-                            {p.status === 'active'
-                              ? 'Ativo'
-                              : p.status === 'pending_invite'
-                                ? 'Convite pendente'
-                                : 'Suspenso'}
+                          <Badge
+                            variant={
+                              ms.length === 0 && pendingInvite ? 'outline' : p.status === 'active' ? 'secondary' : 'outline'
+                            }
+                          >
+                            {ms.length === 0 && pendingInvite
+                              ? 'Convite pendente'
+                              : p.status === 'active'
+                                ? 'Ativo'
+                                : p.status === 'pending_invite'
+                                  ? 'Convite pendente'
+                                  : 'Suspenso'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-[200px] align-top">
                           {ms.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">Sem vínculos (lista)</span>
+                            pendingInvite && pendingEscopo ? (
+                              <InviteEscopoResumo
+                                fornecedorNomes={pendingEscopo.fn}
+                                parceiroNomes={pendingEscopo.dn}
+                                role={pendingInvite.role}
+                                showRole={false}
+                                compact
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Sem vínculos</span>
+                            )
                           ) : (
                             <div className="flex flex-wrap gap-1.5">
                               {ms.map((m) => {
@@ -1188,6 +1344,14 @@ export function AdminUsuarios() {
                               >
                                 <Building2 className="mr-2 h-3.5 w-3.5" /> Vínculos de acesso
                               </DropdownMenuItem>
+                              {pendingInvite && (
+                                <DropdownMenuItem
+                                  disabled={resendInvite.isPending}
+                                  onClick={() => void resendInvite.mutateAsync(pendingInvite.id)}
+                                >
+                                  <RotateCw className="mr-2 h-3.5 w-3.5" /> Reenviar convite
+                                </DropdownMenuItem>
+                              )}
                               {!isSelf && p.status !== 'suspended' && (
                                 <DropdownMenuItem
                                   variant="destructive"
@@ -1235,16 +1399,49 @@ export function AdminUsuarios() {
             <Badge variant="secondary">{invites.data?.filter((i) => i.status === 'pending').length ?? 0}</Badge>
           </div>
 
+          {inviteActionMessage && (
+            <p
+              className={cn(
+                'text-xs',
+                inviteActionMessage.type === 'success' ? 'text-emerald-700' : 'text-destructive',
+              )}
+            >
+              {inviteActionMessage.text}
+            </p>
+          )}
+
+          {resendLinkShown && (
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">
+                Link para enviar manualmente (expira em poucos minutos no Auth):
+              </p>
+              <textarea
+                readOnly
+                className="min-h-[72px] w-full rounded-md border border-border bg-background p-2 font-mono text-[11px]"
+                value={resendLinkShown}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => void navigator.clipboard.writeText(resendLinkShown)}
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                Copiar link
+              </Button>
+            </div>
+          )}
+
           <div className="overflow-x-auto rounded-lg border border-border/60">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Email</TableHead>
-                  <TableHead>Organização</TableHead>
-                  <TableHead>Papel</TableHead>
+                  <TableHead className="min-w-[200px]">Acesso</TableHead>
+                  <TableHead className="w-28">Papel</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="whitespace-nowrap">Expira</TableHead>
-                  <TableHead className="w-24 text-right" />
+                  <TableHead className="w-40 text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1263,11 +1460,21 @@ export function AdminUsuarios() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invites.data!.map((inv) => (
+                  invites.data!.map((inv) => {
+                    const escopo = inviteEscopoFromRow(inv)
+                    return (
                       <TableRow key={inv.id}>
                         <TableCell className="text-xs">{inv.email}</TableCell>
-                        <TableCell className="max-w-[220px] text-xs">{formatInviteEscopo(inv)}</TableCell>
-                        <TableCell>{roleLabel[inv.role]}</TableCell>
+                        <TableCell className="min-w-[200px] align-top">
+                          <InviteEscopoResumo
+                            fornecedorNomes={escopo.fn}
+                            parceiroNomes={escopo.dn}
+                            role={inv.role}
+                            showRole={false}
+                            compact
+                          />
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap align-top">{roleLabel[inv.role]}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{inv.status}</Badge>
                         </TableCell>
@@ -1276,23 +1483,44 @@ export function AdminUsuarios() {
                           {new Date(inv.expira_em).toLocaleDateString('pt-BR')}
                         </TableCell>
                         <TableCell className="text-right">
-                          {inv.status === 'pending' && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              disabled={revokeInvite.isPending}
-                              onClick={() => {
-                                if (confirm('Revogar este convite?')) revokeInvite.mutate(inv.id)
-                              }}
-                            >
-                              Revogar
-                            </Button>
+                          {(inv.status === 'pending' || inv.status === 'expired') && (
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={resendInvite.isPending}
+                                onClick={() => void resendInvite.mutateAsync(inv.id)}
+                              >
+                                {resendingInviteId === inv.id ? (
+                                  'A enviar…'
+                                ) : (
+                                  <>
+                                    <RotateCw className="mr-1 h-3.5 w-3.5" />
+                                    Reenviar
+                                  </>
+                                )}
+                              </Button>
+                              {inv.status === 'pending' && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  disabled={revokeInvite.isPending}
+                                  onClick={() => {
+                                    if (confirm('Revogar este convite?')) revokeInvite.mutate(inv.id)
+                                  }}
+                                >
+                                  Revogar
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
-                  ))
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
