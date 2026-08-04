@@ -37,8 +37,14 @@ export const PRIORIDADE_LABELS: Record<PrioridadeEstrategica, string> = Object.f
  */
 export interface ClienteEstrategico {
   id: string
-  distribuidor_id: string
-  cliente_id: string
+  /** Chave natural. Existe mesmo quando o CNPJ não é cliente de ninguém. */
+  cnpj: string
+  /** NULL = alvo territorial, sem parceiro dono (migration 062). */
+  distribuidor_id: string | null
+  /** NULL = ainda não está em nenhuma carteira. */
+  cliente_id: string | null
+  cidade: string | null
+  estado: string | null
   motivo: string | null
   origem: OrigemEstrategica | null
   prioridade: PrioridadeEstrategica
@@ -52,6 +58,21 @@ export interface ClienteEstrategico {
 
 export type ClienteEstrategicoComCliente = ClienteEstrategico & {
   cliente: ClienteDistribuidor | null
+}
+
+/**
+ * Linha da view `alwayson_clientes_estrategicos_v_lista`.
+ *
+ * Nome e praça são **resolvidos na leitura** a partir de fonte pública
+ * (carteira do parceiro, Receita Federal via universo PDV, histórico
+ * territorial) — nunca armazenados a partir do relatório de origem.
+ */
+export type ClienteEstrategicoLinha = ClienteEstrategico & {
+  nome_exibicao: string | null
+  cidade_exibicao: string | null
+  estado_exibicao: string | null
+  na_carteira: boolean
+  no_universo_pdv: boolean
 }
 
 /** Critérios de acompanhamento — o "como monitorar" da lista. */

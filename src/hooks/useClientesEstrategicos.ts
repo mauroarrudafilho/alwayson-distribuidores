@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 import type {
   ClienteEstrategico,
-  ClienteEstrategicoComCliente,
+  ClienteEstrategicoLinha,
   CriterioEstrategicoConfig,
   OrigemEstrategica,
   PrioridadeEstrategica,
@@ -19,9 +19,12 @@ const KEY = 'clientes-estrategicos' as const
  * acompanhamento configurado — o monitoramento é uma camada por cima, não a
  * condição de existência.
  *
- * Escrita depende das policies admin da migration `052`: o PostgREST devolve
- * zero linhas sem erro quando a RLS bloqueia, então toda mutação confere o
- * retorno.
+ * Lê pela **view** `_v_lista` (migration 062), não pela tabela: é ela que
+ * resolve nome e praça a partir de fonte pública para os CNPJs que ainda não
+ * são cliente de ninguém. Ler a tabela crua devolve linhas sem nome.
+ *
+ * Escrita depende das policies de escopo: o PostgREST devolve zero linhas sem
+ * erro quando a RLS bloqueia, então toda mutação confere o retorno.
  */
 export function useClientesEstrategicos(
   distribuidorId?: string,
@@ -29,21 +32,27 @@ export function useClientesEstrategicos(
 ) {
   return useQuery({
     queryKey: [KEY, 'lista', distribuidorId ?? 'todos', includeInativos],
-    queryFn: async (): Promise<ClienteEstrategicoComCliente[]> => {
+    queryFn: async (): Promise<ClienteEstrategicoLinha[]> => {
       let query = supabase
-        .from('alwayson_clientes_estrategicos')
-        .select('*, cliente:alwayson_clientes_distribuidor(*)')
-        .order('adicionado_em', { ascending: false })
+        .from('alwayson_clientes_estrategicos_v_lista')
+        .select('*')
+        .order('estado_exibicao')
+        .order('cidade_exibicao')
+        .order('cnpj')
+        .limit(5000)
       if (!includeInativos) query = query.eq('ativo', true)
       if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
       const { data, error } = await query
       if (error) throw error
-      return (data ?? []) as ClienteEstrategicoComCliente[]
+      return (data ?? []) as ClienteEstrategicoLinha[]
     },
   })
 }
 
-/** Só os `cliente_id` — para marcar o cliente como estratégico noutras telas. */
+/**
+ * Só os `cliente_id` — para marcar o cliente como estratégico noutras telas.
+ * Ignora as linhas territoriais, que por definição não têm cliente ligado.
+ */
 export function useIdsEstrategicos() {
   return useQuery({
     queryKey: [KEY, 'ids'],
@@ -53,6 +62,7 @@ export function useIdsEstrategicos() {
         .from('alwayson_clientes_estrategicos')
         .select('cliente_id')
         .eq('ativo', true)
+        .not('cliente_id', 'is', null)
       if (error) throw error
       return new Set((data ?? []).map((r) => r.cliente_id as string))
     },
@@ -105,12 +115,20 @@ export function useClientesDisponiveis(
 }
 
 export interface ClienteEstrategicoInput {
-  distribuidor_id: string
-  cliente_id: string
+  /** Só dígitos. É a chave — o resto é opcional. */
+  cnpj: string
+  /** NULL = alvo territorial, sem parceiro dono. */
+  distribuidor_id: string | null
+  cidade: string | null
+  estado: string | null
   motivo: string
   origem: OrigemEstrategica | null
   prioridade: PrioridadeEstrategica
   observacao: string | null
+}
+
+export function apenasDigitos(v: string): string {
+  return v.replace(/\D/g, '')
 }
 
 function semLinhas(): never {
@@ -158,10 +176,10 @@ export function useSalvarClienteEstrategico() {
         .select('*')
 
       if (error) {
-        // A unique key (distribuidor, cliente) vem do schema original; readicionar
-        // um cliente removido deve reativar, não estourar.
+        // A chave é o CNPJ (migration 062): readicionar um alvo removido deve
+        // reativar, não estourar.
         if (error.code === '23505') {
-          const { data: reativado, error: erroReativar } = await supabase
+          let reativar = supabase
             .from('alwayson_clientes_estrategicos')
             .update({
               ativo: true,
@@ -171,9 +189,12 @@ export function useSalvarClienteEstrategico() {
               prioridade: valores.prioridade,
               observacao: valores.observacao,
             })
-            .eq('distribuidor_id', valores.distribuidor_id)
-            .eq('cliente_id', valores.cliente_id)
-            .select('*')
+            .eq('cnpj', valores.cnpj)
+          reativar = valores.distribuidor_id
+            ? reativar.eq('distribuidor_id', valores.distribuidor_id)
+            : reativar.is('distribuidor_id', null)
+
+          const { data: reativado, error: erroReativar } = await reativar.select('*')
           if (erroReativar) throw erroReativar
           if (!reativado || reativado.length === 0) semLinhas()
           return reativado[0] as ClienteEstrategico
