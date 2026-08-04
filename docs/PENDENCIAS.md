@@ -65,7 +65,7 @@ Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e 
 | Metas | `/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_estrategicos`) dependem dos itens acima e da lista estratégica |
 | Reatribuição de cliente entre vendedores | `/parceiros/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
 | Cidades, carteira declarada, frequência de visita, início da parceria | `/parceiros/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
-| Lista de clientes estratégicos | `/clientes-estrategicos` (UI pronta) | Cadastro manual, um motivo por cliente — é o que alimenta o KPI do Dashboard e o badge "Estratégico" |
+| ~~Lista de clientes estratégicos~~ — ✅ 1.327 CNPJs carregados | `/clientes-estrategicos` | Corte 80/20 Scantech (jan–jun/2026), 9 UFs. **Falta curadoria**: todos entraram com `prioridade = media` e o mesmo motivo genérico. Refinar por praça e definir quais viram alvo comercial de facto |
 | Critérios de acompanhamento | — | **UI de escrita não existe** — só por SQL em `alwayson_clientes_estrategicos_config` (ver C3) |
 
 ---
@@ -98,6 +98,13 @@ O conceito mudou de "plano com critérios" para **lista curada e manual**: cada 
 Abaixo de `lg` (1024px) a sidebar deixou de ocupar espaço fixo e virou drawer, aberto por uma barra superior própria. A fronteira é `lg` e não `md` de propósito: a 768px os 232px fixos comiam 30% da largura. Também empilham no telemóvel: cabeçalho de página (título / descrição / ações), campos lado a lado dos diálogos. Faixas de abas rolam na horizontal (`.tab-strip`) em vez de quebrar linha.
 
 ⚠️ **O que foi verificado e o que não foi.** A validação correu num harness temporário que monta o shell real e os primitivos (`PageHeader`, `FilterBar`, `KPIGrid`, `Table`, faixa de abas) a 375/768/1024/1440 — nenhuma rolagem horizontal da página em nenhuma largura, drawer abre e fecha ao navegar, tabela rola dentro do próprio contentor. **Não foi possível entrar com sessão real**, então as telas densas com dado — mapas do Insights, drill-down da Performance, Cliente Detalhe — não foram exercitadas com conteúdo verdadeiro. Vale uma passada no telemóvel nessas três.
+
+### C3c. Restrição contratual da base Scantech ⚠️ não regredir
+O relatório de origem da lista estratégica é da **Scantech**. Por contrato, **share, volume Pérgola/Morgado, gap e oportunidade não entram na plataforma** — nem em coluna, nem em observação, nem em nome de arquivo. O que foi carregado é apenas: CNPJ, cidade e UF.
+
+Duas decisões que sustentam isso e que é fácil desfazer sem perceber:
+- **O nome do PDV não é armazenado.** A view `alwayson_clientes_estrategicos_v_lista` resolve-o na leitura por fonte pública (carteira → Receita Federal via `alwayson_pdv_universo` → histórico territorial). 626 dos 1.327 ficam sem nome porque nenhuma dessas fontes os tem — é o preço, e é intencional. Se alguém "resolver" isso importando o nome da planilha, quebra a restrição.
+- **A carga foi ordenada por CNPJ, não pela ordem da planilha.** A planilha vem ordenada por volume decrescente; inserir nessa ordem tornaria o ranking de share recuperável por `adicionado_em`/ordem física. Toda recarga futura deve reordenar igual.
 
 ### C4. Snapshot mensal da carteira
 A carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. Saída barata: tabela `(mês, cliente, vendedor, distribuidor)` gravada no fechamento. **Decidir antes da carga retroativa.**

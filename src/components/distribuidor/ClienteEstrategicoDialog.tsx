@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -7,15 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -24,15 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useDistribuidores } from '@/hooks/useDistribuidores'
 import {
-  useClientesDisponiveis,
+  apenasDigitos,
   useSalvarClienteEstrategico,
 } from '@/hooks/useClientesEstrategicos'
 import {
   ORIGENS_ESTRATEGICAS,
   PRIORIDADES,
-  type ClienteEstrategicoComCliente,
+  type ClienteEstrategicoLinha,
   type OrigemEstrategica,
   type PrioridadeEstrategica,
 } from '@/types/clientes-estrategicos'
@@ -41,37 +33,29 @@ import { formatCnpj } from '@/lib/format'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Distribuidor pré-selecionado pelo filtro da página. */
-  distribuidorPadrao?: string
-  /** Já na lista — não reaparecem no seletor. */
-  idsNaLista: string[]
-  /** Linha existente: abre em modo edição, com o cliente travado. */
-  registro?: ClienteEstrategicoComCliente | null
+  /** Linha existente: abre em modo edição, com o CNPJ travado. */
+  registro?: ClienteEstrategicoLinha | null
 }
 
 /**
  * Entrada manual da lista estratégica.
  *
- * O campo que importa é o **motivo**: a lista só tem valor se cada cliente
- * carregar a razão pela qual entrou. Por isso ele é obrigatório aqui, mesmo
- * sendo nullable no banco (linhas antigas/importadas podem não ter).
+ * A chave é o **CNPJ**, não um cliente da carteira: o alvo pode ser uma loja
+ * que ainda ninguém atende. Se o CNPJ já existir em alguma carteira, o gatilho
+ * do banco liga-o sozinho — aqui não é preciso escolher cliente.
+ *
+ * O outro campo que importa é o **motivo**: a lista só tem valor se cada CNPJ
+ * carregar a razão pela qual entrou.
  *
  * Montado só quando aberto (ver a página), então o estado inicial sai direto
  * dos props — sem `useEffect` de sincronização.
  */
-export function ClienteEstrategicoDialog({
-  open,
-  onOpenChange,
-  distribuidorPadrao,
-  idsNaLista,
-  registro,
-}: Props) {
+export function ClienteEstrategicoDialog({ open, onOpenChange, registro }: Props) {
   const editando = Boolean(registro)
 
-  const [distribuidorId, setDistribuidorId] = useState<string>(
-    registro?.distribuidor_id ?? distribuidorPadrao ?? ''
-  )
-  const [clienteId, setClienteId] = useState<string>(registro?.cliente_id ?? '')
+  const [cnpj, setCnpj] = useState<string>(registro?.cnpj ?? '')
+  const [cidade, setCidade] = useState<string>(registro?.cidade_exibicao ?? '')
+  const [estado, setEstado] = useState<string>(registro?.estado_exibicao ?? '')
   const [motivo, setMotivo] = useState<string>(registro?.motivo ?? '')
   const [origem, setOrigem] = useState<OrigemEstrategica | ''>(registro?.origem ?? '')
   const [prioridade, setPrioridade] = useState<PrioridadeEstrategica>(
@@ -80,32 +64,28 @@ export function ClienteEstrategicoDialog({
   const [observacao, setObservacao] = useState<string>(registro?.observacao ?? '')
   const [erro, setErro] = useState<string | null>(null)
 
-  const { data: distribuidores } = useDistribuidores()
-  const { data: disponiveis, isLoading: carregandoClientes } = useClientesDisponiveis(
-    editando ? undefined : distribuidorId || undefined,
-    idsNaLista
-  )
   const salvar = useSalvarClienteEstrategico()
-
-  const clienteSelecionado = useMemo(() => {
-    if (registro?.cliente) return registro.cliente
-    return (disponiveis ?? []).find((c) => c.id === clienteId) ?? null
-  }, [registro, disponiveis, clienteId])
 
   async function handleSubmit() {
     setErro(null)
-    if (!distribuidorId) return setErro('Selecione o distribuidor.')
-    if (!clienteId) return setErro('Selecione o cliente.')
+    const digitos = apenasDigitos(cnpj)
+    if (digitos.length !== 14 && digitos.length !== 11) {
+      return setErro('Informe um CNPJ (14 dígitos) ou CPF (11) válido em comprimento.')
+    }
     if (!motivo.trim()) {
-      return setErro('Descreva por que este cliente é estratégico — é o que dá sentido à lista.')
+      return setErro('Descreva por que este CNPJ é estratégico — é o que dá sentido à lista.')
     }
 
     try {
       await salvar.mutateAsync({
         id: registro?.id,
         valores: {
-          distribuidor_id: distribuidorId,
-          cliente_id: clienteId,
+          cnpj: digitos,
+          // Entrada manual nasce territorial: quem atende resolve-se pelo
+          // vínculo com a carteira, não por escolha aqui.
+          distribuidor_id: registro?.distribuidor_id ?? null,
+          cidade: cidade.trim() || null,
+          estado: estado || null,
           motivo: motivo.trim(),
           origem: origem || null,
           prioridade,
@@ -123,11 +103,11 @@ export function ClienteEstrategicoDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {editando ? 'Editar cliente estratégico' : 'Adicionar cliente estratégico'}
+            {editando ? 'Editar CNPJ estratégico' : 'Adicionar CNPJ estratégico'}
           </DialogTitle>
           <DialogDescription>
-            Lista curada e manual. Cada cliente entra com o seu próprio motivo e passa a ser
-            acompanhado por aqui.
+            Lista curada e manual. O CNPJ não precisa estar na carteira de ninguém — se entrar
+            depois, o vínculo com o cliente é feito automaticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,84 +115,57 @@ export function ClienteEstrategicoDialog({
           {editando ? (
             <div className="rounded-md border bg-muted/30 px-3 py-2">
               <p className="text-sm font-medium">
-                {clienteSelecionado?.nome_fantasia || clienteSelecionado?.razao_social || '—'}
+                {registro?.nome_exibicao || 'Sem nome em fonte pública'}
               </p>
               <p className="text-[11px] tabular-nums text-muted-foreground">
-                {clienteSelecionado?.cnpj ? formatCnpj(clienteSelecionado.cnpj) : '—'}
+                {formatCnpj(registro!.cnpj)}
               </p>
             </div>
           ) : (
-            <>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Distribuidor</label>
-                <Select
-                  value={distribuidorId}
-                  onValueChange={(v) => {
-                    setDistribuidorId(v ?? '')
-                    setClienteId('')
-                  }}
-                >
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Selecione…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(distribuidores ?? []).map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Cliente</label>
-                <Command className="rounded-md border">
-                  <CommandInput placeholder="Buscar por razão social, fantasia ou CNPJ…" />
-                  <CommandList className="max-h-44">
-                    {!distribuidorId ? (
-                      <CommandEmpty>Selecione um distribuidor primeiro.</CommandEmpty>
-                    ) : carregandoClientes ? (
-                      <CommandEmpty>Carregando carteira…</CommandEmpty>
-                    ) : (
-                      <>
-                        <CommandEmpty>Nenhum cliente disponível.</CommandEmpty>
-                        <CommandGroup>
-                          {(disponiveis ?? []).map((c) => (
-                            <CommandItem
-                              key={c.id}
-                              value={`${c.razao_social} ${c.nome_fantasia ?? ''} ${c.cnpj}`}
-                              onSelect={() => setClienteId(c.id)}
-                              className={
-                                c.id === clienteId ? 'bg-accent text-accent-foreground' : ''
-                              }
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium">
-                                  {c.nome_fantasia || c.razao_social}
-                                </p>
-                                <p className="truncate text-[11px] tabular-nums text-muted-foreground">
-                                  {formatCnpj(c.cnpj)} · {c.cidade}/{c.estado}
-                                </p>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </>
-                    )}
-                  </CommandList>
-                </Command>
-                {clienteSelecionado && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Selecionado:{' '}
-                    <span className="text-foreground">
-                      {clienteSelecionado.nome_fantasia || clienteSelecionado.razao_social}
-                    </span>
-                  </p>
-                )}
-              </div>
-            </>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">
+                CNPJ <span className="text-destructive">*</span>
+              </label>
+              <Input
+                value={cnpj}
+                onChange={(e) => setCnpj(e.target.value)}
+                placeholder="00.000.000/0000-00"
+                inputMode="numeric"
+                className="h-9 text-sm tabular-nums"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                O nome do PDV não é digitado: resolve-se por fonte pública quando existir.
+              </p>
+            </div>
           )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">
+                Cidade <span className="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              <Input
+                value={cidade}
+                onChange={(e) => setCidade(e.target.value)}
+                placeholder="Ex.: PETROLINA"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">
+                UF <span className="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              {/* Campo livre e não `ESTADOS_NORDESTE`: aquela lista tem 5 UFs e a
+                  lista estratégica já cobre 9 (entram BA, CE, MA e PI). */}
+              <Input
+                value={estado}
+                onChange={(e) => setEstado(e.target.value.toUpperCase().slice(0, 2))}
+                placeholder="PE"
+                maxLength={2}
+                className="h-9 text-sm uppercase"
+              />
+            </div>
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium">
