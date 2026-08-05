@@ -30,6 +30,10 @@ export const PRIORIDADE_CLASSE: Record<PrioridadeEstrategica, string> = Object.f
  */
 export interface ClienteEstrategico {
   id: string
+  lat: number | null
+  lng: number | null
+  geo_fonte: string | null
+  geo_atualizado_em: string | null
   /** Chave natural. Existe mesmo quando o CNPJ não é cliente de ninguém. */
   cnpj: string
   /** NULL = alvo territorial, sem parceiro dono (migration 062). */
@@ -63,6 +67,13 @@ export type ClienteEstrategicoLinha = ClienteEstrategico & {
   nome_exibicao: string | null
   cidade_exibicao: string | null
   estado_exibicao: string | null
+  lat_exibicao: number | null
+  lng_exibicao: number | null
+  /**
+   * De onde veio a coordenada. `cidade_centroide` é aproximação pela cidade,
+   * não o ponto do PDV — não serve para roteirização.
+   */
+  geo_fonte_exibicao: string | null
   na_carteira: boolean
   no_universo_pdv: boolean
 }

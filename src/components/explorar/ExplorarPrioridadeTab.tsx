@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, EyeOff, Target } from 'lucide-react'
+import { ChevronRight, EyeOff, Star, Target } from 'lucide-react'
 import { Panel } from '@/components/distribuidor/Panel'
 import { EmptyState } from '@/components/distribuidor/EmptyState'
 import { ExplorarSegmentoBadge } from '@/components/explorar/ExplorarSegmentoBadge'
@@ -22,6 +22,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { usePagination } from '@/hooks/usePagination'
 import { useDesconsiderarPdv } from '@/hooks/usePdvDesconsiderados'
 import { formatCnpj, formatCurrency } from '@/lib/format'
@@ -50,6 +51,7 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
   const [faixaFilter, setFaixaFilter] = useState<FaixaFiltro>('ab')
   const [segmentoFilter, setSegmentoFilter] = useState<'todos' | PdvSegmento>('subexplorado')
   const [vendedorFilter, setVendedorFilter] = useState<string>('todos')
+  const [soEstrategicos, setSoEstrategicos] = useState(false)
   const desconsiderar = useDesconsiderarPdv()
 
   const vendedores = useMemo(() => {
@@ -68,6 +70,7 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
         (r) => !r.atendido && (r.faixa === 'A' || r.faixa === 'B')
       ).length,
       carteira: list.filter((r) => r.atendido).length,
+      estrategicos: list.filter((r) => r.estrategico).length,
     }
   }, [rows])
 
@@ -89,13 +92,16 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
     } else {
       list = list.filter((r) => passaFaixa(r.faixa, faixaFilter))
     }
+    // Cruzamento com a lista curada: aplica-se depois da visão, para valer
+    // tanto em oportunidades como em carteira.
+    if (soEstrategicos) list = list.filter((r) => r.estrategico)
     return list
-  }, [rows, visao, faixaFilter, segmentoFilter, vendedorFilter])
+  }, [rows, visao, faixaFilter, segmentoFilter, vendedorFilter, soEstrategicos])
 
   const pag = usePagination({
     items: filtered,
     initialPageSize: 25,
-    resetKey: `${visao}-${faixaFilter}-${segmentoFilter}-${vendedorFilter}`,
+    resetKey: `${visao}-${faixaFilter}-${segmentoFilter}-${vendedorFilter}-${soEstrategicos}`,
   })
 
   if (isLoading) {
@@ -230,6 +236,20 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
                 </Select>
               </>
             )}
+
+            {counts.estrategicos > 0 && (
+              <Button
+                variant={soEstrategicos ? 'default' : 'outline'}
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setSoEstrategicos((v) => !v)}
+                title="Cruza com a lista curada de Clientes Estratégicos"
+              >
+                <Star className="h-3.5 w-3.5" />
+                Só estratégicos
+                <span className="tabular-nums opacity-70">({counts.estrategicos})</span>
+              </Button>
+            )}
           </div>
 
           {modoOportunidade && (
@@ -293,7 +313,22 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
                 {formatExplorarRank(rank)}
               </TableCell>
               <TableCell>
-                <div className="font-medium text-sm">{r.nome_exibicao}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-sm">{r.nome_exibicao}</span>
+                  {r.estrategico && (
+                    <Badge
+                      variant={r.estrategico_prioridade === 'alta' ? 'destructive' : 'secondary'}
+                      title="Está na lista de Clientes Estratégicos"
+                    >
+                      <Star className="mr-0.5 h-2.5 w-2.5" />
+                      {r.estrategico_prioridade === 'alta'
+                        ? 'Estratégico A'
+                        : r.estrategico_prioridade === 'media'
+                          ? 'Estratégico B'
+                          : 'Estratégico C'}
+                    </Badge>
+                  )}
+                </div>
                 <div className="text-[11px] text-muted-foreground">
                   {formatCnpj(r.cnpj)}
                   {!modoOportunidade && r.bairro ? ` · ${r.bairro}` : ''}

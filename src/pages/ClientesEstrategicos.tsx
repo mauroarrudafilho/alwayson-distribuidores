@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Star, Users, Flame, MapPin, Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Star, Users, Flame, MapPin, Plus, Pencil, Trash2, Search, List } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { ClienteEstrategicoDialog } from '@/components/distribuidor/ClienteEstrategicoDialog'
+import { ClientesEstrategicosMapa } from '@/components/distribuidor/ClientesEstrategicosMapa'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,6 +69,7 @@ export function ClientesEstrategicos() {
   const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(50)
+  const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
   const [dialogAberto, setDialogAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<ClienteEstrategicoLinha | null>(null)
 
@@ -142,10 +144,32 @@ export function ClientesEstrategicos() {
         accent="curadoria"
         description="curva ABC por estado — a prioridade vem do tamanho do PDV na própria praça"
         actions={
-          <Button size="sm" onClick={abrirNovo} className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" />
-            Adicionar CNPJ
-          </Button>
+          <>
+            <div className="flex rounded-md border border-border/70">
+              <Button
+                variant={vista === 'lista' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="gap-1.5 rounded-r-none"
+                onClick={() => setVista('lista')}
+              >
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
+              <Button
+                variant={vista === 'mapa' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="gap-1.5 rounded-l-none border-l border-border/70"
+                onClick={() => setVista('mapa')}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                Mapa
+              </Button>
+            </div>
+            <Button size="sm" onClick={abrirNovo} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar CNPJ
+            </Button>
+          </>
         }
       />
 
@@ -239,7 +263,9 @@ export function ClientesEstrategicos() {
         </FilterField>
       </FilterBar>
 
-      {isLoading ? (
+      {vista === 'mapa' && !isLoading ? (
+        <ClientesEstrategicosMapa linhas={filtradas} />
+      ) : isLoading ? (
         <Card>
           <CardContent className="space-y-2 p-3">
             {Array.from({ length: 8 }).map((_, i) => (

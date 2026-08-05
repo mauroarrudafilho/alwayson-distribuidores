@@ -30,6 +30,10 @@ export interface PdvPrioridadeRow {
   atendido: boolean
   faixa: string | null
   segmento_cnae: string | null
+  /** CNPJ está na lista curada de Clientes Estratégicos (migration 065). */
+  estrategico: boolean
+  /** Curva ABC da lista estratégica, quando aplicável. */
+  estrategico_prioridade: 'alta' | 'media' | 'baixa' | null
 }
 
 export interface PdvCoberturaRow {
