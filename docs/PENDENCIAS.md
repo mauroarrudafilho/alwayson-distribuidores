@@ -1,42 +1,24 @@
 # Pendências — o que falta para a versão definitiva
 
-> Snapshot de **2026-08-02**. Consolida o que ficou em aberto ao fim da sessão de migrations `043`–`050`.
-> Visão de produto e sequência das fases: [`docs/ROADMAP.md`](ROADMAP.md). Convenções e armadilhas para agentes: [`CLAUDE.md`](../CLAUDE.md).
+> Snapshot de **2026-08-05**, conferido direto no banco (`osukbalwykbqvoumddxz`).
+> Visão de produto e sequência das fases: [`ROADMAP.md`](ROADMAP.md). Convenções e armadilhas para agentes: [`../CLAUDE.md`](../CLAUDE.md).
+>
+> **Antes de confiar nesta página**, reconfira o que é barato reconferir — `list_tables`, `list_migrations`, `list_edge_functions` e as contagens abaixo. Este documento envelhece mais rápido que o banco.
+
+**Estado do dado em 2026-08-05:** 1 distribuidor · 410 clientes na carteira · 3 uploads (todos `vendas`) · 1 mês de sell-in · 130 metas · 1.327 CNPJs estratégicos · 1 cidade de atuação cadastrada · 0 critérios de acompanhamento · 2 utilizadores (admin + KAM).
 
 ---
 
-## A. Só você pode fazer — configuração e acesso
+## 1. Ações suas — não é código
 
-Nada aqui é código. São passos manuais que a sessão não conseguiu executar (ferramentas sob aprovação, rede de saída bloqueada) ou que dependem de credencial sua.
+### 1.1 Atualizar a API de ingestão ⚠️ prazo: antes do 2º fornecedor
 
-### A1. Publicar a Edge Function de convites ⚠️ bloqueia criar utilizador
-
-`admin-invite-user` existe no repo e é invocada por `AdminUsuarios.tsx`, mas **não está deployada** — o projeto só tem `process-insights-pendentes`. Convidar alguém hoje falha com function-not-found.
-
-```bash
-npx supabase login          # se reclamar de autenticação
-npm run admin:deploy-invite-fn
-```
-
-### A2. Segredos do Resend (opcional, mas recomendado)
-
-Supabase → Edge Functions → Secrets:
-
-| segredo | efeito |
-|---|---|
-| `RESEND_API_KEY` | ativa a entrega por Resend |
-| `RESEND_FROM` | remetente **verificado** no Resend, ex. `AlwaysOn <nao-responda@grupoarruda.com>` |
-
-Sem `RESEND_API_KEY` a função mantém o e-mail nativo do Supabase — a integração é opt-in e não muda comportamento sozinha. O default `onboarding@resend.dev` só serve para teste.
-
-### A3. Atualizar a API de ingestão ⚠️ prazo: antes do 2º fornecedor
-
-`services/ingest-api` é um serviço à parte (Express + Dockerfile próprio) — **não sai no deploy da Vercel** e o repo não registra a URL real (o doc do Railway usa placeholder).
+`services/ingest-api` é um serviço à parte (Express + Dockerfile próprio) — **não sai no deploy da Vercel**, e o repo não regista a URL real (o doc do Railway usa placeholder).
 
 Desde a migration `047` ela exige `fornecedor_id`. Se a instância em execução estiver atrasada:
 
-- **Hoje não quebra nada** — o trigger da migration `050` infere o fornecedor enquanto o distribuidor tem só um.
-- **Quando entrar o 2º fornecedor**, a inferência deixa de ser possível: as notas nascem sem carimbo e ficam invisíveis para KAM e distribuidor (falha fechada, não vaza).
+- **Hoje não quebra nada** — o trigger da `050` infere o fornecedor enquanto o distribuidor tiver só um.
+- **Com o 2º fornecedor**, a inferência deixa de ser possível: as notas nascem sem carimbo e ficam invisíveis a KAM e distribuidor (falha fechada — não vaza, mas some).
 
 Como saber qual versão está no ar:
 
@@ -48,92 +30,111 @@ curl -X POST "$URL_DA_INGESTAO/api/ingest" -F "tipo=vendas" \
 
 `"fornecedor_id é obrigatório"` → atualizada. Qualquer outro erro → precisa de redeploy.
 
-### A4. Validar o isolamento com um utilizador real ⚠️ nunca foi exercitado
+### 1.2 Purgar o commit órfão no GitHub ⚠️ restrição contratual
 
-As policies das migrations `048`/`049` foram validadas **na álgebra** (matriz de 3 perfis × 2 fornecedores × 2 distribuidores) e no estado do banco — mas nenhuma sessão real de outro perfil passou por elas. A conta admin global não exercita nenhuma regra nova.
+O nome do provedor do relatório de mercado esteve numa mensagem de commit. A história foi reescrita e forçada (`main` = `d75a9ad`), mas **o objeto antigo continua a responder no GitHub pelo SHA** `2408effab6b39ceed2c559eb83b18ca9b2705556` — comportamento normal: o force-push tira a referência, não apaga o objeto.
 
-Teste mínimo: convidar um KAM com fornecedor Campestre + distribuidor Paraty e conferir na interface que ele vê os dados do Paraty e nada além.
+Num repositório **público**, isso continua legível por quem tiver o SHA. Só o suporte do GitHub purga objetos não referenciados: abrir pedido em support.github.com citando o SHA. A alternativa que resolve de vez é **tornar o repositório privado**, o que também tira de exposição o resto da documentação técnica.
+
+### 1.3 Validar o isolamento com o KAM real ⚠️ nunca foi exercitado na interface
+
+Já existe um utilizador com papel `kam` (2 utilizadores, 3 vínculos). Mas as policies das migrations `048`/`049`/`061` foram validadas **na álgebra** e no estado do banco — nenhuma sessão real de outro perfil passou por elas. A conta admin global não exercita nenhuma regra nova.
+
+Teste mínimo: entrar como o KAM e confirmar que vê o Paraty e nada além, que `/admin` está bloqueado e que consegue escrever metas no recorte dele.
+
+### 1.4 Confirmar os segredos do Resend
+
+Não consigo ler segredos de Edge Function daqui. As funções `admin-invite-user` (v16) e `auth-recuperar-senha` (v1) estão **deployadas e ativas**, e o fallback para o e-mail nativo do Supabase foi removido — ou seja, **sem `RESEND_API_KEY` nenhum e-mail transacional sai**. Se convites e recuperação de senha estão a chegar, está configurado; se não, é aqui.
+
+Segredos esperados: `RESEND_API_KEY`, `RESEND_FROM` (remetente verificado), `APP_PUBLIC_URL`, `ALLOWED_APP_ORIGINS`.
 
 ---
 
-## B. Cargas de dado pendentes
+## 2. Cargas de dado pendentes
 
 | o que | onde | por que importa |
 |---|---|---|
-| Template **`clientes`** (não só `vendas`) | Ingestão | É o **denominador**. Sem ele, cobertura/positivação dá 100% por construção, por mais meses que entrem |
-| Sell-in retroativo (12–24 meses) | Ingestão | Sem série não há tendência; a Performance é single-month por construção |
-| Metas | `/metas` (UI pronta) | 3 dos 4 tipos (`positivacao`, `mix`, `clientes_estrategicos`) dependem dos itens acima e da lista estratégica |
-| Reatribuição de cliente entre vendedores | `/parceiros/:id/hierarquia` (UI pronta) | Correção pontual — a carga da base segue pelo template `clientes` |
-| Cidades, carteira declarada, frequência de visita, início da parceria | `/parceiros/:id` (UI pronta) | Destrava população coberta, potencial demonstrado e a régua da positivação |
-| ~~Lista de clientes estratégicos~~ — ✅ 1.327 CNPJs carregados | `/clientes-estrategicos` | Corte de mercado do 1º semestre/2026, 9 UFs. **Falta curadoria**: todos entraram com `prioridade = media` e o mesmo motivo genérico. Refinar por praça e definir quais viram alvo comercial de facto |
-| Critérios de acompanhamento | — | **UI de escrita não existe** — só por SQL em `alwayson_clientes_estrategicos_config` (ver C3) |
+| Template **`clientes`** | Ingestão | ⚠️ **O mais bloqueante.** Os 3 uploads são todos de `vendas`, então os 410 clientes nasceram como efeito colateral das notas — cobertura e positivação dão 100% por construção, e assim ficam por mais meses que entrem. Só este template cria o denominador |
+| Sell-in retroativo (12–24 meses) | Ingestão | Há **1 mês** no banco. Sem série não há tendência, e a Performance é single-month por construção |
+| Cidades de atuação | `/parceiros/:id` | **1 cidade** cadastrada. Destrava população coberta, potencial demonstrado e a régua da positivação |
+| Curadoria da lista estratégica | `/clientes-estrategicos` | Os 1.327 entraram com `prioridade = media` e o mesmo motivo genérico. Refinar por praça e decidir quais viram alvo comercial de facto — é aqui que a lista deixa de ser um despejo e vira ferramenta |
+| Critérios de acompanhamento | — | **0 configurados**, e não há UI de escrita (ver 3.2) |
 
 ---
 
-## C. Engenharia pendente
+## 3. Engenharia pendente
 
-### C1. Importação de metas por planilha
-Template e parser não existem — hoje só criação pela UI. A chave natural e a regra "planilha carrega só `valor_meta`" já estão prontas. ⚠️ As unique keys são índices **parciais**: `ON CONFLICT` exige repetir o predicado (`WHERE vendedor_id IS NOT NULL`), senão o Postgres devolve `42P10`.
+### 3.1 Snapshot mensal da carteira ⚠️ decidir antes da carga retroativa
+A carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. Saída barata: tabela `(mês, cliente, vendedor, distribuidor)` gravada no fechamento. **Esta decisão tem prazo** — depois da carga retroativa, refazer custa muito mais.
 
-### C2. Panorama mês a mês das metas — ✅ entregue
-`MetasPanorama` no `AdminMetas`: linhas = responsável, colunas = meses (teto de 24), célula = atingimento com o semáforo, mais coluna de acumulado. Filtros de nível, métrica e janela.
+### 3.2 Critérios de acompanhamento — falta UI e falta dono do `realizado`
+`alwayson_clientes_estrategicos_config` não tem tela de escrita: critérios só entram por SQL. Mas o problema maior não é a UI — é que `realizado` não tem dono. Digitado à mão vira subjetivo e ninguém mantém. A virada é classificar o critério por natureza:
 
-⚠️ O acumulado **pondera pelo tamanho das metas**, não é média dos percentuais — média distorce quando as metas mensais têm tamanhos diferentes. Validado: metas de 10k e 50k com 0% e 53,7% dão **44,7% ponderado contra 26,8% de média ingênua**. Se alguém "simplificar" para média, o número muda 17 pontos.
+- **Automático** — derivado do que já existe (comprou no período? tem N SKUs? volume ≥ X?). Calculado por view/job, zero digitação.
+- **Verificação de campo** — material de PDV, visita, ruptura. Precisa de input, mas como checklist objetivo, não como nota.
 
-Ganha corpo conforme a carga histórica entra; hoje mostra poucas colunas.
+Falta a coluna de natureza em `_config` e a tela.
 
-### C3. Excelência → **Clientes Estratégicos** — ✅ entregue (com uma ponta solta)
-Migration `052`: as três tabelas `alwayson_excelencia_*` viraram `alwayson_clientes_estrategicos*` (estavam vazias, rename sem risco), a lista ganhou `motivo`/`origem`/`prioridade`/`observacao`/autoria e policies de escrita admin. Rota `/clientes-estrategicos`, com `/excelencia` e `/admin/excelencia` redirecionando.
+### 3.3 Importação de metas por planilha
+Template e parser não existem — hoje só criação pela UI (130 metas já entraram por ali). ⚠️ As unique keys são índices **parciais**: `ON CONFLICT` exige repetir o predicado (`WHERE vendedor_id IS NOT NULL`), senão o Postgres devolve `42P10`.
 
-O conceito mudou de "plano com critérios" para **lista curada e manual**: cada cliente entra com o seu próprio motivo e é acompanhado por ali. Consequências de design que valem lembrar:
-- A lista **existe sem critério nenhum** configurado. O acompanhamento é camada por cima — por isso `deriveScoreLabel` devolve `sem_criterios` em vez de `fora_do_padrao` quando não há régua; senão toda lista nova nasceria vermelha.
-- A flag `plano_excelencia` em `alwayson_clientes_distribuidor` ficou **vestigial** (nunca foi alimentada pela ingestão, 0 linhas true). Dashboard, badge do cliente e sinalizadores passaram a ler a lista curada. A coluna continua no banco, marcada como tal no tipo TS.
-- O tipo de meta `clientes_excelencia` virou `clientes_estrategicos` (CHECK atualizado no mesmo migration).
+### 3.4 Histórico de CNPJ — resolução
+`alwayson_clientes_ajustes_cadastro` (migration `044`) regista o ajuste, mas **não resolve** o faturamento/Insights do CNPJ antigo para o mesmo cliente. Falta a view de resolução.
 
-**Ponta solta — quem cura a lista?** Hoje a escrita é `current_user_is_admin()`, seguindo a convenção das migrations `028`/`035`/`044`. Se o KAM tiver de montar a lista do distribuidor dele, a policy a mudar é `alwayson_clientes_estrategicos_insert_admin`/`_update_admin` — trocar por `current_user_is_admin() OR distribuidor_id IN (select ... current_user_distribuidores_visiveis())`.
+### 3.5 Upload de sell-out (Insights) pela UI
+Hoje o pipeline roda fora do app (script local `npm run insights:import`).
 
-**Ainda por fazer:** separar critério **automático** (derivado do faturamento — comprou? tem N SKUs? frequência?) de **verificação de campo** (material de PDV, visita). O que torna o critério vago não é o schema: é `realizado` não ter dono. Além disso, `alwayson_clientes_estrategicos_config` continua sem UI de escrita — os critérios só entram por SQL.
+### 3.6 Dívida de segurança
+Conferido no linter em 2026-08-05:
 
-### C3b. Responsividade — shell corrigido, telas com dado por conferir
-Abaixo de `lg` (1024px) a sidebar deixou de ocupar espaço fixo e virou drawer, aberto por uma barra superior própria. A fronteira é `lg` e não `md` de propósito: a 768px os 232px fixos comiam 30% da largura. Também empilham no telemóvel: cabeçalho de página (título / descrição / ações), campos lado a lado dos diálogos. Faixas de abas rolam na horizontal (`.tab-strip`) em vez de quebrar linha.
+| o quê | contagem | nota |
+|---|---|---|
+| Views com `SECURITY DEFINER` | **16** (ERROR) | Todas do Insights. As views novas (`045`/`046`/`062`) já usam `security_invoker` |
+| Funções `SECURITY DEFINER` executáveis por `anon`/`authenticated` | 17 + 17 (WARN) | Revisar quais precisam mesmo de `EXECUTE` para `anon` |
+| `function_search_path_mutable` | 2 (WARN) | As novas já fixam `search_path = ''` |
+| Proteção de senha vazada (HaveIBeenPwned) | desligada (WARN) | Um toggle no painel do Auth |
+| `alwayson_insights_purge_config` com RLS e zero policies | 1 (INFO) | Intencional — só `service_role` toca |
 
-⚠️ **O que foi verificado e o que não foi.** A validação correu num harness temporário que monta o shell real e os primitivos (`PageHeader`, `FilterBar`, `KPIGrid`, `Table`, faixa de abas) a 375/768/1024/1440 — nenhuma rolagem horizontal da página em nenhuma largura, drawer abre e fecha ao navegar, tabela rola dentro do próprio contentor. **Não foi possível entrar com sessão real**, então as telas densas com dado — mapas do Insights, drill-down da Performance, Cliente Detalhe — não foram exercitadas com conteúdo verdadeiro. Vale uma passada no telemóvel nessas três.
+Faltam ainda apertar 2 policies `ALL USING(true)` de escrita em `alwayson_distribuidor_produto_de_para` e `alwayson_insights_produto_de_para`.
 
-### C3c. Restrição contratual do relatório de terceiro ⚠️ não regredir
-A lista estratégica nasceu de um relatório de mercado de **provedor externo**. Por contrato, **nem as métricas dele (share, volume por marca, gap, oportunidade) nem o nome do provedor entram na plataforma** — e "plataforma" inclui este repositório, que é público — nem em coluna, nem em observação, nem em nome de arquivo. O que foi carregado é apenas: CNPJ, cidade e UF.
+### 3.7 Zero testes automatizados
+Nenhum vitest/jest. As regras que mais doeriam se quebrassem em silêncio: o `E` do KAM no escopo de acesso, cobertura/positivação, rollup editável de metas, e a paginação da lista estratégica (ver armadilha 5).
 
-Duas decisões que sustentam isso e que é fácil desfazer sem perceber:
-- **O nome do PDV não é armazenado.** A view `alwayson_clientes_estrategicos_v_lista` resolve-o na leitura por fonte pública (carteira → Receita Federal via `alwayson_pdv_universo` → histórico territorial). 626 dos 1.327 ficam sem nome porque nenhuma dessas fontes os tem — é o preço, e é intencional. Se alguém "resolver" isso importando o nome da planilha, quebra a restrição.
-- **A carga foi ordenada por CNPJ, não pela ordem da planilha.** A planilha vem ordenada por volume decrescente; inserir nessa ordem tornaria o ranking de share recuperável por `adicionado_em`/ordem física. Toda recarga futura deve reordenar igual.
+### 3.8 Decisão em aberto — `DistribuidorTab`
+O KPI de topo lê `useMetas()` (metas de **todos** os distribuidores) e pega a primeira que casa. Com um distribuidor só, tanto faz; com o segundo, mostra a meta de um arbitrário. É decisão de produto: somar ou mostrar a do selecionado?
 
-### C4. Snapshot mensal da carteira
-A carteira muda no tempo (cliente troca de vendedor). Calcular a cobertura de janeiro com a carteira de hoje distorce o histórico. Saída barata: tabela `(mês, cliente, vendedor, distribuidor)` gravada no fechamento. **Decidir antes da carga retroativa.**
+### 3.9 Responsividade — shell corrigido, telas com dado por conferir
+Abaixo de `lg` (1024px) a sidebar virou drawer. A fronteira é `lg` e não `md` de propósito: a 768px os 232px fixos comiam 30% da largura.
 
-### C5. Histórico de CNPJ — resolução
-`alwayson_clientes_ajustes_cadastro` (migration `044`) registra o ajuste, mas **não resolve** o faturamento/Insights do CNPJ antigo para o mesmo cliente. Falta a view de resolução (Fase 3 do plano de 2026-04-27).
+⚠️ Validado num harness do shell real a 375/768/1024/1440 — zero rolagem horizontal, drawer fecha ao navegar, tabela rola no próprio contentor. **Não foi possível entrar com sessão real**, então as telas densas com dado (mapas do Insights, drill-down da Performance, Cliente Detalhe) não foram exercitadas. Vale uma passada no telemóvel nessas três.
 
-### C6. Upload de sell-out (Insights) pela UI
-Hoje esse pipeline roda fora do app (script local `npm run insights:import`).
-
-### C7. Dívida de segurança que sobrou
-- ~16 views do Insights com `SECURITY DEFINER` (ERROR no linter). As views novas (`045`/`046`) já usam `security_invoker`.
-- 2 policies `ALL USING(true)` de escrita em `alwayson_distribuidor_produto_de_para` e `alwayson_insights_produto_de_para` — apertar para `current_user_is_admin()`.
-- Proteção de senha vazada (HaveIBeenPwned) desligada no Auth.
-
-### C8. Zero testes automatizados
-Nenhum vitest/jest. As regras que mais doeriam se quebrassem em silêncio: escopo de acesso (o `E` do KAM), cobertura/positivação, rollup editável de metas.
-
-### C9. Decisão em aberto — `DistribuidorTab`
-O KPI de topo lê `useMetas()` (metas de **todos** os distribuidores) e pega a primeira que casa. Com um distribuidor só, tanto faz; com o segundo, mostra a meta de um arbitrário. É decisão de produto: somar as metas dos distribuidores ou mostrar a de um selecionado?
+### 3.10 Quem cura a lista estratégica?
+A escrita territorial (`distribuidor_id IS NULL`) é só de admin; a escrita com distribuidor segue o escopo do KAM (migration `061`). Se o KAM tiver de montar a lista territorial também, é a policy `alwayson_clientes_estrategicos_insert_escopo` que muda.
 
 ---
 
-## D. Armadilhas que já custaram caro
+## 4. Armadilhas que já custaram caro
 
-Registradas aqui porque não são óbvias lendo o código.
+Registadas aqui porque não são óbvias lendo o código.
 
-1. **Adicionar papel exige três lugares:** enum do Postgres, tipo TS **e** o array de `isRole` na Edge Function. Só os dois primeiros não basta — a validação é em runtime.
+1. **Adicionar papel exige três lugares:** enum do Postgres, tipo TS **e** o array de `isRole` na Edge Function. Os dois primeiros não bastam — a validação é em runtime.
 2. **O `E` do KAM depende de um `NOT EXISTS`:** em `current_user_fornecedores_visiveis()`, o bloco que impede a expansão do conjunto para quem já pertence a um fornecedor. Removê-lo transforma o `E` em `OU` silenciosamente.
 3. **Metas: leia pela view, nunca pela tabela.** `valor_realizado` e `percentual_atingimento` não são colunas — são derivados em `alwayson_metas_v_acompanhamento`.
 4. **Tabela nova com os dois eixos precisa do trigger de carimbo** (`fn_alwayson_default_fornecedor_por_distribuidor`), senão a linha nasce com fornecedor NULL e fica invisível a não-admin.
-5. **Insights ≠ operação corrente.** É o histórico fechado (jan/2022–dez/2024) da operação anterior. Cruzar com a carteira de um parceiro **não** produz "clientes a conquistar".
+5. **PostgREST corta em 1.000 linhas e `.limit()` não ultrapassa.** `db-max-rows` é 1.000 no Supabase: a API devolve 1.000 com status 200, sem erro. A lista estratégica ficou truncada assim, mostrando 1.000 de 1.327 sem nenhum sinal. Qualquer consulta que possa passar de 1.000 tem de paginar com `.range()` em blocos.
+6. **Índices parciais exigem repetir o predicado no `ON CONFLICT`.** Vale para metas (`WHERE vendedor_id IS NOT NULL`) e para a lista estratégica (`WHERE distribuidor_id IS NULL`). Sem isso, `42P10`.
+7. **Insights ≠ operação corrente.** É o histórico fechado (jan/2022–dez/2024) da operação anterior. Cruzar com a carteira de um parceiro **não** produz "clientes a conquistar".
+8. **A restrição do relatório de terceiro vale para o vocabulário, não só para o texto.** Ver secção 5.
+
+---
+
+## 5. Restrição contratual do relatório de terceiro ⚠️ não regredir
+
+A lista estratégica nasceu de um relatório de mercado de **provedor externo**. Por contrato, **nem as métricas dele (share, volume por marca, gap, oportunidade) nem o nome do provedor entram na plataforma** — e "plataforma" inclui **este repositório, que é público**: não em coluna, não em observação, não em nome de ficheiro, não em mensagem de commit.
+
+Quatro decisões sustentam isso, e todas são fáceis de desfazer sem perceber:
+
+1. **O nome do PDV não é armazenado.** A view `alwayson_clientes_estrategicos_v_lista` resolve-o na leitura por fonte pública (carteira → Receita Federal via `alwayson_pdv_universo` → histórico territorial). **626 dos 1.327 ficam sem nome** porque nenhuma dessas fontes os tem — é o preço, e é intencional. "Resolver" isso importando o nome da planilha quebra a restrição.
+2. **A carga foi ordenada por CNPJ, não pela ordem da planilha.** A planilha vem por volume decrescente; inserir nessa ordem tornaria o ranking recuperável por `adicionado_em` ou ordem física. Toda recarga futura deve reordenar igual.
+3. **O provedor não é um valor de `origem`.** A migration `052` tinha-o deixado no CHECK, ou seja, disponível como classificador no seletor da interface. A `063` tirou-o: uma lista vinda de relatório de terceiro entra como `potencial`.
+4. **O `motivo` diz por que o PDV importa, não de onde veio.**
