@@ -12,11 +12,11 @@ Não é um BI de consulta: é o instrumento de trabalho de quem gere a rede de p
 
 ## Fase 1 — Plataforma de apoio à equipe de vendas e gestão (atual)
 
-**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Clientes + Cliente Detalhe, Estoque, Ingestão, Clientes Estratégicos (lista curada, migration 052), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
+**Já entregue:** Dashboard, Performance (hierarquia de vendedores), Metas, Clientes + Cliente Detalhe, Estoque, Ingestão, Clientes Estratégicos (lista curada — 1.327 CNPJs carregados), Explorar (PDV, piloto Petrolina), e o módulo mais maduro — **Insights** (sell-out territorial: ~49k NFs, redes de loja, per capita por cidade via IBGE, de-para de produto) com a Ponte Performance↔Insights (badge + comparativo sell-in × sell-out por CNPJ).
 
 ### O que depende de carga e o que depende de engenharia
 
-> **Contexto de leitura:** em 2026-08-01 havia **um único upload, de um único distribuidor** (`FORNECEDOR 38496_PARATY.xls`, tipo `vendas`, ref. 2026-05). Os números abaixo são desse estágio inicial — não são conclusão estrutural. A carga em volume estava começando.
+> **Contexto de leitura:** em 2026-08-05 há **3 uploads, de 1 distribuidor, todos do tipo `vendas`**, cobrindo 1 mês. Os números abaixo são desse estágio inicial — não são conclusão estrutural. Reconfira o volume atual antes de tirar conclusões.
 
 **1. Histórico — resolve-se sozinho com a carga.** Todo o sell-in está em um único mês (2026-05) simplesmente porque só um arquivo subiu. À medida que os meses entram, a série aparece. O que *é* estrutural aqui: a Performance é single-month por construção (`usePerfFilters`: *"Mês de análise (YYYY-MM) — início e fim são sempre iguais"*), então a tela de tendência é trabalho de engenharia que só faz sentido **depois** que houver meses no banco.
 
@@ -31,7 +31,7 @@ Com a base carregada pelo template certo, **cobertura = clientes distintos que c
 **a) Carga: base de clientes junto com as vendas (desbloqueia tudo)**
 - Para cada distribuidor, subir o template **`clientes`** com a carteira completa — não só os arquivos de `vendas`. É o que cria o denominador.
 - Ordem recomendada: `clientes` antes de `vendas`, para o cliente já nascer com o vendedor responsável correto em vez de ser criado como efeito colateral da nota.
-- Tela de gestão de carteira no cadastro do distribuidor: ver e reatribuir clientes por vendedor (hoje não existe).
+- ✅ Tela de gestão de carteira já existe em `/parceiros/:id/hierarquia` — serve à correção pontual; a carga da base continua pelo template `clientes`.
 
 **b) Histórico (carga retroativa + carteira versionada)**
 - Carregar os meses retroativos de sell-in — pré-requisito de dado.
@@ -44,7 +44,7 @@ Com a base carregada pelo template certo, **cobertura = clientes distintos que c
 A decisão de produto mudou o conceito, não só o nome: sai "plano de excelência com critérios", entra **lista curada e manual**. É uma lista avulsa que o time preenche à mão — cada cliente entra com **o seu próprio motivo**, e passa a ser acompanhado em rota dedicada (`/clientes-estrategicos`).
 
 O que ficou no ar:
-- `alwayson_clientes_estrategicos` (ex-`excelencia_clientes`) ganhou `motivo`, `origem` (indicação, decisão comercial, rede, potencial), `prioridade`, `observacao` e autoria — e policies de escrita admin, com UI de adicionar/editar/remover.
+- `alwayson_clientes_estrategicos` (ex-`excelencia_clientes`) ganhou `motivo`, `origem` (indicação, decisão comercial, rede, potencial), `prioridade`, `observacao` e autoria, com UI de adicionar/editar/remover. A migration `062` foi além: a chave passou a ser o **CNPJ**, então a lista aceita alvo que ainda não é cliente de ninguém — é o que permitiu carregar os 1.327.
 - `alwayson_clientes_estrategicos_config` (ex-`excelencia_config`) e `_criterios` continuam sendo a camada de **acompanhamento**, opcional por cima da lista. A lista existe e vale sem nenhum critério.
 
 O que segue aberto — e é onde o antigo diagnóstico continua válido: **`realizado` não tem dono**. Digitado à mão, vira subjetivo e ninguém mantém. A virada é classificar o critério por **natureza**:
@@ -71,10 +71,10 @@ O CHECK de `alwayson_metas_distribuidor.tipo` é, na prática, a declaração do
 
 | `tipo` | Estado hoje |
 |--------|-------------|
-| `faturamento` | ✅ funciona — sell-in já carregado |
+| `faturamento` | ✅ funciona — 130 metas cadastradas sobre 1 mês de sell-in |
 | `positivacao` | ❌ depende do denominador (template `clientes`) — sem carteira, positivação não é calculável |
 | `mix` | ⚠️ dado existe (`faturamento_itens` + `produtos`), falta o cálculo por cliente/período |
-| `clientes_estrategicos` | ⚠️ UI de escrita da lista entregue (migration `052`) — falta popular a lista |
+| `clientes_estrategicos` | ⚠️ lista populada (1.327 CNPJs) — falta a curadoria e os critérios de acompanhamento |
 
 E `hierarquia` (`vendedor` \| `supervisor` \| `gerente` \| `distribuidor`) espelha exatamente o rollup que a hierarquia já suporta. Ou seja: **a tabela de metas já é o mapa do que falta** — três dos quatro tipos dependem de itens (a) e (c) acima.
 
