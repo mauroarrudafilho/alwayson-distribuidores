@@ -57,7 +57,7 @@ Segredos esperados: `RESEND_API_KEY`, `RESEND_FROM` (remetente verificado), `APP
 | Template **`clientes`** | Ingestão | ⚠️ **O mais bloqueante.** Os 3 uploads são todos de `vendas`, então os 410 clientes nasceram como efeito colateral das notas — cobertura e positivação dão 100% por construção, e assim ficam por mais meses que entrem. Só este template cria o denominador |
 | Sell-in retroativo (12–24 meses) | Ingestão | Há **1 mês** no banco. Sem série não há tendência, e a Performance é single-month por construção |
 | Cidades de atuação | `/parceiros/:id` | **1 cidade** cadastrada. Destrava população coberta, potencial demonstrado e a régua da positivação |
-| Curadoria da lista estratégica | `/clientes-estrategicos` | Os 1.327 entraram com `prioridade = media` e o mesmo motivo genérico. Refinar por praça e decidir quais viram alvo comercial de facto — é aqui que a lista deixa de ser um despejo e vira ferramenta |
+| Decidir o que fazer com a classe A | `/clientes-estrategicos` | A curva ABC por UF já separou 303 A · 468 B · 556 C (migration `064`). O passo que falta é comercial, não técnico: dos 303 de classe A, quais viram alvo de facto, com que parceiro e em que prazo |
 | Critérios de acompanhamento | — | **0 configurados**, e não há UI de escrita (ver 3.2) |
 
 ---

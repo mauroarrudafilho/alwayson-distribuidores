@@ -22,10 +22,8 @@ import {
   useSalvarClienteEstrategico,
 } from '@/hooks/useClientesEstrategicos'
 import {
-  ORIGENS_ESTRATEGICAS,
   PRIORIDADES,
   type ClienteEstrategicoLinha,
-  type OrigemEstrategica,
   type PrioridadeEstrategica,
 } from '@/types/clientes-estrategicos'
 import { formatCnpj } from '@/lib/format'
@@ -44,8 +42,8 @@ interface Props {
  * que ainda ninguém atende. Se o CNPJ já existir em alguma carteira, o gatilho
  * do banco liga-o sozinho — aqui não é preciso escolher cliente.
  *
- * O outro campo que importa é o **motivo**: a lista só tem valor se cada CNPJ
- * carregar a razão pela qual entrou.
+ * `prioridade` na carga em massa vem da curva ABC por UF; num CNPJ adicionado
+ * à mão é escolha de quem cadastra — a régua não se aplica a um caso isolado.
  *
  * Montado só quando aberto (ver a página), então o estado inicial sai direto
  * dos props — sem `useEffect` de sincronização.
@@ -56,8 +54,6 @@ export function ClienteEstrategicoDialog({ open, onOpenChange, registro }: Props
   const [cnpj, setCnpj] = useState<string>(registro?.cnpj ?? '')
   const [cidade, setCidade] = useState<string>(registro?.cidade_exibicao ?? '')
   const [estado, setEstado] = useState<string>(registro?.estado_exibicao ?? '')
-  const [motivo, setMotivo] = useState<string>(registro?.motivo ?? '')
-  const [origem, setOrigem] = useState<OrigemEstrategica | ''>(registro?.origem ?? '')
   const [prioridade, setPrioridade] = useState<PrioridadeEstrategica>(
     registro?.prioridade ?? 'media'
   )
@@ -72,10 +68,6 @@ export function ClienteEstrategicoDialog({ open, onOpenChange, registro }: Props
     if (digitos.length !== 14 && digitos.length !== 11) {
       return setErro('Informe um CNPJ (14 dígitos) ou CPF (11) válido em comprimento.')
     }
-    if (!motivo.trim()) {
-      return setErro('Descreva por que este CNPJ é estratégico — é o que dá sentido à lista.')
-    }
-
     try {
       await salvar.mutateAsync({
         id: registro?.id,
@@ -86,8 +78,6 @@ export function ClienteEstrategicoDialog({ open, onOpenChange, registro }: Props
           distribuidor_id: registro?.distribuidor_id ?? null,
           cidade: cidade.trim() || null,
           estado: estado || null,
-          motivo: motivo.trim(),
-          origem: origem || null,
           prioridade,
           observacao: observacao.trim() || null,
         },
@@ -168,55 +158,25 @@ export function ClienteEstrategicoDialog({ open, onOpenChange, registro }: Props
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">
-              Por que é estratégico? <span className="text-destructive">*</span>
-            </label>
-            <Textarea
-              rows={3}
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Ex.: maior sell-out da categoria na cidade, hoje comprado por concorrente."
-              className="text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">Origem</label>
-              <Select
-                value={origem || undefined}
-                onValueChange={(v) => setOrigem((v ?? '') as OrigemEstrategica | '')}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Opcional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ORIGENS_ESTRATEGICAS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">Prioridade</label>
-              <Select
-                value={prioridade}
-                onValueChange={(v) => setPrioridade((v ?? 'media') as PrioridadeEstrategica)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORIDADES.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <label className="text-xs font-medium">Prioridade</label>
+            <Select
+              value={prioridade}
+              onValueChange={(v) => setPrioridade((v ?? 'media') as PrioridadeEstrategica)}
+            >
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORIDADES.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label} · classe {p.classe}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Na carga em massa a classe vem da curva ABC do estado; aqui é escolha manual.
+            </p>
           </div>
 
           <div className="space-y-1.5">

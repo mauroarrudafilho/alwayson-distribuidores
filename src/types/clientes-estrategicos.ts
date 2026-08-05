@@ -1,43 +1,32 @@
 import type { ClienteDistribuidor } from '@/types/distribuidor'
 
 /**
- * Origem da indicação. Lista fechada (espelha o CHECK da migration 052) porque
- * alimenta filtro — justificativa em texto livre vai em `motivo`/`observacao`.
+ * Prioridade = **curva ABC por UF** (migration 064).
+ *
+ * Não é opinião de quem cadastrou: vem do tamanho relativo do PDV dentro do
+ * próprio estado — A até 50% do volume da UF, B até 80%, C o resto. Calculada
+ * na carga; o volume que a originou **não** é armazenado.
  */
-/**
- * ⚠️ Provedor externo de dado de mercado **não entra aqui** (migration 063):
- * a restrição contratual vale para o classificador, não só para o texto livre.
- * Uma lista vinda de relatório de terceiro entra como `potencial`.
- */
-export const ORIGENS_ESTRATEGICAS = [
-  { value: 'indicacao', label: 'Indicação' },
-  { value: 'decisao_comercial', label: 'Decisão comercial' },
-  { value: 'rede', label: 'Rede / grupo' },
-  { value: 'potencial', label: 'Potencial de território' },
-  { value: 'outro', label: 'Outro' },
-] as const
-
-export type OrigemEstrategica = (typeof ORIGENS_ESTRATEGICAS)[number]['value']
-
 export const PRIORIDADES = [
-  { value: 'alta', label: 'Alta' },
-  { value: 'media', label: 'Média' },
-  { value: 'baixa', label: 'Baixa' },
+  { value: 'alta', label: 'Alta', classe: 'A' },
+  { value: 'media', label: 'Média', classe: 'B' },
+  { value: 'baixa', label: 'Baixa', classe: 'C' },
 ] as const
 
 export type PrioridadeEstrategica = (typeof PRIORIDADES)[number]['value']
-
-export const ORIGEM_LABELS: Record<OrigemEstrategica, string> = Object.fromEntries(
-  ORIGENS_ESTRATEGICAS.map((o) => [o.value, o.label])
-) as Record<OrigemEstrategica, string>
 
 export const PRIORIDADE_LABELS: Record<PrioridadeEstrategica, string> = Object.fromEntries(
   PRIORIDADES.map((p) => [p.value, p.label])
 ) as Record<PrioridadeEstrategica, string>
 
+/** Rótulo da classe ABC — usado onde a régua precisa ficar explícita. */
+export const PRIORIDADE_CLASSE: Record<PrioridadeEstrategica, string> = Object.fromEntries(
+  PRIORIDADES.map((p) => [p.value, p.classe])
+) as Record<PrioridadeEstrategica, string>
+
 /**
- * Uma linha da lista curada. Não é derivada de faturamento: alguém decidiu
- * incluir este cliente e escreveu por quê.
+ * Uma linha da lista curada. A chave é o CNPJ: o alvo pode não ser cliente de
+ * ninguém ainda.
  */
 export interface ClienteEstrategico {
   id: string
@@ -49,9 +38,8 @@ export interface ClienteEstrategico {
   cliente_id: string | null
   cidade: string | null
   estado: string | null
-  motivo: string | null
-  origem: OrigemEstrategica | null
   prioridade: PrioridadeEstrategica
+  /** Único campo de texto — `motivo` e `origem` saíram na migration 064. */
   observacao: string | null
   ativo: boolean
   adicionado_por: string | null
@@ -69,7 +57,7 @@ export type ClienteEstrategicoComCliente = ClienteEstrategico & {
  *
  * Nome e praça são **resolvidos na leitura** a partir de fonte pública
  * (carteira do parceiro, Receita Federal via universo PDV, histórico
- * territorial) — nunca armazenados a partir do relatório de origem.
+ * territorial) — nunca armazenados a partir do relatório que originou a lista.
  */
 export type ClienteEstrategicoLinha = ClienteEstrategico & {
   nome_exibicao: string | null

@@ -5,7 +5,6 @@ import type {
   ClienteEstrategico,
   ClienteEstrategicoLinha,
   CriterioEstrategicoConfig,
-  OrigemEstrategica,
   PrioridadeEstrategica,
 } from '@/types/clientes-estrategicos'
 
@@ -14,10 +13,11 @@ const KEY = 'clientes-estrategicos' as const
 /**
  * Lista curada de clientes estratégicos.
  *
- * É **cadastro manual**, não derivação: cada linha entrou porque alguém decidiu
- * e escreveu o motivo. Por isso a lista existe mesmo sem nenhum critério de
- * acompanhamento configurado — o monitoramento é uma camada por cima, não a
- * condição de existência.
+ * A lista existe mesmo sem nenhum critério de acompanhamento configurado — o
+ * monitoramento é uma camada por cima, não a condição de existência.
+ *
+ * `prioridade` é curva ABC por UF (migration 064), não opinião de quem
+ * cadastrou.
  *
  * Lê pela **view** `_v_lista` (migration 062), não pela tabela: é ela que
  * resolve nome e praça a partir de fonte pública para os CNPJs que ainda não
@@ -147,8 +147,6 @@ export interface ClienteEstrategicoInput {
   distribuidor_id: string | null
   cidade: string | null
   estado: string | null
-  motivo: string
-  origem: OrigemEstrategica | null
   prioridade: PrioridadeEstrategica
   observacao: string | null
 }
@@ -177,10 +175,10 @@ export function useSalvarClienteEstrategico() {
         const { data, error } = await supabase
           .from('alwayson_clientes_estrategicos')
           .update({
-            motivo: valores.motivo,
-            origem: valores.origem,
             prioridade: valores.prioridade,
             observacao: valores.observacao,
+            cidade: valores.cidade,
+            estado: valores.estado,
           })
           .eq('id', id)
           .select('*')
@@ -210,8 +208,6 @@ export function useSalvarClienteEstrategico() {
             .update({
               ativo: true,
               removido_em: null,
-              motivo: valores.motivo,
-              origem: valores.origem,
               prioridade: valores.prioridade,
               observacao: valores.observacao,
             })
