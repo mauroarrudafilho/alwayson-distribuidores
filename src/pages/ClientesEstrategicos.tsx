@@ -33,9 +33,8 @@ import {
   useRemoverClienteEstrategico,
 } from '@/hooks/useClientesEstrategicos'
 import {
-  ORIGEM_LABELS,
+  PRIORIDADE_CLASSE,
   PRIORIDADE_LABELS,
-  ORIGENS_ESTRATEGICAS,
   PRIORIDADES,
   type ClienteEstrategicoLinha,
 } from '@/types/clientes-estrategicos'
@@ -66,7 +65,6 @@ export function ClientesEstrategicos() {
   const [uf, setUf] = useState<string>('todas')
   const [situacao, setSituacao] = useState<Situacao>('todas')
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>('todas')
-  const [origemFiltro, setOrigemFiltro] = useState<string>('todas')
   const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(50)
@@ -92,7 +90,6 @@ export function ClientesEstrategicos() {
       if (situacao === 'na_carteira' && !l.na_carteira) return false
       if (situacao === 'fora' && l.na_carteira) return false
       if (prioridadeFiltro !== 'todas' && l.prioridade !== prioridadeFiltro) return false
-      if (origemFiltro !== 'todas' && l.origem !== origemFiltro) return false
       if (termo) {
         const alvo = `${l.nome_exibicao ?? ''} ${l.cidade_exibicao ?? ''}`.toLowerCase()
         const casaTexto = alvo.includes(termo)
@@ -101,7 +98,7 @@ export function ClientesEstrategicos() {
       }
       return true
     })
-  }, [linhas, uf, situacao, prioridadeFiltro, origemFiltro, busca])
+  }, [linhas, uf, situacao, prioridadeFiltro, busca])
 
   // A página corrente pode ficar além do fim quando o filtro encolhe o conjunto.
   const paginaSegura = Math.min(pagina, Math.max(1, Math.ceil(filtradas.length / porPagina)))
@@ -143,7 +140,7 @@ export function ClientesEstrategicos() {
       <PageHeader
         title="Clientes Estratégicos"
         accent="curadoria"
-        description="lista manual — cada CNPJ entra com o seu próprio motivo"
+        description="curva ABC por estado — a prioridade vem do tamanho do PDV na própria praça"
         actions={
           <Button size="sm" onClick={abrirNovo} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" />
@@ -153,19 +150,25 @@ export function ClientesEstrategicos() {
       />
 
       <div className="mb-6">
-        <KPIGrid columns={4}>
+        <KPIGrid columns={5}>
           <KPICard label="Na lista" value={isLoading ? '—' : kpis.total} icon={Users} />
+          <KPICard
+            label="Classe A"
+            value={isLoading ? '—' : kpis.alta}
+            icon={Flame}
+            variant="primary"
+            subtitle="topo do volume da própria UF"
+          />
           <KPICard
             label="Já na carteira"
             value={isLoading ? '—' : kpis.naCarteira}
             icon={Star}
-            variant="primary"
             subtitle="dá para acompanhar faturamento"
           />
           <KPICard
             label="Fora da carteira"
             value={isLoading ? '—' : kpis.fora}
-            icon={Flame}
+            icon={Users}
             subtitle="alvo territorial, ainda não atendido"
           />
           <KPICard
@@ -228,22 +231,7 @@ export function ClientesEstrategicos() {
               <SelectItem value="todas">Todas</SelectItem>
               {PRIORIDADES.map((p) => (
                 <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-        <FilterField label="Origem">
-          <Select value={origemFiltro} onValueChange={comReset<string>(setOrigemFiltro, 'todas')}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas</SelectItem>
-              {ORIGENS_ESTRATEGICAS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+                  {p.classe} · {p.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -288,9 +276,8 @@ export function ClientesEstrategicos() {
                   <TableHead className="min-w-[200px]">PDV</TableHead>
                   <TableHead>Praça</TableHead>
                   <TableHead>Situação</TableHead>
-                  <TableHead className="min-w-[200px]">Motivo</TableHead>
-                  <TableHead>Origem</TableHead>
                   <TableHead>Prioridade</TableHead>
+                  <TableHead className="min-w-[180px]">Observação</TableHead>
                   <TableHead className="w-[80px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -324,21 +311,13 @@ export function ClientesEstrategicos() {
                         <Badge variant="secondary">Fora</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {l.motivo || (
-                        <span className="italic text-muted-foreground/70">sem motivo registado</span>
-                      )}
-                      {l.observacao && (
-                        <p className="mt-0.5 text-[11px] text-muted-foreground/70">{l.observacao}</p>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {l.origem ? ORIGEM_LABELS[l.origem] : '—'}
-                    </TableCell>
                     <TableCell>
                       <Badge variant={PRIORIDADE_VARIANT[l.prioridade] ?? 'secondary'}>
-                        {PRIORIDADE_LABELS[l.prioridade]}
+                        {PRIORIDADE_CLASSE[l.prioridade]} · {PRIORIDADE_LABELS[l.prioridade]}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {l.observacao || '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
