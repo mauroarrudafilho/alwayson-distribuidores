@@ -282,6 +282,9 @@ export function ClientesEstrategicos() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {/* CNPJ é a chave da lista e o que o utilizador confere
+                      primeiro — coluna própria, antes do nome. */}
+                  <TableHead className="w-[170px]">CNPJ</TableHead>
                   <TableHead className="min-w-[200px]">PDV</TableHead>
                   <TableHead>Praça</TableHead>
                   <TableHead>Situação</TableHead>
@@ -294,26 +297,22 @@ export function ClientesEstrategicos() {
               <TableBody>
                 {visiveis.map((l) => (
                   <TableRow key={l.id}>
+                    <TableCell className="tabular-nums text-xs">{formatCnpj(l.cnpj)}</TableCell>
                     <TableCell>
                       {l.cliente_id ? (
                         <Link
                           to={`/clientes/${l.cliente_id}`}
                           className="font-medium text-foreground transition-colors hover:text-primary"
                         >
-                          {l.nome_exibicao || formatCnpj(l.cnpj)}
+                          {l.nome_exibicao || '—'}
                         </Link>
+                      ) : l.nome_exibicao ? (
+                        <span className="font-medium text-foreground">{l.nome_exibicao}</span>
                       ) : (
-                        <span className="font-medium text-foreground">
-                          {l.nome_exibicao || (
-                            <span className="font-normal italic text-muted-foreground">
-                              sem nome em fonte pública
-                            </span>
-                          )}
+                        <span className="text-xs italic text-muted-foreground">
+                          sem nome em fonte pública
                         </span>
                       )}
-                      <p className="text-[11px] tabular-nums text-muted-foreground">
-                        {formatCnpj(l.cnpj)}
-                      </p>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {l.cidade_exibicao ? `${l.cidade_exibicao}/${l.estado_exibicao}` : '—'}

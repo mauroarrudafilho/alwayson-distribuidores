@@ -33,18 +33,32 @@ export function useClientesEstrategicos(
   return useQuery({
     queryKey: [KEY, 'lista', distribuidorId ?? 'todos', includeInativos],
     queryFn: async (): Promise<ClienteEstrategicoLinha[]> => {
-      let query = supabase
-        .from('alwayson_clientes_estrategicos_v_lista')
-        .select('*')
-        .order('estado_exibicao')
-        .order('cidade_exibicao')
-        .order('cnpj')
-        .limit(5000)
-      if (!includeInativos) query = query.eq('ativo', true)
-      if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
-      const { data, error } = await query
-      if (error) throw error
-      return (data ?? []) as ClienteEstrategicoLinha[]
+      // O PostgREST corta em `db-max-rows` (1000 no Supabase) e `.limit()` não
+      // ultrapassa isso — com 1.327 linhas a lista vinha truncada em silêncio.
+      // Só `.range()` em blocos traz o conjunto inteiro.
+      const TAMANHO_BLOCO = 1000
+      const todas: ClienteEstrategicoLinha[] = []
+
+      for (let inicio = 0; ; inicio += TAMANHO_BLOCO) {
+        let query = supabase
+          .from('alwayson_clientes_estrategicos_v_lista')
+          .select('*')
+          .order('estado_exibicao')
+          .order('cidade_exibicao')
+          .order('cnpj')
+          .range(inicio, inicio + TAMANHO_BLOCO - 1)
+        if (!includeInativos) query = query.eq('ativo', true)
+        if (distribuidorId) query = query.eq('distribuidor_id', distribuidorId)
+
+        const { data, error } = await query
+        if (error) throw error
+
+        const bloco = (data ?? []) as ClienteEstrategicoLinha[]
+        todas.push(...bloco)
+        if (bloco.length < TAMANHO_BLOCO) break
+      }
+
+      return todas
     },
   })
 }
@@ -58,13 +72,25 @@ export function useIdsEstrategicos() {
     queryKey: [KEY, 'ids'],
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<Set<string>> => {
-      const { data, error } = await supabase
-        .from('alwayson_clientes_estrategicos')
-        .select('cliente_id')
-        .eq('ativo', true)
-        .not('cliente_id', 'is', null)
-      if (error) throw error
-      return new Set((data ?? []).map((r) => r.cliente_id as string))
+      // Mesmo teto de 1000 do PostgREST — pagina para não truncar em silêncio.
+      const TAMANHO_BLOCO = 1000
+      const ids = new Set<string>()
+
+      for (let inicio = 0; ; inicio += TAMANHO_BLOCO) {
+        const { data, error } = await supabase
+          .from('alwayson_clientes_estrategicos')
+          .select('cliente_id')
+          .eq('ativo', true)
+          .not('cliente_id', 'is', null)
+          .range(inicio, inicio + TAMANHO_BLOCO - 1)
+        if (error) throw error
+
+        const bloco = data ?? []
+        for (const r of bloco) ids.add(r.cliente_id as string)
+        if (bloco.length < TAMANHO_BLOCO) break
+      }
+
+      return ids
     },
   })
 }

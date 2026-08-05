@@ -83,7 +83,7 @@ begin
     alter table public.alwayson_clientes_estrategicos
       add constraint alwayson_clientes_estrategicos_origem_check
       check (origem is null or origem in (
-        'scantech', 'indicacao', 'decisao_comercial', 'rede', 'potencial', 'outro'
+        'indicacao', 'decisao_comercial', 'rede', 'potencial', 'outro'
       ));
   end if;
 end $$;
@@ -93,7 +93,7 @@ comment on table public.alwayson_clientes_estrategicos is
 comment on column public.alwayson_clientes_estrategicos.motivo is
   'Por que ESTE cliente é estratégico. É o campo que dá sentido à lista — sem ele a linha é ruído.';
 comment on column public.alwayson_clientes_estrategicos.origem is
-  'De onde veio a indicação: scantech | indicacao | decisao_comercial | rede | potencial | outro.';
+  'De onde veio a indicação: indicacao | decisao_comercial | rede | potencial | outro.';
 comment on column public.alwayson_clientes_estrategicos.removido_em is
   'Saída da lista é soft (ativo=false + carimbo), para preservar o histórico de curadoria.';
 
