@@ -59,7 +59,7 @@ Segredos esperados: `RESEND_API_KEY`, `RESEND_FROM` (remetente verificado), `APP
 | Cidades de atuação | `/parceiros/:id` | **1 cidade** cadastrada. Destrava população coberta, potencial demonstrado e a régua da positivação |
 | Decidir o que fazer com a classe A | `/clientes-estrategicos` | A curva ABC por UF já separou 303 A · 468 B · 556 C (migration `064`). O passo que falta é comercial, não técnico: dos 303 de classe A, quais viram alvo de facto, com que parceiro e em que prazo |
 | Critérios de acompanhamento | — | **0 configurados**, e não há UI de escrita (ver 3.2) |
-| Geocodificar a lista estratégica ⚠️ | `npm run estrategicos:enrich-geo` | **1.317 dos 1.327 sem coordenada** — o mapa da tela fica quase vazio até isto rodar. O script existe e usa fonte pública (Insights → BrasilAPI); precisa de correr numa máquina com saída para a internet, o que a sessão de agente não tem. `--dry-run` primeiro, depois `--uf PE` para validar antes de soltar nos 9 estados |
+| Geocodificar a lista estratégica | Botão **Completar** em `/clientes-estrategicos` (admin) | **1.317 dos 1.327 sem coordenada** — o mapa fica quase vazio até isto correr. Já **não** depende de máquina com internet: a migration `066` criou a fila (`geo_status`) e a Edge Function `enrich-estrategicos-geo` (v2, ativa) faz Receita/BrasilAPI → geocoder a partir da infra do Supabase, igual ao enriquecimento da dimensão Insights. São ~45 min de lotes encadeados; fechar a aba não perde o que já gravou. O script local `npm run estrategicos:enrich-geo` continua a servir de alternativa em massa |
 
 ---
 

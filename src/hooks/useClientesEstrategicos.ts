@@ -95,6 +95,85 @@ export function useIdsEstrategicos() {
   })
 }
 
+export interface GeoFilaEstrategicos {
+  total: number
+  com_coordenada: number
+  pendentes: number
+  em_processamento: number
+  concluidos: number
+  sem_fonte: number
+  com_erro: number
+}
+
+/** Contadores da fila de geocodificação (migration 066). */
+export function useGeoFilaEstrategicos() {
+  return useQuery({
+    queryKey: [KEY, 'geo-fila'],
+    queryFn: async (): Promise<GeoFilaEstrategicos> => {
+      const { data, error } = await supabase
+        .from('alwayson_clientes_estrategicos_v_geo_fila')
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      return (data ?? {
+        total: 0,
+        com_coordenada: 0,
+        pendentes: 0,
+        em_processamento: 0,
+        concluidos: 0,
+        sem_fonte: 0,
+        com_erro: 0,
+      }) as GeoFilaEstrategicos
+    },
+  })
+}
+
+export interface GeoLoteResultado {
+  ok: boolean
+  error?: string
+  message?: string
+  processed?: number
+  sem_fonte?: number
+  skipped?: number
+  failed?: number
+  requeued?: number
+  fila?: GeoFilaEstrategicos | null
+}
+
+/**
+ * Roda **um lote** do worker `enrich-estrategicos-geo`.
+ *
+ * O lote é curto (a Edge Function tem tecto de tempo e o Nominatim pede ~1s
+ * entre chamadas), por isso quem chama encadeia lotes — ver
+ * `ClientesEstrategicosGeoCard`. A chamada é sempre a mesma; o que muda é o
+ * corpo.
+ */
+export function useRodarLoteGeoEstrategicos() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (
+      body: { limit?: number; uf?: string; cnpj?: string; requeue?: string } = {}
+    ): Promise<GeoLoteResultado> => {
+      const { data, error } = await supabase.functions.invoke<GeoLoteResultado>(
+        'enrich-estrategicos-geo',
+        { body }
+      )
+      if (error) throw new Error(error.message ?? 'Erro ao chamar a Edge Function.')
+      if (!data) throw new Error('Resposta vazia da Edge Function.')
+      if (!data.ok) {
+        const code = data.error ?? 'desconhecido'
+        if (code === 'forbidden') throw new Error('Sem permissão (apenas admin global).')
+        if (code === 'missing_auth') throw new Error('Sessão expirada — entre novamente.')
+        throw new Error(`Função: ${code}`)
+      }
+      return data
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [KEY] })
+    },
+  })
+}
+
 export function useCriteriosEstrategicos(
   distribuidorId?: string,
   includeInativos = false

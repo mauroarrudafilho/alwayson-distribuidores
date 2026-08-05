@@ -7,6 +7,7 @@ import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { ClienteEstrategicoDialog } from '@/components/distribuidor/ClienteEstrategicoDialog'
 import { ClientesEstrategicosMapa } from '@/components/distribuidor/ClientesEstrategicosMapa'
+import { ClientesEstrategicosGeoCard } from '@/components/distribuidor/ClientesEstrategicosGeoCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/contexts/auth'
 import { formatCnpj } from '@/lib/format'
 import {
   useClientesEstrategicos,
@@ -73,6 +75,7 @@ export function ClientesEstrategicos() {
   const [dialogAberto, setDialogAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState<ClienteEstrategicoLinha | null>(null)
 
+  const { isAdmin } = useAuth()
   const { data: lista, isLoading } = useClientesEstrategicos()
   const remover = useRemoverClienteEstrategico()
 
@@ -262,6 +265,9 @@ export function ClientesEstrategicos() {
           </Select>
         </FilterField>
       </FilterBar>
+
+      {/* Comando da fila de geo: só admin, e só enquanto houver o que resolver. */}
+      {isAdmin && <ClientesEstrategicosGeoCard />}
 
       {vista === 'mapa' && !isLoading ? (
         <ClientesEstrategicosMapa linhas={filtradas} />
