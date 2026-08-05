@@ -11,7 +11,7 @@ import { ClientesEstrategicosGeoCard } from '@/components/distribuidor/ClientesE
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
   Select,
@@ -66,6 +66,7 @@ const PRIORIDADE_VARIANT: Record<string, 'destructive' | 'warning' | 'secondary'
  */
 export function ClientesEstrategicos() {
   const [uf, setUf] = useState<string>('todas')
+  const [cidade, setCidade] = useState<string>('todas')
   const [situacao, setSituacao] = useState<Situacao>('todas')
   const [prioridadeFiltro, setPrioridadeFiltro] = useState<string>('todas')
   const [busca, setBusca] = useState('')
@@ -86,12 +87,23 @@ export function ClientesEstrategicos() {
     [linhas]
   )
 
+  /** Praças da UF escolhida. Sem UF a lista tem 459 entradas — inútil num select. */
+  const cidades = useMemo(() => {
+    if (uf === 'todas') return [] as string[]
+    return [
+      ...new Set(
+        linhas.filter((l) => l.estado_exibicao === uf).map((l) => l.cidade_exibicao).filter(Boolean)
+      ),
+    ].sort() as string[]
+  }, [linhas, uf])
+
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     const termoDigitos = termo.replace(/\D/g, '')
 
     return linhas.filter((l) => {
       if (uf !== 'todas' && l.estado_exibicao !== uf) return false
+      if (cidade !== 'todas' && l.cidade_exibicao !== cidade) return false
       if (situacao === 'na_carteira' && !l.na_carteira) return false
       if (situacao === 'fora' && l.na_carteira) return false
       if (prioridadeFiltro !== 'todas' && l.prioridade !== prioridadeFiltro) return false
@@ -103,7 +115,7 @@ export function ClientesEstrategicos() {
       }
       return true
     })
-  }, [linhas, uf, situacao, prioridadeFiltro, busca])
+  }, [linhas, uf, cidade, situacao, prioridadeFiltro, busca])
 
   // A página corrente pode ficar além do fim quando o filtro encolhe o conjunto.
   const paginaSegura = Math.min(pagina, Math.max(1, Math.ceil(filtradas.length / porPagina)))
@@ -123,6 +135,29 @@ export function ClientesEstrategicos() {
       setter(v ?? padrao)
       setPagina(1)
     }
+  }
+
+  /** Trocar de UF invalida a cidade escolhida — ela pertence ao estado anterior. */
+  function mudarUf(v: string | null) {
+    setUf(v ?? 'todas')
+    setCidade('todas')
+    setPagina(1)
+  }
+
+  const filtrosAtivos =
+    (busca.trim() ? 1 : 0) +
+    (uf !== 'todas' ? 1 : 0) +
+    (cidade !== 'todas' ? 1 : 0) +
+    (situacao !== 'todas' ? 1 : 0) +
+    (prioridadeFiltro !== 'todas' ? 1 : 0)
+
+  function limparFiltros() {
+    setBusca('')
+    setUf('todas')
+    setCidade('todas')
+    setSituacao('todas')
+    setPrioridadeFiltro('todas')
+    setPagina(1)
   }
 
   function abrirNovo() {
@@ -207,24 +242,29 @@ export function ClientesEstrategicos() {
         </KPIGrid>
       </div>
 
-      <FilterBar columns={4}>
-        <FilterField label="Busca">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
+      {/*
+        Mesma régua das outras telas: a busca ocupa o dobro dos selects (é o
+        filtro que se usa mais), altura h-9 e InputGroup como em /clientes.
+      */}
+      <FilterBar gridClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.7fr)_6.5rem_minmax(0,1fr)_10.5rem_10.5rem]">
+        <FilterField label="Buscar PDV, cidade ou CNPJ" className="min-w-0">
+          <InputGroup className="h-9">
+            <InputGroupAddon>
+              <Search className="h-4 w-4" />
+            </InputGroupAddon>
+            <InputGroupInput
               value={busca}
               onChange={(e) => {
                 setBusca(e.target.value)
                 setPagina(1)
               }}
-              placeholder="Nome, cidade ou CNPJ"
-              className="h-8 pl-8 text-sm"
+              placeholder="Nome, cidade ou CNPJ…"
             />
-          </div>
+          </InputGroup>
         </FilterField>
         <FilterField label="UF">
-          <Select value={uf} onValueChange={comReset<string>(setUf, 'todas')}>
-            <SelectTrigger className="h-8 text-sm">
+          <Select value={uf} onValueChange={mudarUf}>
+            <SelectTrigger className="h-9 w-full text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -237,9 +277,31 @@ export function ClientesEstrategicos() {
             </SelectContent>
           </Select>
         </FilterField>
+        {/* 459 praças no total — a lista só fica utilizável recortada por UF. */}
+        <FilterField label="Cidade" className="min-w-0">
+          <Select
+            value={cidade}
+            onValueChange={comReset<string>(setCidade, 'todas')}
+            disabled={uf === 'todas'}
+          >
+            <SelectTrigger className="h-9 w-full text-sm">
+              <SelectValue placeholder="Escolha a UF primeiro">
+                {cidade === 'todas' ? (uf === 'todas' ? 'Escolha a UF' : 'Todas') : cidade}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas</SelectItem>
+              {cidades.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
         <FilterField label="Situação">
           <Select value={situacao} onValueChange={comReset<Situacao>(setSituacao, 'todas')}>
-            <SelectTrigger className="h-8 text-sm">
+            <SelectTrigger className="h-9 w-full text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -251,7 +313,7 @@ export function ClientesEstrategicos() {
         </FilterField>
         <FilterField label="Prioridade">
           <Select value={prioridadeFiltro} onValueChange={comReset<string>(setPrioridadeFiltro, 'todas')}>
-            <SelectTrigger className="h-8 text-sm">
+            <SelectTrigger className="h-9 w-full text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -265,6 +327,20 @@ export function ClientesEstrategicos() {
           </Select>
         </FilterField>
       </FilterBar>
+
+      {filtrosAtivos > 0 && (
+        <div className="-mt-4 mb-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            <span className="font-medium text-foreground">
+              {filtradas.length.toLocaleString('pt-BR')}
+            </span>{' '}
+            de {linhas.length.toLocaleString('pt-BR')} CNPJs
+          </span>
+          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={limparFiltros}>
+            Limpar filtros
+          </Button>
+        </div>
+      )}
 
       {/* Comando da fila de geo: só admin, e só enquanto houver o que resolver. */}
       {isAdmin && <ClientesEstrategicosGeoCard />}
