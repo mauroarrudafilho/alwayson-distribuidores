@@ -16,6 +16,7 @@
     "insights:enrich-geo": "node scripts/enrich-insights-nf-geo.mjs",
     "insights:sync-ibge-populacao": "node scripts/sync-ibge-populacao.mjs",
     "insights:deploy-process-worker": "supabase functions deploy process-insights-pendentes --project-ref osukbalwykbqvoumddxz",
+    "estrategicos:deploy-geo-worker": "supabase functions deploy enrich-estrategicos-geo --project-ref osukbalwykbqvoumddxz",
     "admin:deploy-invite-fn": "supabase functions deploy admin-invite-user --project-ref osukbalwykbqvoumddxz",
     "auth:deploy-recuperar-fn": "supabase functions deploy auth-recuperar-senha --project-ref osukbalwykbqvoumddxz --no-verify-jwt",
     "auth:deploy-email-fns": "npm run admin:deploy-invite-fn && npm run auth:deploy-recuperar-fn",
