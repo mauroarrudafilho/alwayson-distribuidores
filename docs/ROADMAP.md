@@ -44,7 +44,7 @@ Com a base carregada pelo template certo, **cobertura = clientes distintos que c
 A decisão de produto mudou o conceito, não só o nome: sai "plano de excelência com critérios", entra **lista curada e manual**. É uma lista avulsa que o time preenche à mão — cada cliente entra com **o seu próprio motivo**, e passa a ser acompanhado em rota dedicada (`/clientes-estrategicos`).
 
 O que ficou no ar:
-- `alwayson_clientes_estrategicos` (ex-`excelencia_clientes`) ganhou `motivo`, `origem` (Scantech, indicação, decisão comercial, rede, potencial), `prioridade`, `observacao` e autoria — e policies de escrita admin, com UI de adicionar/editar/remover.
+- `alwayson_clientes_estrategicos` (ex-`excelencia_clientes`) ganhou `motivo`, `origem` (indicação, decisão comercial, rede, potencial), `prioridade`, `observacao` e autoria — e policies de escrita admin, com UI de adicionar/editar/remover.
 - `alwayson_clientes_estrategicos_config` (ex-`excelencia_config`) e `_criterios` continuam sendo a camada de **acompanhamento**, opcional por cima da lista. A lista existe e vale sem nenhum critério.
 
 O que segue aberto — e é onde o antigo diagnóstico continua válido: **`realizado` não tem dono**. Digitado à mão, vira subjetivo e ninguém mantém. A virada é classificar o critério por **natureza**:

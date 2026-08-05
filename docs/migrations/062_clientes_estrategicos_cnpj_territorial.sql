@@ -1,6 +1,6 @@
 -- 062 — a lista estratégica aceita CNPJ que ainda não é cliente de ninguém.
 --
--- Motivo: a primeira carga real (corte 80/20 da Scantech, jan–jun/2026) traz
+-- Motivo: a primeira carga real (corte de mercado do 1º semestre/2026) traz
 -- 1.327 CNPJs em 9 UFs. Só 57 estão na carteira do único parceiro cadastrado.
 -- O valor do corte está justamente nos outros: lojas de alto volume que ainda
 -- **não** atendemos. Com `cliente_id` e `distribuidor_id` obrigatórios, 96% da

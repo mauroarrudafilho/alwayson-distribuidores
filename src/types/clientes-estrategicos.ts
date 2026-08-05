@@ -4,8 +4,12 @@ import type { ClienteDistribuidor } from '@/types/distribuidor'
  * Origem da indicação. Lista fechada (espelha o CHECK da migration 052) porque
  * alimenta filtro — justificativa em texto livre vai em `motivo`/`observacao`.
  */
+/**
+ * ⚠️ Provedor externo de dado de mercado **não entra aqui** (migration 063):
+ * a restrição contratual vale para o classificador, não só para o texto livre.
+ * Uma lista vinda de relatório de terceiro entra como `potencial`.
+ */
 export const ORIGENS_ESTRATEGICAS = [
-  { value: 'scantech', label: 'Scantech' },
   { value: 'indicacao', label: 'Indicação' },
   { value: 'decisao_comercial', label: 'Decisão comercial' },
   { value: 'rede', label: 'Rede / grupo' },
