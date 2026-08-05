@@ -21,6 +21,7 @@
     "auth:deploy-email-fns": "npm run admin:deploy-invite-fn && npm run auth:deploy-recuperar-fn",
     "insights:enrich-geo:cidades": "node scripts/enrich-insights-nf-geo.mjs --last-upload --no-nominatim",
     "clientes:enrich-geo": "node scripts/backfill-cliente-carteira-geo.mjs",
+    "estrategicos:enrich-geo": "node scripts/backfill-clientes-estrategicos-geo.mjs",
     "insights:delete-cliente": "node scripts/delete-insights-cliente.mjs",
     "insights:delete-upload-arquivo": "node scripts/delete-insights-upload-by-arquivo.mjs",
     "db:migrate": "node scripts/apply-migrations.mjs",

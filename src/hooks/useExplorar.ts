@@ -125,6 +125,26 @@ export function useExplorarPrioridade(
         for (const v of data ?? []) vendedorMap.set(v.id, v.nome)
       }
 
+      // Cruzamento com a lista curada: o Explorar mostra potencial estimado,
+      // a lista estratégica mostra decisão comercial. Onde os dois batem, é o
+      // alvo mais defensável da praça.
+      const estrategicos = new Map<string, 'alta' | 'media' | 'baixa'>()
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('alwayson_clientes_estrategicos')
+          .select('cnpj, prioridade')
+          .eq('ativo', true)
+          .range(from, from + 999)
+        if (error) throw error
+        for (const r of data ?? []) {
+          estrategicos.set(
+            normalizaCnpj(r.cnpj as string),
+            r.prioridade as 'alta' | 'media' | 'baixa'
+          )
+        }
+        if (!data || data.length < 1000) break
+      }
+
       const rows: PdvPrioridadeRow[] = []
 
       for (const u of universo) {
@@ -161,6 +181,8 @@ export function useExplorarPrioridade(
             atendido: true,
             faixa: score.faixa,
             segmento_cnae: segmentoCnae,
+            estrategico: estrategicos.has(u.cnpj),
+            estrategico_prioridade: estrategicos.get(u.cnpj) ?? null,
           })
           continue
         }
@@ -182,6 +204,8 @@ export function useExplorarPrioridade(
           atendido: false,
           faixa: score.faixa,
           segmento_cnae: segmentoCnae,
+          estrategico: estrategicos.has(u.cnpj),
+          estrategico_prioridade: estrategicos.get(u.cnpj) ?? null,
         })
       }
 
