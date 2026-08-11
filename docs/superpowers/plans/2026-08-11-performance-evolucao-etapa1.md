@@ -378,8 +378,16 @@ export function calcularJanela(janela: JanelaMeses, hoje: Date = new Date()): Ja
 }
 
 /**
- * Devolve null quando não há contraparte — para jan/2025 não existe 2024 no
- * banco, e a tela mostra a variação vazia em vez de inventar um número.
+ * Devolve null quando a janela inteira é anterior à série — aí não há nada com
+ * o que comparar.
+ *
+ * ⚠️ NÃO limite o início a PRIMEIRO_MES_SERIE aqui. A janela de comparação tem
+ * de ter **exatamente o mesmo tamanho da base**, porque o gráfico alinha
+ * posição a posição: `base.meses[i]` contra `comparacao.meses[i]`. Se o início
+ * for cortado, a comparação encurta e todo o pareamento desliza — ago/2025
+ * passaria a ser comparado com jan/2025 em vez de ago/2024, produzindo números
+ * plausíveis e errados. Meses anteriores à série simplesmente não devolvem
+ * linha, e a tela mostra vazio: é o comportamento desenhado.
  */
 export function calcularComparacao(base: Janela, modo: ComparacaoModo): Janela | null {
   if (modo === 'nenhum') return null
@@ -391,8 +399,7 @@ export function calcularComparacao(base: Janela, modo: ComparacaoModo): Janela |
   const fim = somarMeses(base.fim, deslocamento)
   if (fim < PRIMEIRO_MES_SERIE) return null
 
-  const inicioLimitado = inicio < PRIMEIRO_MES_SERIE ? PRIMEIRO_MES_SERIE : inicio
-  return { inicio: inicioLimitado, fim, meses: intervalo(inicioLimitado, fim) }
+  return { inicio, fim, meses: intervalo(inicio, fim) }
 }
 ```
 
@@ -414,7 +421,9 @@ import { calcularJanela, calcularComparacao } from './src/lib/janela-periodo'
 const hoje = new Date('2026-08-11T12:00:00Z')
 const j = calcularJanela(12, hoje)
 console.log('janela  ', j.inicio, '->', j.fim, '|', j.meses.length, 'meses')
-console.log('ano ant ', JSON.stringify(calcularComparacao(j, 'ano_anterior')?.inicio))
+const c = calcularComparacao(j, 'ano_anterior')
+console.log('ano ant ', c?.inicio, '->', c?.fim, '|', c?.meses.length, 'meses')
+console.log('mesmo tamanho?', c?.meses.length === j.meses.length)
 const inteira = calcularJanela(0, hoje)
 console.log('inteira ', inteira.inicio, '->', inteira.fim, '|', inteira.meses.length)
 console.log('sem par ', calcularComparacao({inicio:'2025-01',fim:'2025-01',meses:['2025-01']}, 'ano_anterior'))
@@ -425,12 +434,17 @@ Esperado, exatamente:
 
 ```
 janela   2025-08 -> 2026-07 | 12 meses
-ano ant  "2025-01"
+ano ant  2024-08 -> 2025-07 | 12 meses
+mesmo tamanho? true
 inteira  2025-01 -> 2026-07 | 19
 sem par  null
 ```
 
-A janela **termina em 2026-07**, não em 2026-08 — é o comportamento correto: agosto está em curso. E a comparação de jan/2025 devolve `null`, não zero.
+Três coisas a conferir aqui, e a terceira é a que já falhou uma vez:
+
+1. A janela **termina em 2026-07**, não em 2026-08 — agosto está em curso.
+2. A comparação de jan/2025 devolve `null`, não zero.
+3. **`mesmo tamanho? true`.** A comparação começa em **2024-08**, antes da série existir, e isso é correto: ela tem de ter o mesmo tamanho da base para o alinhamento posicional do gráfico funcionar. Meses sem dado não devolvem linha e aparecem vazios. Se este valor vier `false`, o clamp voltou.
 
 Se `npx tsx` não estiver disponível, troque por um `console.log` temporário dentro de um componente e leia no browser.
 
