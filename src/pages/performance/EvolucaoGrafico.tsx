@@ -12,6 +12,7 @@ import {
 import { formatCurrency } from '@/lib/format'
 import { calcularComparacao, calcularJanela } from '@/lib/janela-periodo'
 import { useFaturamentoMensal } from '@/hooks/useFaturamentoMensal'
+import { useMetas } from '@/hooks/useMetas'
 import {
   InsightsChartCard,
   CHART_AXIS_TICK,
@@ -42,6 +43,24 @@ export function EvolucaoGrafico() {
     filters.distribuidorId,
     comparacao ?? janela
   )
+  const { data: metasTodas = [] } = useMetas()
+
+  // `useMetas()` devolve todas as metas, de todos os tipos e distribuidores —
+  // filtragem é sempre por conta de quem chama. Aqui o gráfico é R$ de
+  // faturamento, então só entra tipo=faturamento e hierarquia=distribuidor
+  // (nível de topo): somar os outros níveis juntos contaria a mesma meta
+  // várias vezes, porque supervisor/gerente têm rollup a partir dos
+  // vendedores (migration 045).
+  const metaPorMes = useMemo(() => {
+    const out = new Map<string, number>()
+    for (const m of metasTodas) {
+      if (m.tipo !== 'faturamento' || m.hierarquia !== 'distribuidor') continue
+      if (filters.distribuidorId && m.distribuidor_id !== filters.distribuidorId) continue
+      const mesChave = m.periodo_inicio.slice(0, 7)
+      out.set(mesChave, (out.get(mesChave) ?? 0) + m.valor_meta)
+    }
+    return out
+  }, [metasTodas, filters.distribuidorId])
 
   const dados = useMemo(() => {
     // Alinha por posição: o i-ésimo mês da janela contra o i-ésimo da
@@ -59,9 +78,12 @@ export function EvolucaoGrafico() {
         mes: rotuloMes(mes),
         atual: linhaAtual?.faturamento ?? 0,
         anterior: linhaAnterior?.faturamento ?? null,
+        meta: metaPorMes.get(mes) ?? null,
       }
     })
-  }, [janela, comparacao, atual, anterior])
+  }, [janela, comparacao, atual, anterior, metaPorMes])
+
+  const temMeta = dados.some((d) => d.meta !== null)
 
   return (
     <InsightsChartCard title="Faturamento mês a mês" height={280} className="mb-4">
@@ -81,7 +103,7 @@ export function EvolucaoGrafico() {
               fontSize: 12,
             }}
           />
-          {comparacao ? (
+          {comparacao || temMeta ? (
             <Legend
               iconType="circle"
               wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
@@ -109,6 +131,16 @@ export function EvolucaoGrafico() {
             stroke={INSIGHTS_CHART_COLORS[0]}
             strokeWidth={2}
             dot={{ r: 4 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="meta"
+            name="Meta"
+            stroke={INSIGHTS_CHART_COLORS[2]}
+            strokeWidth={1.5}
+            strokeDasharray="2 3"
+            dot={{ r: 3 }}
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>
