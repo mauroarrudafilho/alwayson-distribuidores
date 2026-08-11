@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { EvolucaoResumo } from './EvolucaoResumo'
+import { EvolucaoGrafico } from './EvolucaoGrafico'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import {
   useAllFaturamentoSales,
@@ -58,6 +59,8 @@ export function DistribuidorTab() {
   return (
     <div className="space-y-6 mt-4">
       <EvolucaoResumo />
+
+      <EvolucaoGrafico />
 
       <Card>
         <Table>
