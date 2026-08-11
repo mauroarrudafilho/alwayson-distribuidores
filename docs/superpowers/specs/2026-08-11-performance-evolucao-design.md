@@ -181,7 +181,7 @@ passam a somar positivados entre meses e inflam a carteira.
 | Somar `clientes_positivados` entre vendedores infla o total | `GROUPING SETS`; total do distribuidor nunca derivado da soma |
 | View sem `security_invoker` fura o escopo por tenant | Espelhar `alwayson_metas_v_acompanhamento` |
 | Linha sem `fornecedor_tenant_id` some para não-admin | Os dois eixos na view; trigger da `050` já cobre a origem |
-| Mês corrente parcial lido como queda | Marcar o mês em curso como incompleto na série |
+| Mês corrente parcial lido como queda | A janela fecha no **último mês completo**; o mês em curso não entra. Resolve na origem em vez de depender de o leitor notar uma marcação |
 | Janela de 24 meses reintroduzir lentidão | A série vem da view; o row-level só carrega no drill-down de um mês |
 
 ## Critérios de sucesso
