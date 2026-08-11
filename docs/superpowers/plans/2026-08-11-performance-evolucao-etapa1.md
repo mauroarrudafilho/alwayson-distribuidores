@@ -31,6 +31,10 @@
 | `src/lib/janela-periodo.ts` (criar) | Cálculo de janela e do par de comparação — puro, sem React |
 | `src/pages/performance/usePerfFilters.ts` (modificar) | `janela` e `comparar` na URL; `periodoInicio/Fim` derivados |
 | `src/pages/Performance.tsx` (modificar) | Filtros `JANELA` e `COMPARAR COM` |
+| `src/lib/cliente-faturamento-resumo.ts` (modificar) | Builder aceita intervalo em vez de mês |
+| `src/components/cliente/ClienteResumoModal.tsx` (modificar) | Prop `periodo` (intervalo) e rótulos "do período" |
+| `src/pages/performance/ClienteTab.tsx` (modificar) | Repassa o intervalo ao modal |
+| `src/pages/ClientesBusca.tsx` (modificar) | Ajuste da chamada ao modal, sem mudar comportamento |
 | `src/pages/performance/EvolucaoResumo.tsx` (criar) | Faixa de topo com variação |
 | `src/pages/performance/EvolucaoGrafico.tsx` (criar) | Série com o ano anterior sobreposto |
 | `src/pages/performance/DistribuidorTab.tsx` (modificar) | Montar os dois componentes novos acima da tabela |
@@ -741,15 +745,59 @@ E ajuste o `gridClassName` do `FilterBar` para acomodar o campo a mais:
 
 Os dois `SelectValue` recebem rótulo explícito de propósito — sem ele o Radix cai no fallback do value bruto, que é a regra do `CLAUDE.md`.
 
-- [ ] **Step 4: Verificar tipos**
+- [ ] **Step 4: Converter o modal de cliente para intervalo**
+
+`ClienteTab` repassa `periodoMes` ao `ClienteResumoModal`, que filtra NFs de um mês e rotula "NFs do mês". Sem `periodoMes` isso não compila — e mostrar um mês num painel de 12 seria incoerente. Decisão tomada com o utilizador em 2026-08-11: **o modal passa a aceitar intervalo**.
+
+O encanamento já existe e não deve ser reinventado: `useClienteMixLocal` já aceita `string | { inicio, fim }` (`src/hooks/useClienteMixLocal.ts:24-36`) e `computeHighlightMonths` já recebe `{ inicio?, fim? }` (`src/lib/insights-highlight-months.ts:10`). São só três arquivos a ajustar.
+
+Em `src/lib/cliente-faturamento-resumo.ts`, generalize o builder:
+
+```ts
+export function buildClienteFatResumoFromFaturamentos(
+  faturamentos: { data_emissao: string; valor_total?: number }[],
+  periodo?: { inicio: string; fim: string }
+): ClienteFatResumo {
+  const periodoInicio = periodo?.inicio
+  const periodoFim = periodo?.fim
+  const periodoRows =
+    periodo != null
+      ? faturamentos.filter(
+          (f) =>
+            f.data_emissao >= monthStart(periodo.inicio) &&
+            f.data_emissao <= monthEnd(periodo.fim)
+        )
+      : faturamentos
+  // …resto do corpo inalterado
+```
+
+Em `src/components/cliente/ClienteResumoModal.tsx`:
+
+- Troque a prop `periodoMes?: string` por `periodo?: { inicio: string; fim: string }` na interface `Props` e na desestruturação.
+- Onde havia `periodoMes ? X : Y`, use `periodo ? X : Y`.
+- Onde havia `monthStart(periodoMes)` / `monthEnd(periodoMes)`, use `monthStart(periodo.inicio)` / `monthEnd(periodo.fim)`.
+- `useClienteMixLocal(cliente?.cnpj, open && !!cliente, periodoMes)` passa a receber `periodo` — o hook já aceita o objeto, sem mudança nele.
+- `computeHighlightMonths(periodoMes ? { inicio: periodoMes, fim: periodoMes } : undefined, …)` passa a `computeHighlightMonths(periodo, …)`.
+- **Rótulos:** "NFs do mês" → "NFs do período"; "Mix do mês (agregado)" → "Mix do período (agregado)"; "Mix do mês" → "Mix do período"; `label={periodoMes ? 'Faturamento (mês)' : 'Faturamento'}` → `label={periodo ? 'Faturamento (período)' : 'Faturamento'}`.
+- O rótulo de período era `formatAnoMesLabel(periodoMes)`. Com intervalo, use `${formatAnoMesLabel(periodo.inicio)} – ${formatAnoMesLabel(periodo.fim)}`, e mantenha `'Acumulado'` quando `periodo` for indefinido.
+
+Em `src/pages/performance/ClienteTab.tsx`:
+
+- Remova `periodoMes` da desestruturação de `filters`.
+- `periodoMes={periodoMes}` → `periodo={{ inicio: periodoInicio, fim: periodoFim }}`.
+- `periodoAnalise={{ inicio: periodoMes ?? periodoInicio, fim: periodoMes ?? periodoFim }}` → `periodoAnalise={{ inicio: periodoInicio, fim: periodoFim }}`.
+
+⚠️ `ClientesBusca.tsx:64` também passa `periodoMes` ao mesmo modal, a partir de `getMonthOffset(2)`. Ela **não** faz parte desta tela — converta a chamada para `periodo={{ inicio: mes, fim: mes }}` mantendo o mesmo mês, para não alterar o comportamento daquela página. Não mexa em mais nada dela.
+
+- [ ] **Step 5: Verificar tipos**
 
 ```bash
 npx tsc -b --noEmit
 ```
 
-Esperado: sem saída. Se acusar `periodoMes` em algum tab, é um consumidor que ficou para trás — troque por `periodoInicio`/`periodoFim`.
+Esperado: sem saída. Qualquer erro remanescente de `periodoMes` é um consumidor não listado acima — reporte em vez de adivinhar o que ele deveria virar.
 
-- [ ] **Step 5: Verificar no browser**
+- [ ] **Step 6: Verificar no browser**
 
 Com `npm run dev`, abra `/performance`:
 
@@ -758,7 +806,7 @@ Com `npm run dev`, abra `/performance`:
 - Nenhum UUID aparece em nenhum select.
 - A tabela de distribuidores mostra faturamento **muito maior** que antes — é a janela inteira, não um mês. Para a Paraty, algo próximo de R$ 8,1M em 12 meses (ago/2025 a jul/2026), contra os R$ 658 mil de junho isolado. Isso é o esperado, não um erro.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/pages/performance/usePerfFilters.ts src/pages/Performance.tsx
