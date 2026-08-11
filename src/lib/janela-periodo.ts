@@ -47,7 +47,10 @@ function intervalo(inicio: string, fim: string): string[] {
   return out
 }
 
-/** Mês corrente, que está incompleto por definição. */
+/** Mês corrente, que está incompleto por definição.
+ * Usa hora local (não UTC) porque a app roda no browser — "qual mês é agora"
+ * para a operação é o mês local do utilizador, não UTC.
+ */
 export function mesEmCurso(hoje: Date = new Date()): string {
   return toKey(hoje.getFullYear(), hoje.getMonth())
 }
@@ -63,6 +66,11 @@ export function calcularJanela(janela: JanelaMeses, hoje: Date = new Date()): Ja
 /**
  * Devolve null quando não há contraparte — para jan/2025 não existe 2024 no
  * banco, e a tela mostra a variação vazia em vez de inventar um número.
+ *
+ * ⚠️ NÃO limpe o `inicio` a `PRIMEIRO_MES_SERIE`. A janela de comparação deve
+ * ter EXATAMENTE o mesmo tamanho da base, senão o gráfico misalinha (compara
+ * ago/2025 com jan/2025 em vez de ago/2024 porque as posições [i] escorregam).
+ * Meses anteriores a 2025-01 devem retornar linhas vazias, não abreviar a janela.
  */
 export function calcularComparacao(base: Janela, modo: ComparacaoModo): Janela | null {
   if (modo === 'nenhum') return null
@@ -74,6 +82,5 @@ export function calcularComparacao(base: Janela, modo: ComparacaoModo): Janela |
   const fim = somarMeses(base.fim, deslocamento)
   if (fim < PRIMEIRO_MES_SERIE) return null
 
-  const inicioLimitado = inicio < PRIMEIRO_MES_SERIE ? PRIMEIRO_MES_SERIE : inicio
-  return { inicio: inicioLimitado, fim, meses: intervalo(inicioLimitado, fim) }
+  return { inicio, fim, meses: intervalo(inicio, fim) }
 }
