@@ -27,6 +27,9 @@ import { usePerformanceContext } from './PerformanceContext'
 import { nextTabInOrder } from './usePerfFilters'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 import { hierarchyPersonLabel } from './hierarchyLabels'
+import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
+import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
 
 export function SupervisaoTab() {
   const { filters, setFilter, drillDown, availableTabs } = usePerformanceContext()
@@ -41,6 +44,15 @@ export function SupervisaoTab() {
   )
 
   const isLoading = loadingHierarchy || loadingPerf
+
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: series } = useSerieHierarquia(filters.distribuidorId, 'supervisor', janela)
+  const { data: seriesAnterior } = useSerieHierarquia(
+    filters.distribuidorId,
+    'supervisor',
+    comparacao ?? janela
+  )
 
   const filteredSupervisores = useMemo(() => {
     if (!hierarchy) return []
@@ -65,9 +77,13 @@ export function SupervisaoTab() {
         positivados: agg.clientes_positivados,
         itens: agg.itens_vendidos,
         pedidos: agg.pedidos_realizados,
+        variacao: calcularVariacaoLinha(
+          series?.get(supervisor.id),
+          comparacao ? seriesAnterior?.get(supervisor.id) : undefined
+        ),
       }
     })
-  }, [hierarchy, sales, filteredSupervisores])
+  }, [hierarchy, sales, filteredSupervisores, series, seriesAnterior, comparacao])
 
   const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
@@ -195,13 +211,21 @@ export function SupervisaoTab() {
                 sortDir={sortDir}
                 onSort={toggleSort}
               />
+              <SortableNumericHead
+                label="Evolução"
+                field="variacao"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden lg:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -210,7 +234,7 @@ export function SupervisaoTab() {
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center">
+                <TableCell colSpan={6} className="py-8 text-center">
                   <p className="text-xs text-muted-foreground">
                     Nenhum supervisor encontrado
                   </p>
@@ -238,6 +262,11 @@ export function SupervisaoTab() {
                   <TableCell className="text-xs tabular-nums text-right">
                     {row.pedidos.toLocaleString('pt-BR')}
                   </TableCell>
+                  <ColunaEvolucao
+                    serie={series?.get(row.id)}
+                    variacao={row.variacao}
+                    className="hidden lg:table-cell"
+                  />
                 </TableRow>
               ))
             )}

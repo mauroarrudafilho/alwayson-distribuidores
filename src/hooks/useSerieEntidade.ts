@@ -10,7 +10,7 @@ export interface SerieEntidade {
   total: number
 }
 
-type LinhaSerie = { chave: string; mes: string; faturamento: number }
+export type LinhaSerie = { chave: string; mes: string; faturamento: number }
 
 /**
  * Monta o Map de séries a partir de linhas cruas.
@@ -20,7 +20,7 @@ type LinhaSerie = { chave: string; mes: string; faturamento: number }
  * escolhida, um mês sem faturamento é uma informação real — o vendedor não
  * vendeu — e a minissérie deve mostrar o vale, não um buraco.
  */
-function montarSeries(linhas: LinhaSerie[], janela: Janela): Map<string, SerieEntidade> {
+export function montarSeries(linhas: LinhaSerie[], janela: Janela): Map<string, SerieEntidade> {
   const indicePorMes = new Map(janela.meses.map((m, i) => [m, i]))
   const out = new Map<string, SerieEntidade>()
 

@@ -19,6 +19,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
+import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
+import { useFaturamentoMensal } from '@/hooks/useFaturamentoMensal'
+import { montarSeries } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
 export function DistribuidorTab() {
   const { drillDown, filters } = usePerformanceContext()
   const { periodoInicio, periodoFim } = filters
@@ -29,6 +33,28 @@ export function DistribuidorTab() {
   )
 
   const isLoading = loadingDist || loadingPerf
+
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: mensal } = useFaturamentoMensal(undefined, janela)
+  const { data: mensalAnterior } = useFaturamentoMensal(undefined, comparacao ?? janela)
+
+  const series = useMemo(
+    () =>
+      montarSeries(
+        (mensal ?? []).map((r) => ({ chave: r.distribuidor_id, mes: r.mes, faturamento: r.faturamento })),
+        janela
+      ),
+    [mensal, janela]
+  )
+  const seriesAnterior = useMemo(
+    () =>
+      montarSeries(
+        (mensalAnterior ?? []).map((r) => ({ chave: r.distribuidor_id, mes: r.mes, faturamento: r.faturamento })),
+        comparacao ?? janela
+      ),
+    [mensalAnterior, comparacao, janela]
+  )
 
   const rows = useMemo(() => {
     if (!distribuidores) return []
@@ -46,9 +72,13 @@ export function DistribuidorTab() {
         positivados: agg.clientes_positivados,
         itens: agg.itens_vendidos,
         pedidos: agg.pedidos_realizados,
+        variacao: calcularVariacaoLinha(
+          series.get(dist.id),
+          comparacao ? seriesAnterior.get(dist.id) : undefined
+        ),
       }
     })
-  }, [distribuidores, sales])
+  }, [distribuidores, sales, series, seriesAnterior, comparacao])
 
   const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
@@ -99,6 +129,14 @@ export function DistribuidorTab() {
                 onSort={toggleSort}
                 className="hidden md:table-cell"
               />
+              <SortableNumericHead
+                label="Evolução"
+                field="variacao"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden lg:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,7 +152,7 @@ export function DistribuidorTab() {
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center">
+                <TableCell colSpan={7} className="py-8 text-center">
                   <p className="text-xs text-muted-foreground">
                     Nenhum distribuidor encontrado
                   </p>
@@ -145,6 +183,11 @@ export function DistribuidorTab() {
                   <TableCell className="text-xs tabular-nums text-right hidden md:table-cell">
                     {row.pedidos.toLocaleString('pt-BR')}
                   </TableCell>
+                  <ColunaEvolucao
+                    serie={series.get(row.id)}
+                    variacao={row.variacao}
+                    className="hidden lg:table-cell"
+                  />
                 </TableRow>
               ))
             )}

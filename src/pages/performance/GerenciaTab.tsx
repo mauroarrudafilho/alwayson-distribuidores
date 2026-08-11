@@ -18,6 +18,9 @@ import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { nextTabInOrder } from './usePerfFilters'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
+import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
+import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
 
 export function GerenciaTab() {
   const { filters, drillDown, availableTabs } = usePerformanceContext()
@@ -33,6 +36,15 @@ export function GerenciaTab() {
 
   const isLoading = loadingHierarchy || loadingPerf
 
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: series } = useSerieHierarquia(filters.distribuidorId, 'gerente', janela)
+  const { data: seriesAnterior } = useSerieHierarquia(
+    filters.distribuidorId,
+    'gerente',
+    comparacao ?? janela
+  )
+
   const rows = useMemo(() => {
     if (!hierarchy) return []
     return hierarchy.gerentes.map((gerente) => {
@@ -46,9 +58,13 @@ export function GerenciaTab() {
         positivados: agg.clientes_positivados,
         itens: agg.itens_vendidos,
         pedidos: agg.pedidos_realizados,
+        variacao: calcularVariacaoLinha(
+          series?.get(gerente.id),
+          comparacao ? seriesAnterior?.get(gerente.id) : undefined
+        ),
       }
     })
-  }, [hierarchy, sales])
+  }, [hierarchy, sales, series, seriesAnterior, comparacao])
 
   const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
@@ -130,13 +146,21 @@ export function GerenciaTab() {
                 sortDir={sortDir}
                 onSort={toggleSort}
               />
+              <SortableNumericHead
+                label="Evolução"
+                field="variacao"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden lg:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -145,7 +169,7 @@ export function GerenciaTab() {
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center">
+                <TableCell colSpan={6} className="py-8 text-center">
                   <p className="text-xs text-muted-foreground">
                     Nenhum gerente encontrado
                   </p>
@@ -173,6 +197,11 @@ export function GerenciaTab() {
                   <TableCell className="text-xs tabular-nums text-right">
                     {row.pedidos.toLocaleString('pt-BR')}
                   </TableCell>
+                  <ColunaEvolucao
+                    serie={series?.get(row.id)}
+                    variacao={row.variacao}
+                    className="hidden lg:table-cell"
+                  />
                 </TableRow>
               ))
             )}

@@ -26,6 +26,9 @@ import { formatCurrency } from '@/lib/format'
 import { usePerformanceContext } from './PerformanceContext'
 import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 import { hierarchyPersonLabel } from './hierarchyLabels'
+import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
+import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
 
 export function VendasTab() {
   const { filters, setFilter, drillDown } = usePerformanceContext()
@@ -46,6 +49,15 @@ export function VendasTab() {
   )
 
   const isLoading = loadingHierarchy || loadingPerf
+
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: series } = useSerieHierarquia(filters.distribuidorId, 'vendedor', janela)
+  const { data: seriesAnterior } = useSerieHierarquia(
+    filters.distribuidorId,
+    'vendedor',
+    comparacao ?? janela
+  )
 
   const gerentesForFilter = useMemo(
     () => hierarchy?.gerentes ?? [],
@@ -84,9 +96,19 @@ export function VendasTab() {
       const positivados = agg.clientes_positivados
       const itens = agg.itens_vendidos
       const pedidos = agg.pedidos_realizados
-      return { ...vendedor, faturamento, positivados, itens, pedidos }
+      return {
+        ...vendedor,
+        faturamento,
+        positivados,
+        itens,
+        pedidos,
+        variacao: calcularVariacaoLinha(
+          series?.get(vendedor.id),
+          comparacao ? seriesAnterior?.get(vendedor.id) : undefined
+        ),
+      }
     })
-  }, [sales, filteredVendedores])
+  }, [sales, filteredVendedores, series, seriesAnterior, comparacao])
 
   const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
@@ -247,13 +269,21 @@ export function VendasTab() {
                 sortDir={sortDir}
                 onSort={toggleSort}
               />
+              <SortableNumericHead
+                label="Evolução"
+                field="variacao"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden lg:table-cell"
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -262,7 +292,7 @@ export function VendasTab() {
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center">
+                <TableCell colSpan={6} className="py-8 text-center">
                   <p className="text-xs text-muted-foreground">
                     Nenhum vendedor encontrado
                   </p>
@@ -290,6 +320,11 @@ export function VendasTab() {
                   <TableCell className="text-xs tabular-nums text-right">
                     {row.pedidos.toLocaleString('pt-BR')}
                   </TableCell>
+                  <ColunaEvolucao
+                    serie={series?.get(row.id)}
+                    variacao={row.variacao}
+                    className="hidden lg:table-cell"
+                  />
                 </TableRow>
               ))
             )}
