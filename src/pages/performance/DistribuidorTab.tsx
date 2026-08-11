@@ -1,13 +1,8 @@
 import { useMemo } from 'react'
-import { DollarSign, Users, ShoppingCart, Target } from 'lucide-react'
-import { KPICard } from '@/components/distribuidor/KPICard'
-import { KPIGrid } from '@/components/distribuidor/KPIGrid'
-import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
+import { EvolucaoResumo } from './EvolucaoResumo'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
-import { useMetas } from '@/hooks/useMetas'
 import {
   useAllFaturamentoSales,
-  aggregateSales,
   aggregateSalesBy,
 } from '@/hooks/useFaturamentoPerformance'
 import { Card } from '@/components/ui/card'
@@ -31,7 +26,6 @@ export function DistribuidorTab() {
     periodoInicio,
     periodoFim
   )
-  const { data: metas } = useMetas()
 
   const isLoading = loadingDist || loadingPerf
 
@@ -57,78 +51,13 @@ export function DistribuidorTab() {
 
   const { sortedRows, sortField, sortDir, toggleSort } = useSortedMetricRows(rows)
 
-  const totals = useMemo(() => {
-    const agg = aggregateSales(sales)
-    return {
-      faturamento: agg.faturamento,
-      positivados: agg.clientes_positivados,
-      itens: agg.itens_vendidos,
-      pedidos: agg.pedidos_realizados,
-    }
-  }, [sales])
-
-  const metaFaturamento = useMemo(() => {
-    // Sem mês definido não dá para escolher a meta certa — melhor não exibir
-    // nenhuma do que exibir a de outro período.
-    if (!periodoInicio) return null
-    const m = (metas ?? []).find(
-      (meta) =>
-        meta.hierarquia === 'distribuidor' &&
-        meta.tipo === 'faturamento' &&
-        // Sem este filtro, pega a meta do mês mais recente (a lista vem
-        // ordenada por período desc) e a compara com o realizado do mês escolhido.
-        meta.periodo_inicio.startsWith(periodoInicio)
-    )
-    if (!m) return null
-    return {
-      meta: Number(m.valor_meta),
-      realizado: Number(m.valor_realizado ?? 0),
-      percentual: Number(m.percentual_atingimento ?? 0),
-    }
-  }, [metas, periodoInicio])
-
   const handleRowClick = (distribuidorId: string) => {
     drillDown('gerencia', { distribuidorId })
   }
 
   return (
     <div className="space-y-6 mt-4">
-      <KPIGrid columns={4}>
-        <KPICard
-          label="Faturamento Total"
-          value={formatCurrency(totals.faturamento)}
-          icon={DollarSign}
-          variant="primary"
-        />
-        <KPICard
-          label="Clientes Positivados"
-          value={totals.positivados.toLocaleString('pt-BR')}
-          icon={Users}
-        />
-        <KPICard
-          label="Itens Vendidos"
-          value={totals.itens.toLocaleString('pt-BR')}
-          icon={ShoppingCart}
-        />
-        <KPICard
-          label="Meta vs Realizado"
-          value={
-            metaFaturamento
-              ? `${metaFaturamento.percentual.toFixed(1)}%`
-              : '—'
-          }
-          icon={Target}
-        />
-      </KPIGrid>
-
-      {metaFaturamento && (
-        <MetaProgressBar
-          label="Faturamento"
-          percentual={metaFaturamento.percentual}
-          meta={formatCurrency(metaFaturamento.meta)}
-          realizado={formatCurrency(metaFaturamento.realizado)}
-        />
-      )}
+      <EvolucaoResumo />
 
       <Card>
         <Table>
