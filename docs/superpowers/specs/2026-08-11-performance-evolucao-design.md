@@ -155,6 +155,35 @@ mês selecionado. Entrega sozinha os critérios de sucesso 1, 3 e 5.
 **Etapa 2 — o detalhe por linha.** As três colunas (valor, variação YoY,
 minissérie) nos cinco níveis. Entrega os critérios 2 e 4.
 
+### Alcance da etapa 2 — decidido em 2026-08-11, depois da etapa 1
+
+A view da etapa 1 tem grão `(distribuidor, fornecedor, vendedor, mês)`: serve
+Distribuidor e Vendas, e **não serve** Gerência, Supervisão nem Cliente. Rolar as
+linhas de vendedor para cima reintroduziria a não-aditividade — um supervisor com
+quatro vendedores atendendo o mesmo cliente contaria o cliente quatro vezes.
+
+**A minissérie e a variação mostram apenas `faturamento`.** É a métrica aditiva,
+então rola por qualquer nível da hierarquia sem mentir, e é a que responde "quem
+puxou o crescimento". Positivados e itens continuam como foto do período, sem
+série. Isto evita ter de calcular distintos em mais três níveis — o tipo de SQL
+que erra em silêncio.
+
+Duas views novas, ambas validadas contra o banco em 2026-08-11:
+
+| View | Grão | Linhas | Confere |
+|---|---|---|---|
+| `alwayson_faturamento_v_mensal_hierarquia` | (distribuidor, fornecedor, nível, entidade, mês) | 1.284 | soma R$ 15.104.043,07 em cada um dos 3 níveis = total geral |
+| `alwayson_faturamento_v_mensal_cliente` | (distribuidor, fornecedor, cliente, mês) | 9.719 | mesmo total; 2.169 clientes |
+
+A hierarquia é `alwayson_vendedores_distribuidor` com `tipo`
+(gerente/supervisor/vendedor) e `supervisor_id` auto-referenciado — 4 gerentes,
+11 supervisores, 79 vendedores, todos conectados. O rollup usa CTE recursivo
+mapeando cada vendedor a si próprio e a todos os ancestrais.
+
+**Fora da etapa 2:** clientes únicos na janela (a faixa de topo mostra média
+mensal). Exigiria uma view com `cnpj` e só importa a partir do segundo
+distribuidor — ver a limitação registada na etapa 1.
+
 A etapa 1 é pré-requisito da 2 — é ela que cria a view e o hook que as
 minisséries vão consumir.
 
