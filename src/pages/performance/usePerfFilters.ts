@@ -66,19 +66,25 @@ export interface PerfFilters {
   metrica: MetricaAnalise
 }
 
-const PARAM_MAP: Record<keyof Omit<PerfFilters, 'tab'>, string> = {
+/**
+ * Chaves que de fato viram parâmetro de URL. `periodoInicio`/`periodoFim` ficam
+ * de fora de propósito: são derivadas de `janela` por `calcularJanela` (ver
+ * `PerfFilters`), nunca lidas da URL — mapeá-las aqui deixava `setFilter`
+ * escrever um parâmetro que ninguém consome.
+ */
+export type PerfFilterParamKey = Exclude<keyof PerfFilters, 'periodoInicio' | 'periodoFim'>
+
+const PARAM_MAP: Record<Exclude<PerfFilterParamKey, 'tab'>, string> = {
   distribuidorId: 'distribuidor',
   gerenteId: 'gerente',
   supervisorId: 'supervisor',
   vendedorId: 'vendedor',
   janela: 'janela',
   comparar: 'comparar',
-  periodoInicio: 'periodo_inicio',
-  periodoFim: 'periodo_fim',
   metrica: 'metrica',
 }
 
-function toParamName(key: keyof PerfFilters): string {
+function toParamName(key: PerfFilterParamKey): string {
   if (key === 'tab') return 'tab'
   return PARAM_MAP[key]
 }
@@ -114,7 +120,7 @@ export function usePerfFilters() {
   }
 
   const setFilter = useCallback(
-    (key: keyof PerfFilters, value: string | undefined) => {
+    (key: PerfFilterParamKey, value: string | undefined) => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev)
         const paramName = toParamName(key)
@@ -136,7 +142,7 @@ export function usePerfFilters() {
         next.set('tab', tab)
         for (const [key, value] of Object.entries(newFilters)) {
           if (key === 'tab') continue
-          const paramName = toParamName(key as keyof PerfFilters)
+          const paramName = toParamName(key as PerfFilterParamKey)
           if (value) {
             next.set(paramName, value as string)
           }

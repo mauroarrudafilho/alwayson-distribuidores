@@ -1,13 +1,9 @@
 import { useMemo } from 'react'
-import { DollarSign, Users, ShoppingCart, Target } from 'lucide-react'
+import { DollarSign, Users, ShoppingCart } from 'lucide-react'
 import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
-import { MetaProgressBar } from '@/components/distribuidor/MetaProgressBar'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
-import {
-  useVendedorHierarchy,
-  useMetasByLevel,
-} from '@/hooks/usePerformanceHierarchy'
+import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
 import { useFaturamentoSales, aggregateSales } from '@/hooks/useFaturamentoPerformance'
 import { Card } from '@/components/ui/card'
 import {
@@ -43,7 +39,6 @@ export function SupervisaoTab() {
     periodoInicio,
     periodoFim
   )
-  const { data: metas } = useMetasByLevel(distribuidorId, 'supervisor', undefined, periodoInicio)
 
   const isLoading = loadingHierarchy || loadingPerf
 
@@ -99,16 +94,6 @@ export function SupervisaoTab() {
     }
   }, [sales, hierarchy, filteredSupervisores])
 
-  const metaFaturamento = useMemo(() => {
-    const m = (metas ?? []).find((meta) => meta.tipo === 'faturamento')
-    if (!m) return null
-    return {
-      meta: Number(m.valor_meta),
-      realizado: Number(m.valor_realizado),
-      percentual: Number(m.percentual_atingimento),
-    }
-  }, [metas])
-
   const handleRowClick = (supervisorId: string) => {
     drillDown(nextTabInOrder('supervisao', availableTabs), {
       distribuidorId,
@@ -158,7 +143,7 @@ export function SupervisaoTab() {
         </FilterBar>
       )}
 
-      <KPIGrid columns={4}>
+      <KPIGrid columns={3}>
         <KPICard
           label="Faturamento Total"
           value={formatCurrency(totals.faturamento)}
@@ -175,25 +160,7 @@ export function SupervisaoTab() {
           value={totals.itens.toLocaleString('pt-BR')}
           icon={ShoppingCart}
         />
-        <KPICard
-          label="Meta vs Realizado"
-          value={
-            metaFaturamento
-              ? `${metaFaturamento.percentual.toFixed(1)}%`
-              : '—'
-          }
-          icon={Target}
-        />
       </KPIGrid>
-
-      {metaFaturamento && (
-        <MetaProgressBar
-          label="Faturamento"
-          percentual={metaFaturamento.percentual}
-          meta={formatCurrency(metaFaturamento.meta)}
-          realizado={formatCurrency(metaFaturamento.realizado)}
-        />
-      )}
 
       <Card>
         <Table>

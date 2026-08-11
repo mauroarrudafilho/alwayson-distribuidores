@@ -1,6 +1,12 @@
-/** Mês de referência da vigência de análise (início do período, ex. mai/26 na janela mai–ago). */
+/**
+ * Mês de referência da vigência de análise — o FIM do período (o mês mais
+ * recente, ex. ago/26 numa janela ago/25–ago/26), não o início. Antes que a
+ * Performance virasse janela de vários meses `inicio === fim` e tanto fazia;
+ * com janela de 12 meses, ancorar no início comparava o mix local de um mês
+ * isolado (o mais antigo da janela) contra totais que somam a janela inteira.
+ */
 export function mesReferenciaAnalise(periodoAnalise: { inicio?: string; fim?: string } | undefined) {
-  return periodoAnalise?.inicio ?? periodoAnalise?.fim
+  return periodoAnalise?.fim ?? periodoAnalise?.inicio
 }
 
 /**

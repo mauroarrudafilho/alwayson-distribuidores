@@ -1,5 +1,11 @@
 import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from 'react'
-import { usePerfFilters, TAB_ORDER, type PerfFilters, type PerfTab } from './usePerfFilters'
+import {
+  usePerfFilters,
+  TAB_ORDER,
+  type PerfFilters,
+  type PerfFilterParamKey,
+  type PerfTab,
+} from './usePerfFilters'
 
 interface Breadcrumb {
   label: string
@@ -9,7 +15,7 @@ interface Breadcrumb {
 
 interface PerformanceContextValue {
   filters: PerfFilters
-  setFilter: (key: keyof PerfFilters, value: string | undefined) => void
+  setFilter: (key: PerfFilterParamKey, value: string | undefined) => void
   drillDown: (level: PerfTab, filters: Partial<PerfFilters>) => void
   breadcrumbs: Breadcrumb[]
   availableTabs: PerfTab[]

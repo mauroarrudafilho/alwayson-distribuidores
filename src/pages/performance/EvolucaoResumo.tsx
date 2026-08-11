@@ -3,8 +3,13 @@ import { KPICard } from '@/components/distribuidor/KPICard'
 import { KPIGrid } from '@/components/distribuidor/KPIGrid'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/format'
-import { calcularComparacao, calcularJanela } from '@/lib/janela-periodo'
-import { resumirPeriodo, useFaturamentoMensal } from '@/hooks/useFaturamentoMensal'
+import { calcularComparacao, calcularJanela, type Janela } from '@/lib/janela-periodo'
+import {
+  resumirPeriodo,
+  useFaturamentoMensal,
+  type ResumoPeriodo,
+} from '@/hooks/useFaturamentoMensal'
+import type { FaturamentoMensalRow } from '@/types/faturamento-mensal'
 import { usePerformanceContext } from './PerformanceContext'
 
 /**
@@ -27,6 +32,54 @@ const LEGENDA_COMPARACAO: Record<string, string> = {
   ano_anterior: 'vs. ano anterior',
   periodo_anterior: 'vs. período anterior',
   nenhum: '',
+}
+
+interface ComparacaoLikeForLike {
+  /** Base resumida só nos meses com contraparte — usar para a % de variação, nunca para o valor do card. */
+  aLike?: ResumoPeriodo
+  /** Contraparte — sempre igual a `resumirPeriodo(anterior)`, já que a query só devolve meses existentes. */
+  b?: ResumoPeriodo
+  mesesComparados: number
+  totalMeses: number
+}
+
+/**
+ * `resumirPeriodo` soma o período inteiro; comparar uma janela de 12 meses
+ * contra uma contraparte de 7 (2025 só começa em janeiro) infla a variação
+ * (FINDING 1). Aqui restringimos os dois lados aos meses que existem nas
+ * DUAS pontas, por posição — `janela.meses[i]` corresponde a
+ * `comparacao.meses[i]`, nunca por igualdade de string (são anos diferentes).
+ *
+ * O valor exibido no card continua somando a janela inteira; só a base da %
+ * muda. Sem nenhum mês em comum, devolve tudo `undefined` — mesmo
+ * comportamento de "sem comparação" de antes.
+ */
+function comparacaoLikeForLike(
+  atual: FaturamentoMensalRow[],
+  anterior: FaturamentoMensalRow[],
+  janela: Janela,
+  comparacao: Janela | null
+): ComparacaoLikeForLike {
+  const totalMeses = janela.meses.length
+  if (!comparacao) return { mesesComparados: 0, totalMeses }
+
+  const mesesAnteriorPresentes = new Set(anterior.map((r) => r.mes.slice(0, 7)))
+  const mesesBaseComContraparte = new Set(
+    comparacao.meses.reduce<string[]>((acc, mes, i) => {
+      if (mesesAnteriorPresentes.has(mes)) acc.push(janela.meses[i])
+      return acc
+    }, [])
+  )
+  const mesesComparados = mesesBaseComContraparte.size
+  if (mesesComparados === 0) return { mesesComparados, totalMeses }
+
+  const atualLike = atual.filter((r) => mesesBaseComContraparte.has(r.mes.slice(0, 7)))
+  return {
+    aLike: resumirPeriodo(atualLike),
+    b: resumirPeriodo(anterior),
+    mesesComparados,
+    totalMeses,
+  }
 }
 
 export function EvolucaoResumo() {
@@ -62,9 +115,20 @@ export function EvolucaoResumo() {
   }
 
   const a = resumirPeriodo(atual)
-  // Sem contraparte não há com o que comparar — a variação fica ausente, não zero.
-  const b = comparacao ? resumirPeriodo(anterior) : undefined
-  const legenda = LEGENDA_COMPARACAO[filters.comparar]
+  // Variação sempre like-for-like: só os meses com contraparte real no banco
+  // entram na %. `aLike`/`b` ficam `undefined` juntos — sem contraparte não há
+  // com o que comparar, e a variação fica ausente, não zero (ver FINDING 1).
+  const { aLike, b, mesesComparados, totalMeses } = comparacaoLikeForLike(
+    atual,
+    anterior,
+    janela,
+    comparacao
+  )
+  const legendaBase = LEGENDA_COMPARACAO[filters.comparar]
+  const legenda =
+    mesesComparados > 0 && mesesComparados < totalMeses
+      ? `${legendaBase} (${mesesComparados} de ${totalMeses} meses)`
+      : legendaBase
 
   return (
     <KPIGrid>
@@ -72,25 +136,25 @@ export function EvolucaoResumo() {
         label="Faturamento"
         value={formatCurrency(a.faturamento)}
         icon={DollarSign}
-        {...propsVariacao(a.faturamento, b?.faturamento, legenda)}
+        {...propsVariacao(aLike?.faturamento ?? a.faturamento, b?.faturamento, legenda)}
       />
       <KPICard
         label="Notas"
         value={a.nfs.toLocaleString('pt-BR')}
         icon={FileText}
-        {...propsVariacao(a.nfs, b?.nfs, legenda)}
+        {...propsVariacao(aLike?.nfs ?? a.nfs, b?.nfs, legenda)}
       />
       <KPICard
         label="Clientes por mês"
         value={a.clientes.toLocaleString('pt-BR')}
         icon={Users}
-        {...propsVariacao(a.clientes, b?.clientes, legenda)}
+        {...propsVariacao(aLike?.clientes ?? a.clientes, b?.clientes, legenda)}
       />
       <KPICard
         label="Ticket médio"
         value={formatCurrency(a.ticketMedio)}
         icon={Receipt}
-        {...propsVariacao(a.ticketMedio, b?.ticketMedio, legenda)}
+        {...propsVariacao(aLike?.ticketMedio ?? a.ticketMedio, b?.ticketMedio, legenda)}
       />
     </KPIGrid>
   )

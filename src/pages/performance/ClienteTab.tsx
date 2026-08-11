@@ -251,7 +251,7 @@ export function ClienteTab() {
               <TableHead>CNPJ</TableHead>
               <TableHead>Cidade / UF</TableHead>
               <SortableNumericHead
-                label="Faturamento (mês)"
+                label="Faturamento (período)"
                 field="faturamento_mes"
                 sortField={sortField}
                 sortDir={sortDir}
