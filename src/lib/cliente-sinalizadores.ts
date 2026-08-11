@@ -3,9 +3,6 @@ import type { ClientTagCategory } from '@/components/distribuidor/ClientTag'
 import type { ClienteFatResumo } from '@/lib/cliente-faturamento-resumo'
 import { formatDate } from '@/lib/format'
 
-/** Dias desde cadastro ou 1ª NF para considerar "cliente novo". */
-export const CLIENTE_NOVO_DIAS = 90
-
 /** Gap mínimo (dias) entre duas compras consecutivas para sinalizar. */
 export const SEM_COMPRA_DIAS_LIMIAR = 60
 
@@ -24,24 +21,17 @@ export interface ClienteSinalizadorInput {
   clienteEstrategico?: boolean
 }
 
-function diasDesde(isoDate: string | null | undefined): number | null {
-  if (!isoDate) return null
-  const t = new Date(isoDate.includes('T') ? isoDate : `${isoDate}T12:00:00`).getTime()
-  if (Number.isNaN(t)) return null
-  return Math.floor((Date.now() - t) / 86_400_000)
-}
-
-export function isClienteNovo(
-  cliente: ClienteDistribuidor,
-  resumo?: ClienteFatResumo
-): boolean {
-  const criadoDias = diasDesde(cliente.criado_em)
-  if (criadoDias != null && criadoDias <= CLIENTE_NOVO_DIAS) return true
-
-  const primeiraNfDias = diasDesde(resumo?.primeiraCompra)
-  if (primeiraNfDias != null && primeiraNfDias <= CLIENTE_NOVO_DIAS) return true
-
-  return false
+/**
+ * "Novo" = a primeira compra do cliente é a única que ele tem — vira "não
+ * mais novo" assim que compra pela segunda vez, não importa há quanto tempo
+ * a primeira foi.
+ *
+ * Não usar `cliente.criado_em`: numa carga histórica em massa, toda linha de
+ * `alwayson_clientes_distribuidor` nasce com cadastro recente, mesmo quem tem
+ * anos de compra — isso marcaria a carteira inteira como "nova" de uma vez.
+ */
+export function isClienteNovo(resumo?: ClienteFatResumo): boolean {
+  return resumo?.nfsTotal === 1
 }
 
 export function buildClienteSinalizadores(
@@ -60,12 +50,12 @@ export function buildClienteSinalizadores(
     })
   }
 
-  if (isClienteNovo(cliente, resumo)) {
+  if (isClienteNovo(resumo)) {
     tags.push({
       id: 'cliente_novo',
       label: opts?.compact ? 'Novo' : 'Cliente novo',
       category: 'fonte',
-      title: 'Cadastro ou 1ª compra nos últimos 90 dias',
+      title: 'Só tem uma compra registrada — some assim que comprar de novo',
     })
   }
 

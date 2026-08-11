@@ -10,10 +10,18 @@ const ALTURA = 18
 
 interface Props {
   valores: number[]
+  /**
+   * Sinal de cor vindo de fora — a mesma variação % mostrada ao lado, não uma
+   * leitura própria da minissérie. Comparar só os dois últimos pontos locais
+   * pode discordar do total da janela (ex.: +71% no ano, mas caiu no último
+   * mês) e pintar a linha de vermelho ao lado de um "+71,2%" verde. `null`
+   * quando não há comparação — cor neutra, igual ao "—" do texto.
+   */
+  positivo: boolean | null
   className?: string
 }
 
-export function Minisserie({ valores, className }: Props) {
+export function Minisserie({ valores, positivo, className }: Props) {
   if (valores.length < 2) return null
 
   const max = Math.max(...valores)
@@ -29,9 +37,12 @@ export function Minisserie({ valores, className }: Props) {
     })
     .join(' ')
 
-  const ultimo = valores[valores.length - 1]
-  const penultimo = valores[valores.length - 2]
-  const subindo = ultimo >= penultimo
+  const corClasse =
+    positivo === null
+      ? 'stroke-muted-foreground'
+      : positivo
+        ? 'stroke-success'
+        : 'stroke-destructive'
 
   return (
     <svg
@@ -48,7 +59,7 @@ export function Minisserie({ valores, className }: Props) {
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={subindo ? 'stroke-success' : 'stroke-destructive'}
+        className={corClasse}
       />
     </svg>
   )

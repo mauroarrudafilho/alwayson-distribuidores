@@ -27,7 +27,12 @@ export function ColunaEvolucao({ serie, variacao, className }: Props) {
             {variacao.toFixed(1)}%
           </span>
         )}
-        {serie && <Minisserie valores={serie.valores} />}
+        {serie && (
+          <Minisserie
+            valores={serie.valores}
+            positivo={variacao === null ? null : variacao >= 0}
+          />
+        )}
       </div>
     </TableCell>
   )

@@ -5,6 +5,14 @@ export type ClienteFatResumo = {
   primeiraCompra: string | null
   faturamentoPeriodo: number
   nfsPeriodo: number
+  /**
+   * Total de NFs na vida inteira do cliente, não só no período analisado.
+   * `nfsTotal === 1` é a definição de "cliente novo" — ver `isClienteNovo`
+   * em `cliente-sinalizadores.ts`. Não usar `criado_em` para isso: numa
+   * carga histórica em massa, todo cliente nasce com cadastro recente,
+   * mesmo quem tem anos de compras.
+   */
+  nfsTotal: number
   /** Data da compra registrada no período analisado (ex.: NF de 20/05). */
   compraNoPeriodo: string | null
   /** Compra imediatamente anterior à do período (ex.: NF de 10/04). */
@@ -24,6 +32,7 @@ export function emptyClienteFatResumo(): ClienteFatResumo {
     primeiraCompra: null,
     faturamentoPeriodo: 0,
     nfsPeriodo: 0,
+    nfsTotal: 0,
     compraNoPeriodo: null,
     compraAnterior: null,
     diasSemCompra: null,
@@ -125,6 +134,7 @@ export function buildClienteFatResumoFromFaturamentos(
     primeiraCompra,
     faturamentoPeriodo: periodoRows.reduce((sum, f) => sum + (f.valor_total ?? 0), 0),
     nfsPeriodo: periodoRows.length,
+    nfsTotal: faturamentos.length,
     ...intervalo,
   }
 }
@@ -166,6 +176,7 @@ export function mergeClienteFatResumo(
     const r = map.get(row.cliente_id)
     if (!r) continue
     datasByCliente.get(row.cliente_id)?.push(row.data_emissao)
+    r.nfsTotal += 1
     if (!r.primeiraCompra || row.data_emissao < r.primeiraCompra) {
       r.primeiraCompra = row.data_emissao
     }
