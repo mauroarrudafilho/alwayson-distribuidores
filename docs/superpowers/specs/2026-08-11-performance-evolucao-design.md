@@ -141,6 +141,31 @@ zero.** `Meta vs Realizado` como card pertence ao Dashboard.
 A variação YoY só existe para meses com par. Para jan/2025 não há contra o quê
 comparar: a coluna fica **vazia**, não zerada e não estimada.
 
+## Entrega em duas etapas
+
+As tabelas hierárquicas são a parte cara: cinco níveis (`DistribuidorTab`,
+`GerenciaTab`, `SupervisaoTab`, `VendasTab`, `ClienteTab`) somando ~1.400 linhas,
+todos precisando das três colunas novas. A leitura macro não depende delas.
+
+**Etapa 1 — a leitura macro.** View agregada, hook de série, filtros novos
+(`JANELA` / `COMPARAR COM`), faixa de topo com variação e gráfico principal com
+o ano anterior sobreposto. As tabelas continuam exatamente como estão, lendo o
+mês selecionado. Entrega sozinha os critérios de sucesso 1, 3 e 5.
+
+**Etapa 2 — o detalhe por linha.** As três colunas (valor, variação YoY,
+minissérie) nos cinco níveis. Entrega os critérios 2 e 4.
+
+A etapa 1 é pré-requisito da 2 — é ela que cria a view e o hook que as
+minisséries vão consumir.
+
+### O que a etapa 1 precisa resolver sem a etapa 2
+
+Com o filtro passando de `MÊS` para `JANELA`, as tabelas ficam sem o mês que
+hoje as alimenta. A etapa 1 tem de definir o que elas mostram nesse intervalo:
+o padrão é **agregar a janela inteira** (soma de faturamento e NFs, distintos
+recalculados — nunca somados). Não deixar a decisão implícita, senão as tabelas
+passam a somar positivados entre meses e inflam a carteira.
+
 ## Fora de escopo
 
 - Alterações no Dashboard.
