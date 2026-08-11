@@ -33,7 +33,7 @@ export function ClientesBusca() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [selectedCliente, setSelectedCliente] = useState<ClienteDistribuidor | null>(null)
-  const periodoMes = getMonthOffset(2)
+  const mes = getMonthOffset(2)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -61,7 +61,7 @@ export function ClientesBusca() {
         onOpenChange={(open) => {
           if (!open) setSelectedCliente(null)
         }}
-        periodoMes={periodoMes}
+        periodo={{ inicio: mes, fim: mes }}
         distribuidorId={selectedCliente?.distribuidor_id}
       />
 

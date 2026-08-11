@@ -5,7 +5,6 @@ import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { MetricaToggle } from '@/components/distribuidor/MetricaToggle'
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -33,6 +32,19 @@ const TAB_COMPONENTS: Record<PerfTab, React.ComponentType> = {
   supervisao: SupervisaoTab,
   vendas: VendasTab,
   cliente: ClienteTab,
+}
+
+const JANELA_LABELS: Record<number, string> = {
+  6: '6 meses',
+  12: '12 meses',
+  24: '24 meses',
+  0: 'Toda a série',
+}
+
+const COMPARAR_LABELS: Record<string, string> = {
+  ano_anterior: 'Ano anterior',
+  periodo_anterior: 'Período anterior',
+  nenhum: 'Nada',
 }
 
 function PerformanceContent() {
@@ -96,7 +108,7 @@ function PerformanceContent() {
         description="hierarquia comercial"
       />
 
-      <FilterBar gridClassName="grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9.5rem_auto]">
+      <FilterBar gridClassName="grid-cols-1 sm:grid-cols-[minmax(0,1fr)_9rem_10rem_auto]">
         <FilterField label="Distribuidor" className="min-w-0">
           <Select
             value={filters.distribuidorId ?? 'todos'}
@@ -121,15 +133,36 @@ function PerformanceContent() {
             </SelectContent>
           </Select>
         </FilterField>
-        <FilterField label="Mês">
-          <Input
-            type="month"
-            value={filters.periodoMes ?? ''}
-            onChange={(e) =>
-              setFilter('periodoMes', e.target.value || undefined)
-            }
-            className="h-8 w-full text-sm"
-          />
+        <FilterField label="Janela">
+          <Select
+            value={String(filters.janela)}
+            onValueChange={(v) => setFilter('janela', v as string)}
+          >
+            <SelectTrigger className="h-8 w-full text-sm">
+              <SelectValue>{JANELA_LABELS[filters.janela]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="6">6 meses</SelectItem>
+              <SelectItem value="12">12 meses</SelectItem>
+              <SelectItem value="24">24 meses</SelectItem>
+              <SelectItem value="0">Toda a série</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
+        <FilterField label="Comparar com">
+          <Select
+            value={filters.comparar}
+            onValueChange={(v) => setFilter('comparar', v as string)}
+          >
+            <SelectTrigger className="h-8 w-full text-sm">
+              <SelectValue>{COMPARAR_LABELS[filters.comparar]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ano_anterior">Ano anterior</SelectItem>
+              <SelectItem value="periodo_anterior">Período anterior</SelectItem>
+              <SelectItem value="nenhum">Nada</SelectItem>
+            </SelectContent>
+          </Select>
         </FilterField>
         <FilterField label="Métrica">
           <MetricaToggle

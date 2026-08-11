@@ -62,7 +62,7 @@ interface Props {
   clienteId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  periodoMes?: string
+  periodo?: { inicio: string; fim: string }
   metrica?: MetricaAnalise
   distribuidorId?: string
 }
@@ -110,7 +110,7 @@ export function ClienteResumoModal({
   clienteId,
   open,
   onOpenChange,
-  periodoMes,
+  periodo,
   metrica: metricaProp = 'faturamento',
   distribuidorId,
 }: Props) {
@@ -130,7 +130,7 @@ export function ClienteResumoModal({
   const { data: mixProdutos = [], isLoading: loadingMix } = useClienteMixLocal(
     cliente?.cnpj,
     open && !!cliente,
-    periodoMes
+    periodo
   )
   const { data: deParaLocal = [] } = useDistribuidorProdutoDePara(
     open ? distribuidorId : undefined
@@ -172,16 +172,16 @@ export function ClienteResumoModal({
   }, [faturamentos])
 
   const faturamentosPeriodo = useMemo(() => {
-    if (!faturamentos || !periodoMes) return faturamentos ?? []
+    if (!faturamentos || !periodo) return faturamentos ?? []
     return faturamentos.filter(
       (f) =>
-        f.data_emissao >= monthStart(periodoMes) &&
-        f.data_emissao <= monthEnd(periodoMes)
+        f.data_emissao >= monthStart(periodo.inicio) &&
+        f.data_emissao <= monthEnd(periodo.fim)
     )
-  }, [faturamentos, periodoMes])
+  }, [faturamentos, periodo])
 
   const recentNfs = faturamentos?.slice(0, 5) ?? []
-  const nfsExibidas = periodoMes ? faturamentosPeriodo : recentNfs
+  const nfsExibidas = periodo ? faturamentosPeriodo : recentNfs
   const nfsIds = useMemo(() => nfsExibidas.map((f) => f.id), [nfsExibidas])
 
   const { data: itensBatch, isLoading: loadingItens } = useFaturamentoItensBatch(
@@ -201,19 +201,19 @@ export function ClienteResumoModal({
   const resumoFat = useMemo(
     () =>
       faturamentos
-        ? buildClienteFatResumoFromFaturamentos(faturamentos, periodoMes)
+        ? buildClienteFatResumoFromFaturamentos(faturamentos, periodo)
         : undefined,
-    [faturamentos, periodoMes]
+    [faturamentos, periodo]
   )
   const nomeExibicao = cliente?.nome_fantasia || cliente?.razao_social || 'Cliente'
 
   const kpisPeriodo = useMemo(() => {
-    const rows = periodoMes ? faturamentosPeriodo : faturamentos
+    const rows = periodo ? faturamentosPeriodo : faturamentos
     if (!rows?.length) return null
     const total = rows.reduce((sum, f) => sum + f.valor_total, 0)
     const count = rows.length
     return { total, ticketMedio: count > 0 ? total / count : 0, count }
-  }, [faturamentos, faturamentosPeriodo, periodoMes])
+  }, [faturamentos, faturamentosPeriodo, periodo])
 
   const chartData = useMemo(
     () =>
@@ -226,15 +226,15 @@ export function ClienteResumoModal({
 
   const highlightMonths = useMemo(
     () =>
-      periodoMes
-        ? computeHighlightMonths({ inicio: periodoMes, fim: periodoMes }, chartData.map((d) => d.month))
+      periodo
+        ? computeHighlightMonths(periodo, chartData.map((d) => d.month))
         : new Set<string>(),
-    [periodoMes, chartData]
+    [periodo, chartData]
   )
 
   function exportResumo(e: MouseEvent) {
     stopRowClick(e)
-    const nfs = periodoMes ? faturamentosPeriodo : (faturamentos ?? []).slice(0, 25)
+    const nfs = periodo ? faturamentosPeriodo : (faturamentos ?? []).slice(0, 25)
     downloadXlsxMulti(`cliente-${cliente?.cnpj?.slice(0, 8) ?? 'resumo'}.xlsx`, [
       {
         name: 'NFs',
@@ -273,8 +273,10 @@ export function ClienteResumoModal({
   function exportResumoPdf(e: MouseEvent) {
     stopRowClick(e)
     if (!cliente) return
-    const nfs = periodoMes ? faturamentosPeriodo : (faturamentos ?? []).slice(0, 25)
-    const periodoLabel = periodoMes ? formatAnoMesLabel(periodoMes) : 'Acumulado'
+    const nfs = periodo ? faturamentosPeriodo : (faturamentos ?? []).slice(0, 25)
+    const periodoLabel = periodo
+      ? `${formatAnoMesLabel(periodo.inicio)} – ${formatAnoMesLabel(periodo.fim)}`
+      : 'Acumulado'
 
     downloadPdfReport({
       filename: `cliente-${cliente.cnpj.slice(0, 8)}.pdf`,
@@ -315,7 +317,7 @@ export function ClienteResumoModal({
           ]),
         },
         {
-          title: periodoMes ? 'NFs do mês' : 'NFs recentes',
+          title: periodo ? 'NFs do período' : 'NFs recentes',
           head: ['Data', 'NF', 'Valor R$'],
           body: nfs.map((f) => [
             formatDate(f.data_emissao),
@@ -326,7 +328,7 @@ export function ClienteResumoModal({
         ...(mixEnriquecido.length > 0
           ? [
               {
-                title: periodoMes ? 'Mix do mês (agregado)' : 'Mix agregado',
+                title: periodo ? 'Mix do período (agregado)' : 'Mix agregado',
                 head: ['SKU', 'Descrição', 'Qtd', 'Faturamento R$'],
                 body: mixEnriquecido.map((p) => [
                   p.sku,
@@ -391,9 +393,7 @@ export function ClienteResumoModal({
                     cnpj={cliente.cnpj}
                     faturamentoLocal={kpisPeriodo?.total ?? kpis?.total ?? null}
                     nfsLocais={kpisPeriodo?.count ?? faturamentos?.length ?? null}
-                    periodoAnalise={
-                      periodoMes ? { inicio: periodoMes, fim: periodoMes } : undefined
-                    }
+                    periodoAnalise={periodo}
                     distribuidorId={distribuidorId}
                     metrica={metrica}
                   />
@@ -454,7 +454,7 @@ export function ClienteResumoModal({
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <KpiMini
                   icon={DollarSign}
-                  label={periodoMes ? 'Faturamento (mês)' : 'Faturamento'}
+                  label={periodo ? 'Faturamento (período)' : 'Faturamento'}
                   value={
                     kpisPeriodo
                       ? formatCurrency(kpisPeriodo.total)
@@ -512,7 +512,7 @@ export function ClienteResumoModal({
 
               <section>
                 <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {periodoMes ? 'NFs do mês' : 'Últimas NFs'}
+                  {periodo ? 'NFs do período' : 'Últimas NFs'}
                 </h3>
                 {loadingFat ? (
                   <Skeleton className="h-24 w-full" />
@@ -528,7 +528,7 @@ export function ClienteResumoModal({
               <section>
                 <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   <Package className="size-3" />
-                  {periodoMes ? 'Mix do mês' : 'Mix agregado'}
+                  {periodo ? 'Mix do período' : 'Mix agregado'}
                   {mixEnriquecido.length > 0 && (
                     <span className="font-normal normal-case tracking-normal text-muted-foreground/80">
                       · {mixEnriquecido.length} SKU{mixEnriquecido.length !== 1 ? 's' : ''}

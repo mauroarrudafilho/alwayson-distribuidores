@@ -43,7 +43,6 @@ export function ClienteTab() {
     vendedorId,
     periodoInicio,
     periodoFim,
-    periodoMes,
     metrica,
   } = filters
 
@@ -147,7 +146,7 @@ export function ClienteTab() {
         onOpenChange={(open) => {
           if (!open) setSelectedClienteId(null)
         }}
-        periodoMes={periodoMes}
+        periodo={{ inicio: periodoInicio!, fim: periodoFim! }}
         metrica={metrica}
         distribuidorId={distribuidorId}
       />
@@ -301,7 +300,7 @@ export function ClienteTab() {
                           cnpj={row.cnpj}
                           faturamentoLocal={resumo?.faturamentoPeriodo ?? null}
                           nfsLocais={resumo?.nfsPeriodo ?? null}
-                          periodoAnalise={{ inicio: periodoMes ?? periodoInicio, fim: periodoMes ?? periodoFim }}
+                          periodoAnalise={{ inicio: periodoInicio, fim: periodoFim }}
                           distribuidorId={distribuidorId}
                           metrica={metrica}
                         />

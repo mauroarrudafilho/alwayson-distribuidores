@@ -97,16 +97,16 @@ export function computeIntervaloSemCompra(
 
 export function buildClienteFatResumoFromFaturamentos(
   faturamentos: { data_emissao: string; valor_total?: number }[],
-  periodoMes?: string
+  periodo?: { inicio: string; fim: string }
 ): ClienteFatResumo {
-  const periodoInicio = periodoMes
-  const periodoFim = periodoMes
+  const periodoInicio = periodo?.inicio
+  const periodoFim = periodo?.fim
   const periodoRows =
-    periodoMes != null
+    periodo != null
       ? faturamentos.filter(
           (f) =>
-            f.data_emissao >= monthStart(periodoMes) &&
-            f.data_emissao <= monthEnd(periodoMes)
+            f.data_emissao >= monthStart(periodo.inicio) &&
+            f.data_emissao <= monthEnd(periodo.fim)
         )
       : faturamentos
 
