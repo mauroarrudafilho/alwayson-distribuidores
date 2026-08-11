@@ -146,7 +146,7 @@ export function ClienteTab() {
         onOpenChange={(open) => {
           if (!open) setSelectedClienteId(null)
         }}
-        periodo={{ inicio: periodoInicio!, fim: periodoFim! }}
+        periodo={{ inicio: periodoInicio, fim: periodoFim }}
         metrica={metrica}
         distribuidorId={distribuidorId}
       />

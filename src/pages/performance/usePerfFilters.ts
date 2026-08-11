@@ -50,10 +50,18 @@ export interface PerfFilters {
   janela: JanelaMeses
   /** Contra o que comparar a janela. */
   comparar: ComparacaoModo
-  /** Início da janela (YYYY-MM) — derivado, consumido pelas tabelas. */
-  periodoInicio?: string
-  /** Fim da janela (YYYY-MM) — derivado, consumido pelas tabelas. */
-  periodoFim?: string
+  /**
+   * Início da janela (YYYY-MM) — derivado, consumido pelas tabelas.
+   * Sempre populado: `calcularJanela` é a única origem e nunca devolve
+   * campo vazio, por isso o tipo é obrigatório, não opcional.
+   */
+  periodoInicio: string
+  /**
+   * Fim da janela (YYYY-MM) — derivado, consumido pelas tabelas.
+   * Sempre populado: `calcularJanela` é a única origem e nunca devolve
+   * campo vazio, por isso o tipo é obrigatório, não opcional.
+   */
+  periodoFim: string
   /** Métrica exibida nos modais e detalhes (R$ ou unidade). */
   metrica: MetricaAnalise
 }
