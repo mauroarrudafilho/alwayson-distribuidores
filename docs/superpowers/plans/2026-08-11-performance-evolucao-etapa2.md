@@ -778,11 +778,57 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 O spec tirou a meta dos cards e prometeu-a de volta aqui, como marcador. Há meta em apenas três meses (2026-05, 2026-06, 2026-08) e **falta julho** — o buraco tem de aparecer como ausência, nunca como zero.
 
 **Interfaces:**
-- Consumes: `useMetas` (`src/hooks/useMetas.ts`) — leia a assinatura antes de usar; metas leem-se pela view `alwayson_metas_v_acompanhamento`, nunca pela tabela.
+- Consumes: `useMetas` (`src/hooks/useMetas.ts`).
+
+⚠️ **`useMetas()` não recebe argumento nenhum.** Devolve **todas** as metas de
+**todos** os distribuidores e de **todos** os tipos (`Meta['tipo']` é
+`'faturamento' | 'positivacao' | 'mix' | 'clientes_estrategicos'`) — filtragem
+é sempre por conta de quem chama. O gráfico é R$ de faturamento, então sem os
+dois filtros abaixo o marcador somaria tipos de meta que não são dinheiro:
+
+- `tipo === 'faturamento'` — senão soma-se metas de mix/positivação junto.
+- `hierarquia === 'distribuidor'` — é o "nível de topo" que o Step 1 original
+  mencionava sem dizer como identificá-lo. `Meta.hierarquia` é
+  `'vendedor' | 'supervisor' | 'gerente' | 'distribuidor'`; somar os quatro
+  juntos conta a mesma meta várias vezes, porque supervisor/gerente têm rollup
+  a partir dos vendedores (migration 045).
+
+Quando `filters.distribuidorId` está definido, filtre também por ele. Quando
+não (`Todos`), some as metas de nível `distribuidor` de todos os distribuidores
+por mês — isso é aditivamente correto, ao contrário do problema de
+`clientes_positivados`/`skus_distintos` da etapa 1: cada meta é um alvo
+independente, não uma contagem de entidades partilhadas.
 
 - [ ] **Step 1: Trazer as metas do período**
 
-Carregue as metas do distribuidor no intervalo da janela, agregue-as por mês (soma dos valores de meta do nível de topo — não some níveis diferentes, senão conta duas vezes) e junte ao array `dados` do gráfico como uma chave `meta`, com `null` nos meses sem meta.
+```ts
+import { useMetas } from '@/hooks/useMetas'
+```
+
+```tsx
+  const { data: metasTodas = [] } = useMetas()
+
+  const metaPorMes = useMemo(() => {
+    const out = new Map<string, number>()
+    for (const m of metasTodas) {
+      if (m.tipo !== 'faturamento' || m.hierarquia !== 'distribuidor') continue
+      if (filters.distribuidorId && m.distribuidor_id !== filters.distribuidorId) continue
+      const mesChave = m.periodo_inicio.slice(0, 7)
+      out.set(mesChave, (out.get(mesChave) ?? 0) + m.valor_meta)
+    }
+    return out
+  }, [metasTodas, filters.distribuidorId])
+```
+
+E, dentro do `useMemo` que monta `dados`, acrescente ao objeto de cada mês:
+
+```tsx
+        meta: metaPorMes.get(mes) ?? null,
+```
+
+`metaPorMes.get(mes) ?? null`, não `?? 0` — mês sem meta é ausência de alvo, não
+alvo zero. Adicione `metaPorMes` ao array de dependências do `useMemo` de
+`dados`.
 
 - [ ] **Step 2: Desenhar o marcador**
 
@@ -793,6 +839,7 @@ Acrescente ao `<LineChart>`, **depois** das linhas existentes para ficar por cim
             type="monotone"
             dataKey="meta"
             name="Meta"
+            stroke={INSIGHTS_CHART_COLORS[2]}
             strokeWidth={1.5}
             strokeDasharray="2 3"
             dot={{ r: 3 }}
@@ -801,6 +848,29 @@ Acrescente ao `<LineChart>`, **depois** das linhas existentes para ficar por cim
 ```
 
 `connectNulls={false}` outra vez, e pela mesma razão: julho não tem meta, e uma linha que atravessa o buraco afirmaria que tinha.
+
+`stroke={INSIGHTS_CHART_COLORS[2]}` é obrigatório, não decorativo: `[0]` já é
+"Período atual" e `[1]` já é "Período anterior" neste mesmo gráfico
+(`EvolucaoGrafico.tsx:98,109`) — sem uma terceira cor explícita, a meta herdaria
+a cor default do Recharts, que pode colidir visualmente com uma das duas linhas
+já existentes.
+
+⚠️ **A `<Legend>` deste arquivo só renderiza quando há comparação:**
+`{comparacao ? <Legend .../> : null}` (`EvolucaoGrafico.tsx:84-92`). Com
+`Comparar: Nada` selecionado mas uma meta presente na janela, a linha tracejada
+da meta apareceria **sem nenhuma legenda** explicando o que é — o usuário veria
+uma linha pontilhada do nada. Troque a condição para incluir a meta:
+
+```tsx
+  const temMeta = dados.some((d) => d.meta !== null)
+```
+
+```tsx
+          {comparacao || temMeta ? (
+            <Legend
+```
+
+(mesmo bloco de `<Legend>` já existente, só a condição muda).
 
 - [ ] **Step 3: Verificar tipos e o buraco**
 
