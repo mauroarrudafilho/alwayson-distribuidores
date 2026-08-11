@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 export type SortDir = 'asc' | 'desc'
 
-export type PerfMetricKey = 'faturamento' | 'positivados' | 'itens' | 'pedidos'
+export type PerfMetricKey = 'faturamento' | 'positivados' | 'itens' | 'pedidos' | 'variacao'
 
 export function useNumericSort<K extends string>(
   defaultField: K,
@@ -26,7 +26,7 @@ export function useNumericSort<K extends string>(
   return { sortField, sortDir, toggleSort }
 }
 
-export function useSortedMetricRows<T extends Record<PerfMetricKey, number>>(
+export function useSortedMetricRows<T extends Partial<Record<PerfMetricKey, number | null>>>(
   rows: T[],
   defaultField: PerfMetricKey = 'faturamento'
 ) {
@@ -34,7 +34,14 @@ export function useSortedMetricRows<T extends Record<PerfMetricKey, number>>(
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
-      const cmp = Number(a[sortField] ?? 0) - Number(b[sortField] ?? 0)
+      const va = a[sortField]
+      const vb = b[sortField]
+      const na = va === null || va === undefined
+      const nb = vb === null || vb === undefined
+      if (na && nb) return 0
+      if (na) return 1   // nulos sempre no fim…
+      if (nb) return -1  // …independentemente da direção
+      const cmp = Number(va) - Number(vb)
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [rows, sortField, sortDir])
