@@ -32,6 +32,9 @@ import { usePerformanceContext } from './PerformanceContext'
 import { InsightsBadge } from '@/components/insights/InsightsBadge'
 import { SortableNumericHead, useNumericSort } from './sortableNumeric'
 import { hierarchyPersonLabel } from './hierarchyLabels'
+import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
+import { useSerieCliente } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
 
 export function ClienteTab() {
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null)
@@ -109,15 +112,50 @@ export function ClienteTab() {
     periodoFim
   )
 
-  const { sortField, sortDir, toggleSort } = useNumericSort<'faturamento_mes'>('faturamento_mes')
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: series } = useSerieCliente(distribuidorId, janela)
+  const { data: seriesAnterior } = useSerieCliente(
+    distribuidorId,
+    comparacao ?? janela
+  )
+
+  const variacaoMap = useMemo(() => {
+    const map = new Map<string, number | null>()
+    for (const row of rows) {
+      map.set(
+        row.id,
+        calcularVariacaoLinha(
+          series?.get(row.id),
+          comparacao ? seriesAnterior?.get(row.id) : undefined
+        )
+      )
+    }
+    return map
+  }, [rows, series, seriesAnterior, comparacao])
+
+  const { sortField, sortDir, toggleSort } = useNumericSort<
+    'faturamento_mes' | 'variacao'
+  >('faturamento_mes')
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
+      if (sortField === 'variacao') {
+        const va = variacaoMap.get(a.id) ?? null
+        const vb = variacaoMap.get(b.id) ?? null
+        const na = va === null
+        const nb = vb === null
+        if (na && nb) return 0
+        if (na) return 1   // nulos sempre no fim…
+        if (nb) return -1  // …independentemente da direção
+        const cmp = va - vb
+        return sortDir === 'asc' ? cmp : -cmp
+      }
       const ta = resumoMap.get(a.id)?.faturamentoPeriodo ?? 0
       const tb = resumoMap.get(b.id)?.faturamentoPeriodo ?? 0
       const cmp = ta - tb
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, resumoMap, sortDir])
+  }, [rows, resumoMap, variacaoMap, sortField, sortDir])
 
   if (!distribuidorId) {
     return (
@@ -257,6 +295,14 @@ export function ClienteTab() {
                 sortDir={sortDir}
                 onSort={toggleSort}
               />
+              <SortableNumericHead
+                label="Evolução"
+                field="variacao"
+                sortField={sortField}
+                sortDir={sortDir}
+                onSort={toggleSort}
+                className="hidden lg:table-cell"
+              />
               <TableHead>Última Compra</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -265,7 +311,7 @@ export function ClienteTab() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -274,7 +320,7 @@ export function ClienteTab() {
               ))
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center">
+                <TableCell colSpan={7} className="py-8 text-center">
                   <UserSearch className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum cliente encontrado
@@ -330,6 +376,11 @@ export function ClienteTab() {
                   <TableCell className="text-xs tabular-nums text-right font-medium">
                     {faturamentoMes > 0 ? formatCurrency(faturamentoMes) : '—'}
                   </TableCell>
+                  <ColunaEvolucao
+                    serie={series?.get(row.id)}
+                    variacao={variacaoMap.get(row.id) ?? null}
+                    className="hidden lg:table-cell"
+                  />
                   <TableCell className="text-xs text-muted-foreground">
                     {ultimaCompra ? formatDate(ultimaCompra) : '—'}
                   </TableCell>
