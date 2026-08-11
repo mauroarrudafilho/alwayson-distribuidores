@@ -7,6 +7,7 @@
  * Env:
  *   SUPABASE_URL / VITE_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY  — valida o JWT de quem chama
  *   PORT (default 8787)
  *   CORS_ORIGIN (default *)
  *
@@ -29,10 +30,11 @@ loadDotenv()
 const PORT = Number(process.env.PORT || 8787)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 
-if (!SUPABASE_URL || !SERVICE_KEY) {
+if (!SUPABASE_URL || !SERVICE_KEY || !ANON_KEY) {
   console.error(
-    'Faltam SUPABASE_URL (ou VITE_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY no .env.local'
+    'Faltam SUPABASE_URL (ou VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY e SUPABASE_ANON_KEY no .env.local'
   )
   process.exit(1)
 }
@@ -56,7 +58,75 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'alwayson-ingest-api' })
 })
 
-app.post('/api/ingest', upload.single('file'), async (req, res) => {
+/**
+ * Client no contexto de quem chamou (anon key + JWT da sessão), para que
+ * `auth.uid()` resolva dentro das funções de escopo. O client `supabase` deste
+ * módulo usa service_role e passa por cima de todo o RLS — por isso ele nunca
+ * decide *se* pode, só executa depois da decisão.
+ */
+function clientDoChamador(token) {
+  return createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+function tokenDoHeader(req) {
+  const [scheme, valor] = String(req.headers.authorization ?? '').split(' ')
+  if (scheme?.toLowerCase() !== 'bearer') return null
+  return valor?.trim() || null
+}
+
+/**
+ * Roda antes do multer: quem não se identifica é recusado sem que o arquivo
+ * chegue a ser bufferizado.
+ */
+async function autenticar(req, res, next) {
+  const token = tokenDoHeader(req)
+  if (!token) {
+    return res.status(401).json({
+      error: 'nao_autenticado',
+      message: 'Envie o access_token da sessão no header Authorization.',
+    })
+  }
+
+  const client = clientDoChamador(token)
+  const { data, error } = await client.auth.getUser()
+  if (error || !data?.user) {
+    return res.status(401).json({
+      error: 'sessao_invalida',
+      message: 'Sessão inválida ou expirada. Entre novamente e repita o envio.',
+    })
+  }
+
+  req.usuario = data.user
+  req.clientDoChamador = client
+  return next()
+}
+
+/**
+ * Autoriza o par (distribuidor, fornecedor) pelas mesmas funções que governam
+ * o SELECT no Postgres (migrations 048/049): admin global passa em tudo; os
+ * demais precisam alcançar os dois eixos — é o "E" do KAM, aplicado à escrita.
+ */
+async function podeIngerir(client, { distribuidorId, fornecedorId }) {
+  const { data: admin, error: adminErr } = await client.rpc('current_user_is_admin')
+  if (adminErr) throw adminErr
+  if (admin === true) return true
+
+  const [distRes, fornRes] = await Promise.all([
+    client.rpc('current_user_distribuidores_visiveis'),
+    client.rpc('current_user_fornecedores_visiveis'),
+  ])
+  if (distRes.error) throw distRes.error
+  if (fornRes.error) throw fornRes.error
+
+  const alcancaDistribuidor = (distRes.data ?? []).some((r) => r.distribuidor_id === distribuidorId)
+  const alcancaFornecedor = (fornRes.data ?? []).some((r) => r.tenant_id === fornecedorId)
+  return alcancaDistribuidor && alcancaFornecedor
+}
+
+app.post('/api/ingest', autenticar, upload.single('file'), async (req, res) => {
   const tipo = String(req.body?.tipo ?? '').trim()
   const distribuidorId = String(req.body?.distribuidor_id ?? '').trim()
   const fornecedorId = String(req.body?.fornecedor_id ?? '').trim()
@@ -87,6 +157,25 @@ app.post('/api/ingest', upload.single('file'), async (req, res) => {
     return res.status(400).json({
       error: 'arquivo_ausente',
       message: 'Envie o arquivo no campo file.',
+    })
+  }
+
+  let autorizado
+  try {
+    autorizado = await podeIngerir(req.clientDoChamador, { distribuidorId, fornecedorId })
+  } catch (err) {
+    console.error('[ingest] escopo', err)
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Não foi possível verificar o seu acesso.',
+    })
+  }
+  if (!autorizado) {
+    // Mesma resposta para "não alcança" e "não existe": quem não tem acesso ao
+    // par não deve descobrir por tentativa quais pares existem.
+    return res.status(403).json({
+      error: 'sem_acesso',
+      message: 'Você não tem acesso a este distribuidor/fornecedor.',
     })
   }
 

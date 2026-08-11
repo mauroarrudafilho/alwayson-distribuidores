@@ -12,8 +12,17 @@ Envia um arquivo de relatório para processamento.
 
 **Headers:**
 ```
+Authorization: Bearer <access_token da sessão Supabase>
 Content-Type: multipart/form-data
 ```
+
+O endpoint é **autenticado**. A API valida o JWT com `auth.getUser()` e, num client
+com a anon key no contexto do chamador, confere o escopo pelas mesmas funções que
+governam o SELECT no Postgres (migrations `048`/`049`): admin global passa em tudo;
+os demais precisam alcançar **o distribuidor E o fornecedor** do par enviado.
+
+Sem isso o endpoint seria escrita anônima em produção — a API grava com
+`service_role`, que passa por cima de todo o RLS.
 
 **Body (form-data):**
 | Campo | Tipo | Obrigatório | Descrição |
@@ -27,6 +36,7 @@ Content-Type: multipart/form-data
 **Exemplo (curl):**
 ```bash
 curl -X POST "https://seu-servico.railway.app/api/ingest" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "file=@relatorio_vendas_marco.xlsx" \
   -F "tipo=vendas" \
   -F "distribuidor_id=uuid-do-distribuidor" \
@@ -64,6 +74,25 @@ curl -X POST "https://seu-servico.railway.app/api/ingest" \
   "message": "Tipo deve ser vendas, estoque ou clientes."
 }
 ```
+
+### 401 Unauthorized (sem token ou sessão expirada)
+```json
+{
+  "error": "sessao_invalida",
+  "message": "Sessão inválida ou expirada. Entre novamente e repita o envio."
+}
+```
+
+### 403 Forbidden (fora do escopo do utilizador)
+```json
+{
+  "error": "sem_acesso",
+  "message": "Você não tem acesso a este distribuidor/fornecedor."
+}
+```
+
+Mesma resposta para "não alcança" e "par inexistente" — de propósito, para que
+não se descubram pares válidos por tentativa.
 
 ### 422 Unprocessable Entity (erro no arquivo)
 ```json
@@ -228,10 +257,13 @@ Projeto Supabase deste repo: ref **`osukbalwykbqvoumddxz`** — ver [`docs/SUPAB
 | Variável | Descrição |
 |----------|-----------|
 | `SUPABASE_URL` | URL do projeto Supabase (`https://osukbalwykbqvoumddxz.supabase.co` neste produto) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key **do mesmo** projeto `osukbalwykbqvoumddxz` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key **do mesmo** projeto `osukbalwykbqvoumddxz`. Escreve; nunca decide acesso |
+| `SUPABASE_ANON_KEY` | Anon key do mesmo projeto. Usada só para validar o JWT do chamador e resolver `auth.uid()` nas funções de escopo. Localmente cai para `VITE_SUPABASE_ANON_KEY` |
 | `PORT` | Default `8787` |
-| `CORS_ORIGIN` | Opcional; default libera a origem do browser |
+| `CORS_ORIGIN` | Opcional; default libera a origem do browser. CORS **não** é controle de acesso — quem protege é o JWT |
+
+O serviço recusa a subir se faltar qualquer uma das três chaves.
 
 ---
 
-*Documento atualizado em 31/07/2026. Referência: DISTRIBUIDOR_PLUS_REFERENCE.md.*
+*Documento atualizado em 11/08/2026. Referência: DISTRIBUIDOR_PLUS_REFERENCE.md.*

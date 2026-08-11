@@ -20,6 +20,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useDistribuidores, useFornecedoresDoDistribuidor } from '@/hooks/useDistribuidores'
 import { useQueryClient } from '@tanstack/react-query'
+import { labelFromOptions } from '@/lib/entity-labels'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
 const TIPOS_RELATORIO = [
@@ -164,6 +166,15 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
     setUploadStatus(null)
 
     try {
+      // A API valida este token e confere o escopo do par distribuidor/fornecedor
+      // antes de escrever com service_role.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Sessão expirada. Entre novamente e repita o envio.')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       formData.append('tipo', tipo)
@@ -173,6 +184,8 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
 
       const res = await fetch(`${ingestApiUrl.replace(/\/$/, '')}/api/ingest`, {
         method: 'POST',
+        // Sem Content-Type manual: o browser precisa gerar o boundary do FormData.
+        headers: { Authorization: `Bearer ${session.access_token}` },
         body: formData,
       })
 
@@ -250,7 +263,9 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
                 }}
               >
                 <SelectTrigger className="h-8 w-full text-xs shadow-none border-border/50">
-                  <SelectValue placeholder="Selecione" />
+                  <SelectValue placeholder="Selecione">
+                    {labelFromOptions(distribuidorId, distribuidores ?? [], 'Selecione')}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(distribuidores ?? []).map((d) => (
@@ -273,7 +288,14 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
                 disabled={!distribuidorId || fornecedores.length === 0}
               >
                 <SelectTrigger className="h-8 w-full text-xs shadow-none border-border/50">
-                  <SelectValue placeholder={distribuidorId ? 'Selecione' : 'Escolha o distribuidor'} />
+                  {/* Rótulo explícito: sem ele o Radix cai no fallback do value e expõe o UUID. */}
+                  <SelectValue placeholder={distribuidorId ? 'Selecione' : 'Escolha o distribuidor'}>
+                    {labelFromOptions(
+                      fornecedorId,
+                      fornecedores,
+                      distribuidorId ? 'Selecione' : 'Escolha o distribuidor'
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {fornecedores.map((f) => (
