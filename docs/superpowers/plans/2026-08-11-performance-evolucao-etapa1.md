@@ -906,14 +906,22 @@ export function EvolucaoResumo() {
   const janela = calcularJanela(filters.janela)
   const comparacao = calcularComparacao(janela, filters.comparar)
 
-  const { data: atual = [], isLoading } = useFaturamentoMensal(
+  const { data: atual = [], isLoading: carregandoAtual } = useFaturamentoMensal(
     filters.distribuidorId,
     janela
   )
-  const { data: anterior = [] } = useFaturamentoMensal(
+  // Chamada incondicional por regra de hooks. Sem comparação, a chave da query é
+  // a mesma da base e o React Query devolve o cache — não é ida extra.
+  const { data: anterior = [], isLoading: carregandoAnterior } = useFaturamentoMensal(
     filters.distribuidorId,
     comparacao ?? janela
   )
+
+  // ⚠️ As DUAS têm de entrar no gate. Se só a primeira contasse, enquanto a
+  // comparação ainda estivesse a chegar `anterior` seria [], `resumirPeriodo`
+  // devolveria zeros, e o card mostraria "sem comparação" antes de saltar para a
+  // variação real — um estado falso visível.
+  const isLoading = carregandoAtual || carregandoAnterior
 
   if (isLoading) {
     return (
