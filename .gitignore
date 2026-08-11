@@ -38,6 +38,9 @@ docs/*.xlsx
 docs/templates/*.xlsx
 public/templates/*.xlsx
 
+# Relatórios crus de fornecedor (.xls) — dados locais, não versionar
+Relatórios/
+
 # SQL scratch / inspeção ad-hoc (não versionar — usar docs/migrations/NNN_*.sql para mudanças oficiais)
 _*.sql
 docs/migrations/_*.sql

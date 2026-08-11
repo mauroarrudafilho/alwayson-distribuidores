@@ -67,6 +67,17 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+/** Dia zero do mês seguinte = último dia do mês. */
+function ultimoDiaDoMes(mes: string): string {
+  if (!mes) return ''
+  const [ano, m] = mes.split('-').map(Number)
+  if (!ano || !m) return ''
+  const data = new Date(ano, m, 0)
+  const dd = String(data.getDate()).padStart(2, '0')
+  const mm = String(m).padStart(2, '0')
+  return `${ano}-${mm}-${dd}`
+}
+
 interface IngestaoUploadProps {
   /**
    * Quando informado, o distribuidor vem do contexto (tela dentro do parceiro)
@@ -83,7 +94,10 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
   const [tipo, setTipo] = useState<TipoRelatorio>('vendas')
   const [distribuidorId, setDistribuidorId] = useState<string>(distribuidorFixo ?? '')
   const [fornecedorId, setFornecedorId] = useState<string>('')
-  const [periodoReferencia, setPeriodoReferencia] = useState<string>('')
+  const [periodoMes, setPeriodoMes] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  )
+  const periodoReferencia = ultimoDiaDoMes(periodoMes)
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -223,7 +237,7 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
     }
   }
 
-  const hoje = new Date().toISOString().split('T')[0]
+  const hojeMes = new Date().toISOString().slice(0, 7)
   const colunasEsperadas = COLUNAS_ESPERADAS[tipo]
 
   return (
@@ -317,12 +331,20 @@ export function IngestaoUpload({ onSuccess, onError, className, distribuidorFixo
                 Período Referência
               </label>
               <Input
-                type="date"
-                value={periodoReferencia}
-                onChange={(e) => setPeriodoReferencia(e.target.value)}
-                max={hoje}
+                type="month"
+                value={periodoMes}
+                onChange={(e) => setPeriodoMes(e.target.value)}
+                max={hojeMes}
                 className="h-8 text-xs shadow-none border-border/50"
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Período de referência: dia{' '}
+                {periodoReferencia
+                  ? new Date(`${periodoReferencia}T00:00:00`).toLocaleDateString(
+                      'pt-BR'
+                    )
+                  : '-'}
+              </p>
             </div>
           </div>
 
