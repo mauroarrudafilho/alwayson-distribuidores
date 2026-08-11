@@ -1,0 +1,11 @@
+node_modules
+.planning
+.playwright-mcp
+.vercel
+supabase
+data
+Relatórios
+docs/*.xlsx
+docs/templates/*.xlsx
+docs/migrations
+scripts/lib
