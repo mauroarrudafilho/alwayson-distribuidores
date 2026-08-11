@@ -38,6 +38,7 @@ honesta é contra o mesmo mês do ano anterior.
 | Faturamento | R$ 5.290.367 | R$ 6.316.519 | +19,4% |
 | Notas | 3.937 | 4.444 | +12,9% |
 | Clientes distintos | 1.541 | 1.560 | +1,2% |
+| Ticket médio por nota | R$ 1.344 | R$ 1.421 | +5,8% |
 | Faturamento por cliente | R$ 3.432 | R$ 4.049 | +18,0% |
 
 A base está parada; o crescimento é mais notas por cliente (+11,5%) e ticket
@@ -107,9 +108,14 @@ alteração — para um mês ele já é rápido e já está validado em produç�
 ### Faixa de topo
 
 Os quatro KPIs deixam de ser valores de um mês e passam a ser leituras do
-período com variação: faturamento, notas, clientes distintos e **faturamento por
-cliente**. O quarto é onde a história está — é ele que mostra que o crescimento
-vem de profundidade na carteira, não de expansão.
+período com variação: faturamento, notas, clientes distintos e **ticket médio
+por nota**.
+
+Os quatro juntos contam a história de profundidade vs expansão, ainda que com um
+passo de dedução: faturamento sobe 19,4%, a base de clientes fica parada em
++1,2% e o ticket sobe pouco (+5,8%) — logo o que cresceu foi a **frequência**,
+mais notas por cliente. `Faturamento por cliente` mostraria isso direto (+18,0%),
+mas é métrica menos familiar; a escolha foi por legibilidade.
 
 ### Gráfico principal
 
@@ -155,8 +161,9 @@ comparar: a coluna fica **vazia**, não zerada e não estimada.
 
 ## Critérios de sucesso
 
-1. A tela abre em 12 meses e mostra +19,4% de faturamento com +1,2% de clientes
-   — a leitura de profundidade vs expansão fica visível sem interação.
+1. A tela abre em 12 meses e mostra +19,4% de faturamento contra +1,2% de
+   clientes e +5,8% de ticket — dá para concluir que o crescimento veio de
+   frequência, sem sair da faixa de topo.
 2. Ordenar a tabela de vendedores por variação identifica quem sustenta o
    crescimento.
 3. Abril e setembro não produzem alarme: a linha do ano anterior mostra o mesmo
