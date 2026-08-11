@@ -637,13 +637,30 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `useSerieCliente` (Task 2), `ColunaEvolucao` e `calcularVariacaoLinha` (Tasks 3–4).
 
+⚠️ **`ClienteTab` NÃO usa `useSortedMetricRows`/`PerfMetricKey` como as outras
+quatro abas.** Tem ordenação própria: `useNumericSort<'faturamento_mes'>` com um
+comparador inline que lê `resumoMap.get(a.id)?.faturamentoPeriodo`
+(`ClienteTab.tsx:112-119`). "Mesmo padrão da Task 4" não se aplica ao mecanismo
+de ordenação — só ao `SortableNumericHead`/`ColunaEvolucao` visuais. Não force
+este arquivo a adotar `useSortedMetricRows`; estenda o que já existe.
+
 - [ ] **Step 1: Ligar a série**
 
-Mesmo padrão da Task 4, com `useSerieCliente(filters.distribuidorId, janela)` e o `Map` indexado por `cliente_id`. A chave da linha nesta tabela é o `id` do cliente — confirme lendo o `useMemo` que monta as linhas antes de escrever.
+`useSerieCliente(filters.distribuidorId, janela)` e o `Map` indexado por
+`cliente_id`. A chave da linha nesta tabela é o `id` do cliente — confirme lendo
+o `useMemo` que monta as linhas antes de escrever.
 
 - [ ] **Step 2: Cabeçalho e célula**
 
-Mesmo `SortableNumericHead` com `field="variacao"` e mesma `<ColunaEvolucao />`, ambos com `className="hidden lg:table-cell"`.
+Mesmo `SortableNumericHead` visualmente, com `field="variacao"` e mesma
+`<ColunaEvolucao />`, ambos com `className="hidden lg:table-cell"`. Mas a
+ordenação em si segue o mecanismo próprio deste arquivo: troque
+`useNumericSort<'faturamento_mes'>` por
+`useNumericSort<'faturamento_mes' | 'variacao'>`, e no comparador de
+`sortedRows` acrescente o ramo para `sortField === 'variacao'`, lendo o mapa de
+variações que você montou no Step 1 — com nulos sempre no fim, na mesma política
+adotada em `useSortedMetricRows` (Task 3, Step 3): sem contraparte não é nem
+subida nem queda, então nunca aparece no topo em nenhuma direção.
 
 - [ ] **Step 3: Verificar tipos**
 
