@@ -50,27 +50,47 @@ async function fetchSkusByFaturamento(
   const map = new Map<string, string[]>()
   if (!faturamentoIds.length) return map
 
+  const slices: string[][] = []
   for (let i = 0; i < faturamentoIds.length; i += 200) {
-    const slice = faturamentoIds.slice(i, i + 200)
-    let from = 0
-    for (;;) {
-      const { data, error } = await supabase
-        .from('alwayson_faturamento_itens')
-        .select('faturamento_id, sku')
-        .in('faturamento_id', slice)
-        .range(from, from + PAGE - 1)
-      if (error) throw error
-      const chunk = data ?? []
-      for (const row of chunk) {
+    slices.push(faturamentoIds.slice(i, i + 200))
+  }
+
+  // Uma fatia por vez era ~37 idas encadeadas numa janela de 12 meses. Em
+  // paralelo, com teto para não abrir dezenas de conexões de uma vez.
+  const CONCORRENCIA = 6
+  for (let i = 0; i < slices.length; i += CONCORRENCIA) {
+    const lote = slices.slice(i, i + CONCORRENCIA)
+    const resultados = await Promise.all(lote.map((slice) => fetchSkusSlice(slice)))
+    for (const linhas of resultados) {
+      for (const row of linhas) {
         const list = map.get(row.faturamento_id)
         if (list) list.push(row.sku)
         else map.set(row.faturamento_id, [row.sku])
       }
-      if (chunk.length < PAGE) break
-      from += PAGE
     }
   }
   return map
+}
+
+/** Uma fatia de IDs, paginada — a paginação continua sequencial dentro da fatia. */
+async function fetchSkusSlice(
+  slice: string[]
+): Promise<{ faturamento_id: string; sku: string }[]> {
+  const out: { faturamento_id: string; sku: string }[] = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await supabase
+      .from('alwayson_faturamento_itens')
+      .select('faturamento_id, sku')
+      .in('faturamento_id', slice)
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    const chunk = data ?? []
+    out.push(...chunk)
+    if (chunk.length < PAGE) break
+    from += PAGE
+  }
+  return out
 }
 
 export async function loadFaturamentoSales(opts: {
