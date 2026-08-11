@@ -556,13 +556,32 @@ export function useFaturamentoMensal(
  * Agrega a janela. Faturamento e NFs somam; `clientes` NÃO — a view entrega
  * distintos por mês, e o mesmo cliente aparece em vários. O valor aqui é
  * "clientes atendidos por mês, em média", e o rótulo na UI tem de dizer isso.
+ *
+ * ⚠️ O divisor da média é o número de MESES distintos, nunca `rows.length`.
+ * `eh_total_distribuidor` colapsa só o vendedor: a view devolve uma linha por
+ * (distribuidor, fornecedor, mês). Com "Todos" selecionado — o estado padrão da
+ * tela — `rows.length` é meses × distribuidores × fornecedores, e a média sairia
+ * dividida por um número inflado.
+ *
+ * Limitação conhecida e aceite nesta etapa: dentro de um mês, os distintos são
+ * somados entre distribuidores. Como a chave é `UNIQUE (distribuidor_id, cnpj)`,
+ * o mesmo CNPJ atendido por dois distribuidores conta duas vezes — como duas
+ * relações comerciais, que é a leitura defensável. Desdobrar por CNPJ exigiria
+ * a view carregar `cnpj`, e hoje há um único distribuidor: sem efeito
+ * observável. Revisitar quando entrar o segundo.
  */
 export function resumirPeriodo(rows: FaturamentoMensalRow[]): ResumoPeriodo {
   const faturamento = rows.reduce((s, r) => s + r.faturamento, 0)
   const nfs = rows.reduce((s, r) => s + r.nfs, 0)
-  const clientes = rows.length
-    ? Math.round(rows.reduce((s, r) => s + r.clientes_positivados, 0) / rows.length)
+
+  const porMes = new Map<string, number>()
+  for (const r of rows) {
+    porMes.set(r.mes, (porMes.get(r.mes) ?? 0) + r.clientes_positivados)
+  }
+  const clientes = porMes.size
+    ? Math.round([...porMes.values()].reduce((s, v) => s + v, 0) / porMes.size)
     : 0
+
   return {
     faturamento,
     nfs,
