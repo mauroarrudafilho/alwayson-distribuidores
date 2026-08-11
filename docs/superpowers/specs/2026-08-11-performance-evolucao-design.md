@@ -99,7 +99,11 @@ alteração — para um mês ele já é rápido e já está validado em produç�
 
 `MÊS` dá lugar a:
 
-- **`JANELA`** — 12 meses por padrão; opções 6 / 12 / 24 / toda a série.
+- **`JANELA`** — 6 meses por padrão; opções 6 / 12 / 24 / toda a série.
+  (O padrão era 12; mudou em 2026-08-11 depois de ver a tela. Com a série a
+  começar em jan/2025, 6 meses é a maior janela cuja comparação contra o ano
+  anterior está **completa** — a variação sai like-for-like sem qualificador,
+  enquanto em 12 meses só sete dos doze comparam.)
 - **`COMPARAR COM`** — mesmo período do ano anterior (padrão) / período anterior
   / nenhum.
 
