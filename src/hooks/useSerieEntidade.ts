@@ -61,6 +61,8 @@ async function carregarPaginado(
       .select(colunasSelect)
       .gte('mes', `${janela.inicio}-01`)
       .lte('mes', `${janela.fim}-01`)
+      .order(colunaChave)
+      .order('mes')
       .range(from, from + PAGE - 1)
 
     if (distribuidorId) q = q.eq('distribuidor_id', distribuidorId)
