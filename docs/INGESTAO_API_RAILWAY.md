@@ -35,7 +35,7 @@ Sem isso o endpoint seria escrita anônima em produção — a API grava com
 
 **Exemplo (curl):**
 ```bash
-curl -X POST "https://seu-servico.railway.app/api/ingest" \
+curl -X POST "https://alwayson-ingest-api-production.up.railway.app/api/ingest" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "file=@relatorio_vendas_marco.xlsx" \
   -F "tipo=vendas" \
@@ -245,7 +245,8 @@ Dockerfile de deploy: `services/ingest-api/Dockerfile` (raiz do repo como contex
 Adicione ao `.env` / `.env.local`:
 ```
 VITE_INGEST_API_URL=http://localhost:8787
-# em produção: https://seu-servico.railway.app
+# em produção (já configurada na Vercel):
+# https://alwayson-ingest-api-production.up.railway.app
 VITE_SUPABASE_URL=https://osukbalwykbqvoumddxz.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon do projeto osukbalwykbqvoumddxz>
 ```

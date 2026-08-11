@@ -11,24 +11,26 @@
 
 ## 1. Ações suas — não é código
 
-### 1.1 Atualizar a API de ingestão ⚠️ prazo: antes do 2º fornecedor
+### 1.1 API de ingestão ✅ resolvido em 11/08/2026
 
-`services/ingest-api` é um serviço à parte (Express + Dockerfile próprio) — **não sai no deploy da Vercel**, e o repo não regista a URL real (o doc do Railway usa placeholder).
+`services/ingest-api` está no ar: serviço **`alwayson-ingest-api`** no projeto Railway
+`arruda-etl`, em **`https://alwayson-ingest-api-production.up.railway.app`**, deployado
+a partir do `main` deste repo (`services/ingest-api/Dockerfile`, watch patterns em
+`services/ingest-api/**`). A Vercel aponta para ele por `VITE_INGEST_API_URL`.
 
-Desde a migration `047` ela exige `fornecedor_id`. Se a instância em execução estiver atrasada:
+Antes disso os uploads só funcionavam de `localhost:8787` — a variável nunca existiu
+em produção, e não havia instância pública nenhuma.
 
-- **Hoje não quebra nada** — o trigger da `050` infere o fornecedor enquanto o distribuidor tiver só um.
-- **Com o 2º fornecedor**, a inferência deixa de ser possível: as notas nascem sem carimbo e ficam invisíveis a KAM e distribuidor (falha fechada — não vaza, mas some).
+O endpoint passou a ser **autenticado** (ver [`INGESTAO_API_RAILWAY.md`](INGESTAO_API_RAILWAY.md)):
+sem JWT válido e sem alcance ao par distribuidor/fornecedor, não escreve. Como ele
+grava com `service_role`, expor sem isso seria escrita anônima na base de produção.
 
-Como saber qual versão está no ar:
+Já não há risco de versão atrasada em relação à migration `047` — o serviço segue o
+`main`. Verificação rápida de que está no ar:
 
 ```bash
-curl -X POST "$URL_DA_INGESTAO/api/ingest" -F "tipo=vendas" \
-     -F "distribuidor_id=6b551b8c-2f3e-4b3b-94f0-c34ac59be9e4" \
-     -F "periodo_referencia=2026-05-30"
+curl https://alwayson-ingest-api-production.up.railway.app/health
 ```
-
-`"fornecedor_id é obrigatório"` → atualizada. Qualquer outro erro → precisa de redeploy.
 
 ### 1.2 Purgar o commit órfão no GitHub ⚠️ restrição contratual
 
