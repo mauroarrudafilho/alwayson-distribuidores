@@ -530,11 +530,38 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/pages/performance/GerenciaTab.tsx`
 - Modify: `src/pages/performance/SupervisaoTab.tsx`
 - Modify: `src/pages/performance/VendasTab.tsx`
+- Modify: `src/hooks/useSerieEntidade.ts` (só visibilidade — ver Step 0)
 
 **Interfaces:**
-- Consumes: `useSerieHierarquia` (Task 2), `ColunaEvolucao` (Task 3), `calcularJanela`/`calcularComparacao` (etapa 1).
+- Consumes: `useSerieHierarquia` (Task 2), `ColunaEvolucao` (Task 3), `calcularJanela`/`calcularComparacao` (etapa 1), `useFaturamentoMensal` (etapa 1, `src/hooks/useFaturamentoMensal.ts`).
 
 ⚠️ **`DistribuidorTab` é o caso especial.** As outras três listam entidades da hierarquia; esta lista **distribuidores**, que não estão em `alwayson_vendedores_distribuidor`. Para ela, use `alwayson_faturamento_v_mensal` (a view da etapa 1, migration 067) filtrando `eh_total_distribuidor = true` e agrupando por `distribuidor_id` — não invente um nível novo na view de hierarquia.
+
+⚠️ **`DistribuidorTab.tsx` hoje não chama `useFaturamentoMensal` em lugar nenhum** — a
+tabela usa `useAllFaturamentoSales` (linha a linha) e `aggregateSalesBy`. Só
+`EvolucaoResumo`/`EvolucaoGrafico`, que são componentes à parte, chamam
+`useFaturamentoMensal`, e cada um com o seu próprio hook, escopado a
+`filters.distribuidorId`. O Step 3 abaixo faz **duas chamadas novas** a
+`useFaturamentoMensal`, com `distribuidorId` sempre `undefined` — a tabela lista
+**todos** os distribuidores independentemente do filtro (a lista vem de
+`useDistribuidores()`, sem argumento), então a série tem de vir sem filtro
+também, e ser agrupada por `distribuidor_id` no cliente.
+
+- [ ] **Step 0: Exportar `montarSeries`**
+
+Em `src/hooks/useSerieEntidade.ts`, acrescente `export` a `montarSeries` e ao
+tipo `LinhaSerie` que ela recebe (hoje ambos são privados ao módulo):
+
+```ts
+export type LinhaSerie = { chave: string; mes: string; faturamento: number }
+
+// …
+
+export function montarSeries(linhas: LinhaSerie[], janela: Janela): Map<string, SerieEntidade> {
+```
+
+Sem alteração de lógica — é só visibilidade, para o Step 3 poder reutilizá-la em
+vez de duplicar o agrupamento.
 
 - [ ] **Step 1: Cabeçalho e célula em `VendasTab`** (faça esta primeiro; é o caso canónico)
 
@@ -591,7 +618,60 @@ Idêntico ao Step 1, trocando o nível: `'gerente'` em `GerenciaTab`, `'supervis
 
 - [ ] **Step 3: `DistribuidorTab`, pelo caminho da view 067**
 
-Aqui a série vem da view da etapa 1. Acrescente ao `useFaturamentoMensal` já existente uma agregação por distribuidor: monte um `Map<string, SerieEntidade>` a partir das linhas mensais, indexado por `distribuidor_id`, com a mesma forma que `montarSeries` produz. Reutilize `ColunaEvolucao` e `calcularVariacaoLinha` sem alteração.
+Adicione o import:
+
+```ts
+import { useFaturamentoMensal } from '@/hooks/useFaturamentoMensal'
+import { montarSeries } from '@/hooks/useSerieEntidade'
+import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
+```
+
+Antes do `useMemo` que monta `rows`, acrescente as duas chamadas — sempre com
+`distribuidorId: undefined`, porque esta tabela lista todos os distribuidores:
+
+```tsx
+  const janela = calcularJanela(filters.janela)
+  const comparacao = calcularComparacao(janela, filters.comparar)
+  const { data: mensal } = useFaturamentoMensal(undefined, janela)
+  const { data: mensalAnterior } = useFaturamentoMensal(undefined, comparacao ?? janela)
+
+  const series = useMemo(
+    () =>
+      montarSeries(
+        (mensal ?? []).map((r) => ({ chave: r.distribuidor_id, mes: r.mes, faturamento: r.faturamento })),
+        janela
+      ),
+    [mensal, janela]
+  )
+  const seriesAnterior = useMemo(
+    () =>
+      montarSeries(
+        (mensalAnterior ?? []).map((r) => ({ chave: r.distribuidor_id, mes: r.mes, faturamento: r.faturamento })),
+        comparacao ?? janela
+      ),
+    [mensalAnterior, comparacao, janela]
+  )
+```
+
+Dentro do `useMemo` que monta `rows`, ao lado de `faturamento`/`positivados`/etc.
+de cada `dist`, acrescente:
+
+```tsx
+        variacao: calcularVariacaoLinha(
+          series.get(dist.id),
+          comparacao ? seriesAnterior.get(dist.id) : undefined
+        ),
+```
+
+E no `<TableRow>`, a mesma `<SortableNumericHead field="variacao">` e
+`<ColunaEvolucao serie={series.get(row.id)} variacao={row.variacao} />` do Step
+1 — `row.id` aqui é `distribuidor_id`, já presente em `dist.id` porque `rows`
+faz `{...dist, faturamento: ..., variacao: ...}`.
+
+Note a diferença do Step 1: ali `series`/`seriesAnterior` vêm direto de
+`useSerieHierarquia` (já são `Map`); aqui vêm de `montarSeries` chamada
+manualmente, porque a view 067 não tem uma dimensão "nível" para filtrar por
+`useSerieHierarquia`.
 
 - [ ] **Step 4: Verificar tipos**
 
@@ -617,12 +697,13 @@ Calcule à mão a variação dos cinco e ponha no report. São os valores que a 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/pages/performance/DistribuidorTab.tsx src/pages/performance/GerenciaTab.tsx src/pages/performance/SupervisaoTab.tsx src/pages/performance/VendasTab.tsx src/pages/performance/ColunaEvolucao.tsx
+git add src/pages/performance/DistribuidorTab.tsx src/pages/performance/GerenciaTab.tsx src/pages/performance/SupervisaoTab.tsx src/pages/performance/VendasTab.tsx src/hooks/useSerieEntidade.ts
 git commit -m "feat(performance): coluna de evolução nas abas de hierarquia
 
 Ordenar por ela responde quem puxou o crescimento e quem cai contra o próprio
-ano anterior. DistribuidorTab lê a view 067 e não a de hierarquia: distribuidor
-não é entidade de alwayson_vendedores_distribuidor.
+ano anterior. DistribuidorTab lê a view 067 e não a de hierarquia — distribuidor
+não é entidade de alwayson_vendedores_distribuidor — e monta a série chamando
+useFaturamentoMensal sem filtro, já que a tabela lista todos os distribuidores.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
