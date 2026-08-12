@@ -58,3 +58,6 @@ supabase/.temp/
 data/receita/
 data/rais/
 data/cnefe/
+
+# Worktrees isolados para execução de planos (superpowers)
+.worktrees/
