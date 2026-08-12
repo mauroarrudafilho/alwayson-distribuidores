@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { DistribuidorProdutoDePara } from '@/types/distribuidor'
+import type { DistribuidorProdutoDePara, DistribuidorProdutoNaoMapeado } from '@/types/distribuidor'
+
+function n(x: unknown): number {
+  const v = Number(x)
+  return Number.isFinite(v) ? v : 0
+}
 
 export function useDistribuidorProdutoDePara(distribuidorId: string | undefined) {
   return useQuery({
@@ -16,6 +21,34 @@ export function useDistribuidorProdutoDePara(distribuidorId: string | undefined)
       return data as DistribuidorProdutoDePara[]
     },
     enabled: !!distribuidorId,
+  })
+}
+
+/** SKUs brutos do distribuidor faturados sem produto_id e sem entrada no de-para dele — fila de curadoria. */
+export function useDistribuidorProdutosNaoMapeados(distribuidorId: string | undefined) {
+  return useQuery({
+    queryKey: ['distribuidor-produtos-nao-mapeados', distribuidorId],
+    staleTime: 30_000,
+    enabled: !!distribuidorId,
+    queryFn: async (): Promise<DistribuidorProdutoNaoMapeado[]> => {
+      if (!distribuidorId) return []
+      const { data, error } = await supabase
+        .from('alwayson_faturamento_v_distribuidor_produtos_nao_mapeados')
+        .select('*')
+        .eq('distribuidor_id', distribuidorId)
+        .order('faturamento_total', { ascending: false })
+        .limit(500)
+      if (error) throw error
+      return (data ?? []).map((row) => {
+        const r = row as Record<string, unknown>
+        return {
+          sku: String(r.sku ?? ''),
+          descricao: String(r.descricao ?? ''),
+          faturamento_total: n(r.faturamento_total),
+          total_linhas: Math.trunc(n(r.total_linhas)),
+        }
+      })
+    },
   })
 }
 
@@ -42,6 +75,9 @@ export function useUpsertDistribuidorProdutoDePara() {
     onSuccess: (_, vars) => {
       void qc.invalidateQueries({
         queryKey: ['distribuidor-produto-de-para', vars.distribuidor_id],
+      })
+      void qc.invalidateQueries({
+        queryKey: ['distribuidor-produtos-nao-mapeados', vars.distribuidor_id],
       })
     },
   })

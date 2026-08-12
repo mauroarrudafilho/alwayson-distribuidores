@@ -146,6 +146,14 @@ export interface DistribuidorProdutoDePara {
   atualizado_em: string
 }
 
+/** Código bruto do distribuidor faturado sem produto_id resolvido e sem entrada no de-para deste distribuidor. */
+export interface DistribuidorProdutoNaoMapeado {
+  sku: string
+  descricao: string
+  faturamento_total: number
+  total_linhas: number
+}
+
 export interface DistribuidorKPIs {
   faturamento_periodo: number
   faturamento_periodo_anterior: number
