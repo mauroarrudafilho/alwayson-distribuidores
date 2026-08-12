@@ -7,7 +7,7 @@
  * `mesEmCurso`.
  */
 
-export type JanelaMeses = 6 | 12 | 24 | 0
+export type JanelaMeses = 6 | 12 | 24 | 0 | 'ano_vigente'
 export type ComparacaoModo = 'ano_anterior' | 'periodo_anterior' | 'nenhum'
 
 export interface Janela {
@@ -57,8 +57,18 @@ export function mesEmCurso(hoje: Date = new Date()): string {
 
 export function calcularJanela(janela: JanelaMeses, hoje: Date = new Date()): Janela {
   const fim = somarMeses(mesEmCurso(hoje), -1)
-  const inicio =
-    janela === 0 ? PRIMEIRO_MES_SERIE : somarMeses(fim, -(janela - 1))
+  let inicio: string
+  if (janela === 'ano_vigente') {
+    const inicioAno = `${hoje.getFullYear()}-01`
+    // Em janeiro, o ano vigente ainda não tem mês completo (fim cai em
+    // dezembro do ano anterior) — cai para o último mês fechado em vez de
+    // gerar um intervalo invertido.
+    inicio = inicioAno > fim ? fim : inicioAno
+  } else if (janela === 0) {
+    inicio = PRIMEIRO_MES_SERIE
+  } else {
+    inicio = somarMeses(fim, -(janela - 1))
+  }
   const inicioLimitado = inicio < PRIMEIRO_MES_SERIE ? PRIMEIRO_MES_SERIE : inicio
   return { inicio: inicioLimitado, fim, meses: intervalo(inicioLimitado, fim) }
 }

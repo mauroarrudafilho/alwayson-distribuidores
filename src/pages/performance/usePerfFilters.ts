@@ -91,14 +91,16 @@ function toParamName(key: PerfFilterParamKey): string {
 }
 
 /**
- * Padrão de 6 meses: com a série a começar em jan/2025, é a maior janela cuja
- * comparação contra o ano anterior está completa — os seis meses têm
- * contraparte, e a variação é like-for-like sem qualificador. Em 12 meses só
- * sete dos doze comparam, e o card passa a dizer "(7 de 12 meses)".
+ * Padrão de ano vigente: o recorte mais natural para "como estamos indo" —
+ * o mesmo que qualquer relatório de gestão usaria. Os meses de 6/12/24 ficam
+ * disponíveis para quem quer olhar a evolução recente independente do
+ * calendário.
  */
 function readJanela(searchParams: URLSearchParams): JanelaMeses {
-  const raw = Number(searchParams.get('janela'))
-  return raw === 12 || raw === 24 || raw === 0 ? raw : 6
+  const raw = searchParams.get('janela')
+  if (raw === 'ano_vigente') return 'ano_vigente'
+  const n = Number(raw)
+  return n === 6 || n === 12 || n === 24 || n === 0 ? n : 'ano_vigente'
 }
 
 function readComparar(searchParams: URLSearchParams): ComparacaoModo {

@@ -20,6 +20,7 @@ import {
   resolvePerfTab,
   type PerfTab,
 } from './performance/usePerfFilters'
+import type { JanelaMeses } from '@/lib/janela-periodo'
 import { DistribuidorTab } from './performance/DistribuidorTab'
 import { GerenciaTab } from './performance/GerenciaTab'
 import { SupervisaoTab } from './performance/SupervisaoTab'
@@ -36,7 +37,8 @@ const TAB_COMPONENTS: Record<PerfTab, React.ComponentType> = {
   produtos: ProdutoTab,
 }
 
-const JANELA_LABELS: Record<number, string> = {
+const JANELA_LABELS: Record<JanelaMeses, string> = {
+  ano_vigente: 'Ano vigente',
   6: '6 meses',
   12: '12 meses',
   24: '24 meses',
@@ -144,6 +146,7 @@ function PerformanceContent() {
               <SelectValue>{JANELA_LABELS[filters.janela]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ano_vigente">Ano vigente</SelectItem>
               <SelectItem value="6">6 meses</SelectItem>
               <SelectItem value="12">12 meses</SelectItem>
               <SelectItem value="24">24 meses</SelectItem>
