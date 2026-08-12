@@ -52,7 +52,9 @@ export function useUpsertFaturamentoProdutoDePara() {
     mutationFn: async (args: { sku_origem: string; sku_fornecedor: string }) => {
       const skuOrigem = args.sku_origem.trim()
       const skuFornecedor = args.sku_fornecedor.trim()
-      if (!skuOrigem || !skuFornecedor) return
+      if (!skuOrigem || !skuFornecedor) {
+        throw new Error('sku_origem e sku_fornecedor são obrigatórios')
+      }
       const { error } = await supabase
         .from('alwayson_faturamento_produto_de_para')
         .upsert({ sku_origem: skuOrigem, sku_fornecedor: skuFornecedor }, { onConflict: 'sku_origem' })
@@ -71,7 +73,9 @@ export function useDeleteFaturamentoProdutoDePara() {
   return useMutation({
     mutationFn: async (skuOrigem: string) => {
       const sku = skuOrigem.trim()
-      if (!sku) return
+      if (!sku) {
+        throw new Error('sku_origem é obrigatório')
+      }
       const { error } = await supabase
         .from('alwayson_faturamento_produto_de_para')
         .delete()
