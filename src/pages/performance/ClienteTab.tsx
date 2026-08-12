@@ -7,6 +7,8 @@ import { ClienteSinalizadores } from '@/components/cliente/ClienteSinalizadores'
 import { useClientes } from '@/hooks/useClientes'
 import { useClientesFaturamentoResumo } from '@/hooks/useClientesFaturamentoResumo'
 import { useVendedorHierarchy } from '@/hooks/usePerformanceHierarchy'
+import { usePagination } from '@/hooks/usePagination'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Card } from '@/components/ui/card'
 import {
   Select,
@@ -234,6 +236,11 @@ export function ClienteTab() {
     })
   }, [rowsFiltrados, resumoMap, variacaoMap, sortField, sortDir])
 
+  const { paginated, page, pageSize, setPage, setPageSize, total } = usePagination({
+    items: sortedRows,
+    resetKey: `${busca}|${classificacaoFiltro}|${cidadeFiltro ?? ''}|${gerenteId ?? ''}|${supervisorId ?? ''}|${vendedorId ?? ''}`,
+  })
+
   if (!distribuidorId) {
     return (
       <div className="py-12 text-center">
@@ -453,7 +460,7 @@ export function ClienteTab() {
                   ))}
                 </TableRow>
               ))
-            ) : rowsFiltrados.length === 0 ? (
+            ) : total === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-8 text-center">
                   <UserSearch className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -463,7 +470,7 @@ export function ClienteTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              sortedRows.map((row) => {
+              paginated.map((row) => {
                 const resumo = resumoMap.get(row.id)
                 const ultimaCompra = resumo?.ultimaCompra
                 const faturamentoMes = resumo?.faturamentoPeriodo ?? 0
@@ -527,6 +534,13 @@ export function ClienteTab() {
             )}
           </TableBody>
         </Table>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
       </Card>
     </div>
   )
