@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   CartesianGrid,
   Legend,
@@ -115,10 +115,15 @@ export function EvolucaoGraficoNivel({
     })
   }, [janela, comparacao, top, outrosIds, temOutros, series, seriesAnterior, semDadoAnterior])
 
+  const [destacada, setDestacada] = useState<string | null>(null)
+
   if (top.length === 0) return null
 
   const linhas: EntidadeNome[] = temOutros ? [...top, { id: OUTROS_ID, nome: 'Outros' }] : top
   const clicavel = (id: string) => id !== OUTROS_ID
+  // Opacidade da linha: 1 se nada está destacado ou é a entidade destacada; senão recua
+  // para deixar as outras em evidência. "Outros" participa do destaque — só não navega.
+  const opacidade = (id: string) => (destacada === null || destacada === id ? 1 : 0.15)
 
   return (
     <InsightsChartCard title="Faturamento mês a mês" height={280} className="mb-4">
@@ -142,16 +147,19 @@ export function EvolucaoGraficoNivel({
             iconType="circle"
             wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
             onClick={(entry) => {
+              // Legenda destaca, não navega — clicar na linha do gráfico é que leva à
+              // próxima aba. Com várias entidades sobrepostas, isolar uma de cada vez
+              // é o que torna o gráfico legível; navegar ali fecharia a comparação.
               const id = typeof entry.dataKey === 'string' ? entry.dataKey : ''
-              if (clicavel(id)) onEntidadeClick(id)
+              setDestacada((atual) => (atual === id ? null : id))
             }}
             formatter={(value: string, entry: { dataKey?: unknown }) => {
               const id = typeof entry.dataKey === 'string' ? entry.dataKey : ''
               return (
                 <span
                   className={cn(
-                    'text-xs text-muted-foreground',
-                    clicavel(id) && 'cursor-pointer hover:text-foreground'
+                    'cursor-pointer text-xs hover:text-foreground',
+                    destacada === id ? 'font-semibold text-foreground' : 'text-muted-foreground'
                   )}
                 >
                   {value}
@@ -169,6 +177,7 @@ export function EvolucaoGraficoNivel({
                 name={entidade.nome}
                 stroke={cor}
                 strokeWidth={2}
+                strokeOpacity={opacidade(entidade.id)}
                 dot={{ r: 3 }}
                 onClick={() => clicavel(entidade.id) && onEntidadeClick(entidade.id)}
                 style={clicavel(entidade.id) ? { cursor: 'pointer' } : undefined}
@@ -187,6 +196,7 @@ export function EvolucaoGraficoNivel({
                   legendType="none"
                   stroke={cor}
                   strokeWidth={1.5}
+                  strokeOpacity={opacidade(entidade.id)}
                   strokeDasharray="4 4"
                   dot={false}
                   connectNulls={false}
