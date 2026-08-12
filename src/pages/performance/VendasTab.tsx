@@ -29,6 +29,7 @@ import { hierarchyPersonLabel } from './hierarchyLabels'
 import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
 import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
 import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
+import { EvolucaoGraficoNivel } from './EvolucaoGraficoNivel'
 
 export function VendasTab() {
   const { filters, setFilter, drillDown } = usePerformanceContext()
@@ -57,11 +58,6 @@ export function VendasTab() {
     filters.distribuidorId,
     'vendedor',
     comparacao ?? janela
-  )
-
-  const gerentesForFilter = useMemo(
-    () => hierarchy?.gerentes ?? [],
-    [hierarchy]
   )
 
   const supervisoresForFilter = useMemo(() => {
@@ -143,77 +139,39 @@ export function VendasTab() {
     )
   }
 
-  const showGerenteFilter = gerentesForFilter.length > 0
   const showSupervisorFilter = supervisoresForFilter.length > 0
-  const filterColumns =
-    showGerenteFilter && showSupervisorFilter
-      ? 2
-      : showGerenteFilter || showSupervisorFilter
-        ? 2
-        : undefined
 
   return (
     <div className="space-y-6 mt-4">
-      {(showGerenteFilter || showSupervisorFilter) && (
-        <FilterBar columns={filterColumns as 2}>
-          {showGerenteFilter && (
-            <FilterField label="Gerente">
-              <Select
-                value={gerenteId ?? 'todos'}
-                onValueChange={(v) =>
-                  setFilter(
-                    'gerenteId',
-                    v === 'todos' ? undefined : (v as string)
-                  )
-                }
-              >
-                <SelectTrigger className="h-8 w-full text-sm">
-                  <SelectValue placeholder="Todos">
-                    {gerenteId
-                      ? hierarchyPersonLabel(hierarchy, gerenteId, 'Gerente')
-                      : 'Todos'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {gerentesForFilter.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-          )}
-          {showSupervisorFilter && (
-            <FilterField label="Supervisor">
-              <Select
-                value={supervisorId ?? 'todos'}
-                onValueChange={(v) =>
-                  setFilter(
-                    'supervisorId',
-                    v === 'todos' ? undefined : (v as string)
-                  )
-                }
-              >
-                <SelectTrigger className="h-8 w-full text-sm">
-                  <SelectValue placeholder="Todos">
-                    {supervisorId
-                      ? hierarchyPersonLabel(hierarchy, supervisorId, 'Supervisor')
-                      : 'Todos'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {supervisoresForFilter.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-          )}
+      {showSupervisorFilter && (
+        <FilterBar columns={2}>
+          <FilterField label="Supervisor">
+            <Select
+              value={supervisorId ?? 'todos'}
+              onValueChange={(v) =>
+                setFilter(
+                  'supervisorId',
+                  v === 'todos' ? undefined : (v as string)
+                )
+              }
+            >
+              <SelectTrigger className="h-8 w-full text-sm">
+                <SelectValue placeholder="Todos">
+                  {supervisorId
+                    ? hierarchyPersonLabel(hierarchy, supervisorId, 'Supervisor')
+                    : 'Todos'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {supervisoresForFilter.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
         </FilterBar>
       )}
 
@@ -235,6 +193,15 @@ export function VendasTab() {
           icon={ShoppingCart}
         />
       </KPIGrid>
+
+      <EvolucaoGraficoNivel
+        janela={janela}
+        comparacao={comparacao}
+        entidades={filteredVendedores}
+        series={series}
+        seriesAnterior={seriesAnterior}
+        onEntidadeClick={handleRowClick}
+      />
 
       <Card>
         <Table>

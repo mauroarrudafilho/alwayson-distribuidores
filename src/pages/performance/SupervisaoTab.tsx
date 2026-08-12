@@ -30,6 +30,7 @@ import { hierarchyPersonLabel } from './hierarchyLabels'
 import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
 import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
 import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
+import { EvolucaoGraficoNivel } from './EvolucaoGraficoNivel'
 
 export function SupervisaoTab() {
   const { filters, setFilter, drillDown, availableTabs } = usePerformanceContext()
@@ -177,6 +178,15 @@ export function SupervisaoTab() {
           icon={ShoppingCart}
         />
       </KPIGrid>
+
+      <EvolucaoGraficoNivel
+        janela={janela}
+        comparacao={comparacao}
+        entidades={filteredSupervisores}
+        series={series}
+        seriesAnterior={seriesAnterior}
+        onEntidadeClick={handleRowClick}
+      />
 
       <Card>
         <Table>

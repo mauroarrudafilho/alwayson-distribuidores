@@ -21,6 +21,7 @@ import { SortableNumericHead, useSortedMetricRows } from './sortableNumeric'
 import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
 import { useSerieHierarquia } from '@/hooks/useSerieEntidade'
 import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
+import { EvolucaoGraficoNivel } from './EvolucaoGraficoNivel'
 
 export function GerenciaTab() {
   const { filters, drillDown, availableTabs } = usePerformanceContext()
@@ -112,6 +113,15 @@ export function GerenciaTab() {
           icon={ShoppingCart}
         />
       </KPIGrid>
+
+      <EvolucaoGraficoNivel
+        janela={janela}
+        comparacao={comparacao}
+        entidades={hierarchy?.gerentes ?? []}
+        series={series}
+        seriesAnterior={seriesAnterior}
+        onEntidadeClick={handleRowClick}
+      />
 
       <Card>
         <Table>
