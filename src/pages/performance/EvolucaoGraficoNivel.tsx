@@ -19,7 +19,6 @@ import {
   CHART_GRID_STROKE,
   INSIGHTS_CHART_COLORS,
   formatCurrencyCompact,
-  coerceTooltipNumber,
 } from '@/components/insights/charts'
 
 const MES_CURTO = [
@@ -51,6 +50,111 @@ interface Props {
   /** Mesmo handler que o clique da linha da tabela já usa. Nunca chamado
    * para "Outros" — não há entidade única para navegar. */
   onEntidadeClick: (id: string) => void
+}
+
+/**
+ * Tooltip customizado — o padrão do Recharts ignora o destaque (lista tudo do
+ * mês, mesmo com uma entidade isolada) e empilha "Nome" e "Nome (anterior)"
+ * como linhas soltas, sem parear valor com variação. Aqui: uma linha por
+ * entidade, atual e anterior juntos, com a mesma variação % colorida que o
+ * resto da tela já usa (ColunaEvolucao/KPICard).
+ */
+interface TooltipPayloadItem {
+  dataKey?: string | number
+  value?: number | string
+  color?: string
+  stroke?: string
+}
+
+interface GraficoTooltipProps {
+  active?: boolean
+  payload?: TooltipPayloadItem[]
+  label?: string
+  /** Quando definido, só essa entidade aparece — mesmo se o mês tiver dado de outras. */
+  destacada: string | null
+  linhas: EntidadeNome[]
+  comComparacao: boolean
+}
+
+function GraficoTooltip({
+  active,
+  payload,
+  label,
+  destacada,
+  linhas,
+  comComparacao,
+}: GraficoTooltipProps) {
+  if (!active || !payload?.length) return null
+
+  const porEntidade = new Map<
+    string,
+    { atual?: number; anterior?: number | null; cor?: string }
+  >()
+  for (const item of payload) {
+    const chave = typeof item.dataKey === 'string' ? item.dataKey : ''
+    const ehAnterior = chave.endsWith('::anterior')
+    const id = ehAnterior ? chave.slice(0, -'::anterior'.length) : chave
+    const entrada = porEntidade.get(id) ?? {}
+    const valor = typeof item.value === 'number' ? item.value : undefined
+    if (ehAnterior) entrada.anterior = valor ?? null
+    else {
+      entrada.atual = valor
+      entrada.cor = entrada.cor ?? item.color ?? item.stroke
+    }
+    porEntidade.set(id, entrada)
+  }
+
+  const idsParaMostrar = destacada ? [destacada] : linhas.map((l) => l.id)
+
+  return (
+    <div className="min-w-[11rem] rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
+      <p className="mb-1.5 font-medium text-foreground">{label}</p>
+      <div className="space-y-1.5">
+        {idsParaMostrar.map((id) => {
+          const nome = linhas.find((l) => l.id === id)?.nome ?? id
+          const valores = porEntidade.get(id)
+          if (!valores || valores.atual === undefined) return null
+          const variacao =
+            comComparacao && typeof valores.anterior === 'number' && valores.anterior !== 0
+              ? ((valores.atual - valores.anterior) / valores.anterior) * 100
+              : null
+
+          return (
+            <div key={id} className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                {valores.cor && (
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: valores.cor }}
+                  />
+                )}
+                <span className="truncate">{nome}</span>
+              </span>
+              <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
+                <span className="font-medium text-foreground">
+                  {formatCurrency(valores.atual)}
+                </span>
+                {comComparacao &&
+                  (variacao === null ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <span
+                      className={cn(
+                        'text-[11px] font-semibold',
+                        variacao >= 0 ? 'text-success' : 'text-destructive'
+                      )}
+                    >
+                      {variacao >= 0 ? '+' : ''}
+                      {variacao.toFixed(1)}%
+                    </span>
+                  ))}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function EvolucaoGraficoNivel({
@@ -136,12 +240,17 @@ export function EvolucaoGraficoNivel({
             tickFormatter={(v: number) => formatCurrencyCompact(v)}
           />
           <Tooltip
-            formatter={((value: unknown) => formatCurrency(coerceTooltipNumber(value))) as never}
-            contentStyle={{
-              borderRadius: 8,
-              border: '1px solid var(--color-border)',
-              fontSize: 12,
-            }}
+            content={(props) => (
+              <GraficoTooltip
+                {...(props as unknown as Omit<
+                  GraficoTooltipProps,
+                  'destacada' | 'linhas' | 'comComparacao'
+                >)}
+                destacada={destacada}
+                linhas={linhas}
+                comComparacao={!!comparacao}
+              />
+            )}
           />
           <Legend
             iconType="circle"
