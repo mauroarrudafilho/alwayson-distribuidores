@@ -151,6 +151,7 @@ export function AdminProdutosCuradoria() {
                                 }
                                 placeholder="ex. 11.5004"
                                 className="h-8 font-mono text-xs"
+                                list="curadoria-sku-catalogo-list"
                               />
                               {draftNorm && (
                                 <Tooltip>
@@ -200,6 +201,14 @@ export function AdminProdutosCuradoria() {
               </Table>
             </div>
           )}
+
+          <datalist id="curadoria-sku-catalogo-list">
+            {(produtos ?? []).slice(0, 800).map((p) => (
+              <option key={p.sku} value={p.sku}>
+                {p.descricao}
+              </option>
+            ))}
+          </datalist>
         </CardContent>
       </Card>
 
