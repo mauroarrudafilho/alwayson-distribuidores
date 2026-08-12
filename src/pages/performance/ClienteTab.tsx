@@ -454,7 +454,7 @@ export function ClienteTab() {
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   {Array.from({ length: 7 }).map((_, j) => (
-                    <TableCell key={j}>
+                    <TableCell key={j} className="py-1.5">
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
                   ))}
@@ -462,7 +462,7 @@ export function ClienteTab() {
               ))
             ) : total === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center">
+                <TableCell colSpan={7} className="py-1.5 text-center">
                   <UserSearch className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">
                     Nenhum cliente encontrado
@@ -480,7 +480,7 @@ export function ClienteTab() {
                   className="cursor-pointer"
                   onClick={() => setSelectedClienteId(row.id)}
                 >
-                  <TableCell className="max-w-[min(100%,18rem)] text-xs font-medium">
+                  <TableCell className="max-w-[min(100%,18rem)] py-1.5 text-xs font-medium">
                     <div className="space-y-1">
                       <span className="inline-flex min-w-0 items-center gap-1.5">
                         <span className="truncate">{row.nome_fantasia || row.razao_social}</span>
@@ -502,10 +502,10 @@ export function ClienteTab() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-muted-foreground">
+                  <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">
                     {row.cnpj}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">
                     {(() => {
                       const resolved = resolveClienteCidadeUf(
                         row,
@@ -515,7 +515,7 @@ export function ClienteTab() {
                       return label || '—'
                     })()}
                   </TableCell>
-                  <TableCell className="text-xs tabular-nums text-right font-medium">
+                  <TableCell className="py-1.5 text-xs tabular-nums text-right font-medium">
                     {faturamentoMes > 0 ? formatCurrency(faturamentoMes) : '—'}
                   </TableCell>
                   <ColunaEvolucao
@@ -523,10 +523,10 @@ export function ClienteTab() {
                     variacao={variacaoMap.get(row.id) ?? null}
                     className="hidden lg:table-cell"
                   />
-                  <TableCell className="text-xs text-muted-foreground">
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">
                     {ultimaCompra ? formatDate(ultimaCompra) : '—'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-1.5">
                     <StatusBadge status={row.status} />
                   </TableCell>
                 </TableRow>
