@@ -57,8 +57,15 @@ export function useUpsertFaturamentoProdutoDePara() {
       }
       const { error } = await supabase
         .from('alwayson_faturamento_produto_de_para')
-        .upsert({ sku_origem: skuOrigem, sku_fornecedor: skuFornecedor }, { onConflict: 'sku_origem' })
-      if (error) throw error
+        .insert({ sku_origem: skuOrigem, sku_fornecedor: skuFornecedor })
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error(
+            `SKU ${skuOrigem} já está mapeado — remova o vínculo existente antes de trocar o destino.`
+          )
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['faturamento-produto-de-para'] })

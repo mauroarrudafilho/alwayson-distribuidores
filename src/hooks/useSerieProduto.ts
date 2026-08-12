@@ -29,6 +29,7 @@ async function carregarProdutoPaginado(
       .order('sku')
       .order('mes')
       .order('vendedor_id')
+      .order('distribuidor_id')
       .range(from, from + PAGE - 1)
 
     if (distribuidorId) q = q.eq('distribuidor_id', distribuidorId)
