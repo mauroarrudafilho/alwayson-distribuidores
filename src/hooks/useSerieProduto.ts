@@ -28,6 +28,7 @@ async function carregarProdutoPaginado(
       .lte('mes', `${janela.fim}-01`)
       .order('sku')
       .order('mes')
+      .order('vendedor_id')
       .range(from, from + PAGE - 1)
 
     if (distribuidorId) q = q.eq('distribuidor_id', distribuidorId)
