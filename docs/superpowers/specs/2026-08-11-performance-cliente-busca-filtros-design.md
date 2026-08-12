@@ -52,6 +52,37 @@ no exemplo reportado porque o cliente citado (Bonanza) tem compra recente.
 5. **Todos os filtros — busca, hierarquia, classificação, cidade — combinam
    por E**, estreitando a mesma lista em sequência. Nenhum é exclusivo dos
    outros.
+6. **Paginação client-side, reaproveitando `usePagination` +
+   `<PaginationBar>`** (`src/hooks/usePagination.ts`,
+   `src/components/ui/pagination-bar.tsx`) — o mesmo par já usado em
+   `InsightsPanel.tsx`. Não é padrão novo. 25 por página, com as opções
+   `[25, 50, 100]` já default do componente.
+
+   A paginação corta **só a renderização das linhas**, nunca o array que
+   busca/filtro/ordenação enxergam. `useClientes` já carrega os 410 clientes
+   numa ida só (sem paginação no banco); busca, filtros e ordenação continuam
+   operando sobre esse array inteiro em memória. Só o `.map()` que desenha
+   `<TableRow>` é que itera sobre a fatia da página atual — é por isso que a
+   busca "funciona para tudo": ela nunca viu a paginação.
+
+   Isso também é o que reduz o carregamento: cada linha renderiza um
+   `<InsightsBadge>` que dispara sua própria consulta por CNPJ
+   (`ClienteTab.tsx:345-352`). Com paginação, só as ~25 linhas visíveis
+   disparam essa consulta de uma vez, não as 410.
+
+   `resetKey` do `usePagination` cobre busca + os quatro filtros
+   (hierarquia/classificação/cidade) — muda a página para 1 sempre que o
+   **conjunto** filtrado muda. Trocar só a ordenação não reseta a página:
+   reordenar o mesmo conjunto e continuar na página 3 é coerente; mudar o
+   conjunto e continuar na página 3 não seria.
+
+7. **Ordenação sempre roda antes da paginação, nunca depois.** As colunas
+   numéricas (Faturamento, Evolução) já são ordenáveis hoje nesta aba — a
+   paginação não pode regredir isso. Pipeline fixo: filtrar → ordenar →
+   paginar → renderizar. Se a ordem inverter, ordenar passaria a reordenar
+   só os itens de uma página, não a lista inteira — e o `topIds`/badge "Top
+   comprador" (calculado sobre o conjunto filtrado completo, nunca sobre a
+   página) teria que continuar alheio à paginação também, pela mesma razão.
 
 ## Onde entra na tela
 
@@ -71,7 +102,8 @@ abas.
 
 ## Critérios de sucesso
 
-1. Buscar por um trecho do CNPJ (com ou sem pontuação) encontra o cliente.
+1. Buscar por um trecho do CNPJ (com ou sem pontuação) encontra o cliente,
+   mesmo que ele esteja fora da página 1.
 2. Filtrar por "Sem compra 60d+" mostra só clientes com esse badge, e nenhum
    outro.
 3. Filtrar por uma cidade mostra só clientes daquela praça; clientes sem
@@ -80,3 +112,8 @@ abas.
    mesmo tempo, não substitui um pelo outro.
 5. A tabela cabe visivelmente mais linhas na tela sem rolar, com as mesmas
    sete colunas de hoje.
+6. Ordenar por Faturamento ou Evolução reordena os **410 clientes**, não só
+   os 25 da página atual — a página 1 depois de ordenar mostra o maior
+   faturamento de toda a carteira, não da página 1 antes de ordenar.
+7. Mudar página não altera o resultado da busca/filtro; mudar busca/filtro
+   volta para a página 1.
