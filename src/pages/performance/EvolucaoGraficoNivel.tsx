@@ -183,6 +183,7 @@ export function EvolucaoGraficoNivel({
                   key={`${entidade.id}::anterior`}
                   type="monotone"
                   dataKey={`${entidade.id}::anterior`}
+                  name={`${entidade.nome} (anterior)`}
                   legendType="none"
                   stroke={cor}
                   strokeWidth={1.5}
