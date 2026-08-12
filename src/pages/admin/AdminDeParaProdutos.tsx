@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Download, Loader2, Upload } from 'lucide-react'
+import { ArrowRight, Download, Link2, Loader2, Unlink, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/distribuidor/PageHeader'
 import { SectionTitle } from '@/components/distribuidor/SectionTitle'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -24,6 +26,7 @@ import {
 import { useDistribuidores } from '@/hooks/useDistribuidores'
 import {
   useDistribuidorProdutoDePara,
+  useDistribuidorProdutosNaoMapeados,
   useUpsertDistribuidorProdutoDePara,
 } from '@/hooks/useDistribuidorProdutoDePara'
 import { useProdutos } from '@/hooks/useProdutos'
@@ -32,6 +35,7 @@ import {
   parseDeParaXlsx,
 } from '@/lib/parseDeParaProdutoUpload'
 import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/format'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const templateHref = `${import.meta.env.BASE_URL}templates/template-de-para-produtos.xlsx`.replace(
@@ -67,9 +71,16 @@ export function AdminDeParaProdutos() {
   >([])
   const [parseError, setParseError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [linkDraft, setLinkDraft] = useState<Record<string, string>>({})
+  const [linkingSku, setLinkingSku] = useState<string | null>(null)
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [linkNotice, setLinkNotice] = useState<string | null>(null)
 
   const { data: distribuidores, isLoading: loadingDist } = useDistribuidores()
   const { data: existentes, isLoading: loadingMap } = useDistribuidorProdutoDePara(
+    did || undefined
+  )
+  const { data: naoMapeados = [], isPending: loadingNaoMap } = useDistribuidorProdutosNaoMapeados(
     did || undefined
   )
   const { data: produtos } = useProdutos()
@@ -81,6 +92,14 @@ export function AdminDeParaProdutos() {
       s.add(p.sku.trim())
     }
     return s
+  }, [produtos])
+
+  const produtoBySku = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of produtos ?? []) {
+      m.set(p.sku.trim(), p.descricao)
+    }
+    return m
   }, [produtos])
 
   const onDistribChange = (id: string) => {
@@ -145,6 +164,38 @@ export function AdminDeParaProdutos() {
     }
   }
 
+  const handleVincular = async (sku: string) => {
+    setLinkError(null)
+    setLinkNotice(null)
+    if (!did) return
+    const codigo = (linkDraft[sku] ?? '').trim()
+    if (!codigo) {
+      setLinkError('Informe o SKU do catálogo.')
+      return
+    }
+    if (!skuValidos.has(codigo)) {
+      setLinkError(`SKU ${codigo} não existe em Produtos.`)
+      return
+    }
+    setLinkingSku(sku)
+    try {
+      await upsert.mutateAsync({
+        distribuidor_id: did,
+        rows: [{ codigo_cliente: sku, sku_fornecedor: codigo }],
+      })
+      setLinkDraft((prev) => {
+        const next = { ...prev }
+        delete next[sku]
+        return next
+      })
+      setLinkNotice(`Vinculado ${sku} → ${codigo}.`)
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Falha ao vincular')
+    } finally {
+      setLinkingSku(null)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {!scopedToRoute && (
@@ -175,6 +226,127 @@ export function AdminDeParaProdutos() {
             </Select>
           </FilterField>
         </FilterBar>
+      )}
+
+      {did && (
+        <Card>
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <SectionTitle title="SKUs não mapeados" icon={Unlink} />
+                <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+                  Faturados sem produto correspondente e sem correlação cadastrada para este
+                  distribuidor — vincule ao SKU oficial para corrigir na próxima reimportação.
+                </p>
+              </div>
+              <Badge variant="secondary" className="tabular-nums">
+                {naoMapeados.length.toLocaleString('pt-BR')} SKUs
+              </Badge>
+            </div>
+
+            {linkError && <p className="text-xs text-destructive">{linkError}</p>}
+            {linkNotice && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-400">{linkNotice}</p>
+            )}
+
+            {loadingNaoMap ? (
+              <Skeleton className="mt-2 h-32 w-full" />
+            ) : naoMapeados.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">
+                Nenhum SKU pendente — todo o faturamento deste distribuidor resolve para o
+                catálogo.
+              </p>
+            ) : (
+              <div className="max-h-[min(24rem,50vh)] overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="text-xs">SKU</TableHead>
+                      <TableHead className="hidden text-xs md:table-cell">Descrição</TableHead>
+                      <TableHead className="text-right text-xs">Faturamento</TableHead>
+                      <TableHead className="min-w-[220px] text-xs">SKU do catálogo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {naoMapeados.map((r) => {
+                      const draft = linkDraft[r.sku] ?? ''
+                      const draftNorm = draft.trim()
+                      const ok = draftNorm ? skuValidos.has(draftNorm) : false
+                      const busy = linkingSku === r.sku || upsert.isPending
+                      return (
+                        <TableRow key={r.sku}>
+                          <TableCell className="py-2 align-top font-mono text-xs font-medium">
+                            {r.sku}
+                          </TableCell>
+                          <TableCell className="hidden max-w-[220px] truncate py-2 align-top text-xs text-muted-foreground md:table-cell">
+                            {r.descricao || '—'}
+                          </TableCell>
+                          <TableCell className="py-2 text-right align-top text-xs tabular-nums">
+                            {formatCurrency(r.faturamento_total)}
+                            <p className="text-[10px] text-muted-foreground">
+                              {r.total_linhas.toLocaleString('pt-BR')} linhas
+                            </p>
+                          </TableCell>
+                          <TableCell className="py-2 align-top">
+                            <div className="flex items-start gap-2">
+                              <div className="min-w-0 flex-1">
+                                <Input
+                                  value={draft}
+                                  onChange={(e) =>
+                                    setLinkDraft((prev) => ({ ...prev, [r.sku]: e.target.value }))
+                                  }
+                                  placeholder="ex. 11.5004"
+                                  className="h-8 font-mono text-xs"
+                                  list="distribuidor-sku-catalogo-list"
+                                />
+                                {draftNorm && (
+                                  <p
+                                    className={cn(
+                                      'mt-0.5 truncate text-[10px]',
+                                      ok
+                                        ? 'text-emerald-700 dark:text-emerald-400'
+                                        : 'text-amber-700'
+                                    )}
+                                  >
+                                    {ok
+                                      ? produtoBySku.get(draftNorm) || 'No catálogo'
+                                      : 'SKU ausente no catálogo'}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!ok || busy}
+                                onClick={() => void handleVincular(r.sku)}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-input hover:bg-accent disabled:opacity-40"
+                                aria-label="Vincular"
+                                title="Vincular"
+                              >
+                                {busy ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Link2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <datalist id="distribuidor-sku-catalogo-list">
+              {(produtos ?? []).slice(0, 800).map((p) => (
+                <option key={p.sku} value={p.sku}>
+                  {p.descricao}
+                </option>
+              ))}
+            </datalist>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
