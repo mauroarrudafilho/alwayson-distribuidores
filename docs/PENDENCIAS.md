@@ -98,7 +98,7 @@ Conferido no linter em 2026-08-05:
 | Proteção de senha vazada (HaveIBeenPwned) | desligada (WARN) | Um toggle no painel do Auth |
 | `alwayson_insights_purge_config` com RLS e zero policies | 1 (INFO) | Intencional — só `service_role` toca |
 
-Faltam ainda apertar 2 policies `ALL USING(true)` de escrita em `alwayson_distribuidor_produto_de_para` e `alwayson_insights_produto_de_para`.
+Falta ainda apertar a policy `ALL USING(true)` de escrita em `alwayson_insights_produto_de_para`. A de `alwayson_distribuidor_produto_de_para` foi fechada na migration `072` (escopo via `current_user_distribuidor_escopo_ok()`).
 
 ### 3.7 Zero testes automatizados
 Nenhum vitest/jest. As regras que mais doeriam se quebrassem em silêncio: o `E` do KAM no escopo de acesso, cobertura/positivação, rollup editável de metas, e a paginação da lista estratégica (ver armadilha 5).

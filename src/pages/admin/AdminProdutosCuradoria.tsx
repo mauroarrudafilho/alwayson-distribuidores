@@ -88,10 +88,13 @@ export function AdminProdutosCuradoria() {
         <CardContent className="space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <SectionTitle title="SKUs não mapeados" icon={Unlink} />
+              <SectionTitle title="SKUs não mapeados (catálogo global)" icon={Unlink} />
               <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-                Faturados sem produto correspondente no catálogo — vincule a um SKU já
-                cadastrado para entrar na aba Produtos da Performance com nome legível.
+                SKU já resolvido para o formato do fornecedor mas ainda ausente do catálogo —
+                vincule a um SKU já cadastrado para entrar na aba Produtos da Performance com
+                nome legível. Diferente da fila por distribuidor em Correlação de Produtos, que
+                resolve códigos brutos específicos de cada distribuidor — os dois mecanismos não
+                se substituem.
               </p>
             </div>
             <Badge variant="secondary" className="tabular-nums">

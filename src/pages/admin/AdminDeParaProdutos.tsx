@@ -31,6 +31,7 @@ import {
 } from '@/hooks/useDistribuidorProdutoDePara'
 import { useProdutos } from '@/hooks/useProdutos'
 import {
+  normalizeDeParaCellValue,
   parseDeParaCsv,
   parseDeParaXlsx,
 } from '@/lib/parseDeParaProdutoUpload'
@@ -168,7 +169,7 @@ export function AdminDeParaProdutos() {
     setLinkError(null)
     setLinkNotice(null)
     if (!did) return
-    const codigo = (linkDraft[sku] ?? '').trim()
+    const codigo = normalizeDeParaCellValue(linkDraft[sku] ?? '')
     if (!codigo) {
       setLinkError('Informe o SKU do catálogo.')
       return
@@ -233,10 +234,12 @@ export function AdminDeParaProdutos() {
           <CardContent className="space-y-4 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <SectionTitle title="SKUs não mapeados" icon={Unlink} />
+                <SectionTitle title="SKUs não mapeados (código do distribuidor)" icon={Unlink} />
                 <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-                  Faturados sem produto correspondente e sem correlação cadastrada para este
-                  distribuidor — vincule ao SKU oficial para corrigir na próxima reimportação.
+                  Código bruto deste distribuidor faturado sem correlação cadastrada aqui —
+                  vincule ao SKU oficial para corrigir na próxima reimportação. Diferente da fila
+                  global em Administração &gt; Produtos, que resolve SKUs de fornecedor faltando
+                  no catálogo — os dois mecanismos não se substituem.
                 </p>
               </div>
               <Badge variant="secondary" className="tabular-nums">
@@ -270,7 +273,7 @@ export function AdminDeParaProdutos() {
                   <TableBody>
                     {naoMapeados.map((r) => {
                       const draft = linkDraft[r.sku] ?? ''
-                      const draftNorm = draft.trim()
+                      const draftNorm = normalizeDeParaCellValue(draft)
                       const ok = draftNorm ? skuValidos.has(draftNorm) : false
                       const busy = linkingSku === r.sku || upsert.isPending
                       return (
