@@ -137,6 +137,41 @@ Dimensionamento: Petrolina = 3.440 PDVs; extrapolação NE (~1.794 municípios) 
 3. **Refresh do resumo pós-carga** do pipeline, auditado em `alwayson_pdv_pipeline_execucoes`.
 4. **Expansão gradual por UF:** PE completo primeiro; validar tempo de carga e volume antes das outras 8 UFs.
 
+### Pacote I — Radar de Oportunidades (fluxo de agentes)
+
+**Objetivo:** um fluxo de agentes especialista em varrer o dado e **encontrar oportunidades que o KAM não pediu para ver** — o complemento proativo do ciclo avaliar → agir → cobrar.
+
+**Princípio de arquitetura: híbrido determinístico + LLM.** Números são calculados por SQL (auditável, barato, reproduzível); o agente LLM entra onde agrega de verdade — priorizar, cruzar sinais, redigir o "por quê agora" e descartar falso positivo. Nunca pedir ao LLM para calcular o que uma query calcula.
+
+**Camada 1 — Detectores determinísticos** (SQL/workers, rodam pós-ingestão ou em cron):
+
+| Detector | Sinal | Fonte |
+|---|---|---|
+| Cliente esfriando | comprava todo mês, caiu frequência/ticket | faturamento (20m de história) |
+| Cliente perdido | positivava e zerou há N dias | faturamento |
+| Queda de mix | comprava X SKUs, hoje compra menos | faturamento_itens |
+| Cross-sell | clientes similares (porte/cidade/segmento) compram SKU que este não compra | faturamento_itens + carteira |
+| Estratégico frio | CNPJ da lista estratégica sem compra no mês | lista estratégica + faturamento |
+| Gap territorial | CNPJ do Insights/Explorar na praça, fora da carteira — **entra como "candidato a curadoria", nunca como alvo direto** (regra do histórico Arruda) | insights + pdv_universo |
+| Ruptura à vista | estoque projetado < lead time (Pacote E) | estoque + demanda |
+| Meta em risco | pacing abaixo do necessário + onde está o gap (quais clientes/SKUs explicam) | metas + faturamento |
+
+Cada detector grava candidatos em `alwayson_oportunidades`: tipo, entidade (cliente/SKU/vendedor/território), **evidência numérica em JSON**, valor estimado (R$ de recuperação/potencial), status (`candidata` → `publicada` → `aceita`/`descartada`), `detectado_em`.
+
+**Camada 2 — Agente analista (LLM):** job agendado (cadência semanal; sob demanda pelo KAM depois) que recebe os candidatos + contexto do distribuidor (parâmetros-alvo, metas, ações já abertas) e produz o **briefing ranqueado**: top N oportunidades com narrativa curta ("Mercadinho X comprava R$ 8k/mês de 6 SKUs; há 2 meses só leva 2 SKUs e caiu a R$ 3k — vale visita; impacto estimado R$ 5k/mês"), deduplicadas (mesmo cliente com 3 sinais = 1 oportunidade com 3 evidências) e filtradas contra ações já em andamento. Evolução natural: sub-agentes especialistas por domínio (carteira, mix, território, estoque) + um sintetizador que ranqueia — só quando o volume justificar; começa com um agente único.
+
+**Infra:** segue o padrão já consolidado no projeto — **fila + worker com estado em coluna e claim CAS** (mesmo desenho dos enriquecimentos por CNPJ). Worker no Railway (ou Edge Function) chamando a API da Anthropic; o LLM **nunca escreve direto no banco** — devolve JSON estruturado que o worker valida e grava. Custo controlado por cadência + lote (só candidatos novos/alterados desde a última rodada).
+
+**Saída integrada (é aqui que o pacote paga):**
+- Top oportunidades aparecem na **fila de ação do Início** (Pacote A).
+- Um clique converte oportunidade em **ação do plano** (Pacote C) — vínculo `oportunidade_id` na ação.
+- Resumo pode sair pelo canal de **comunicação** (Pacote F): "3 oportunidades novas esta semana no Paraty".
+- **Feedback loop:** aceitar/descartar fica registrado com motivo; taxa de descarte por detector calibra thresholds e o prompt do analista. Sem esse loop o radar vira ruído.
+
+**Governança:** oportunidades de gap territorial respeitam a restrição contratual (nada do provedor externo além de CNPJ+cidade/UF) e o caveat do Insights — são sempre "para curadoria", com rótulo distinto das oportunidades de carteira.
+
+**Migrations:** `alwayson_oportunidades` (+ índices por distribuidor/status/tipo), vínculo em ações, log de execução do agente.
+
 ## 4. Fora de escopo (registrado para depois)
 
 - **Portal do distribuidor** (login com visão espelhada) — RLS por escopo já suporta; fase futura.
@@ -158,10 +193,10 @@ Dimensionamento: Petrolina = 3.440 PDVs; extrapolação NE (~1.794 municípios) 
 | **2** | Pacote G fase 1 (token de serviço + canal drop + SLA) — migrar Paraty | — |
 | **3** | Pacote D (carteira) + Pacote C parâmetros e plano de ação | Template `clientes` |
 | **4** | Pacote C motor de alertas + Pacote F fases 1–2 (contatos + e-mail) | Fase 3 |
-| **5** | Pacote E (estoque ideal) | Upload de estoque |
-| **6** | Pacote F fase 3 (WhatsApp) + Pacote H (resumo municipal + expansão PE) | Fase 4; pipeline PDV |
+| **5** | Pacote E (estoque ideal) + Pacote I camada 1 (detectores + tabela de oportunidades) | Upload de estoque; Fase 3 (parâmetros/ações) |
+| **6** | Pacote I camada 2 (agente analista + briefing no Início) + Pacote F fase 3 (WhatsApp) + Pacote H (resumo municipal + expansão PE) | Fase 5; pipeline PDV |
 
-One-pager PDF (Pacote C.4) encaixa em qualquer folga a partir da Fase 1. Kit Sankhya/coletor (Pacote G canais 2–3) entram quando surgir o parceiro que os justifique.
+One-pager PDF (Pacote C.4) encaixa em qualquer folga a partir da Fase 1. Kit Sankhya/coletor (Pacote G canais 2–3) entram quando surgir o parceiro que os justifique. Os detectores do Pacote I podem ser antecipados individualmente (cliente esfriando/perdido só dependem do faturamento, que já existe) — o que trava a camada 2 é ter fila de ação e plano de ação para a saída fazer sentido.
 
 ## 7. Decisões em aberto
 
@@ -169,3 +204,4 @@ One-pager PDF (Pacote C.4) encaixa em qualquer folga a partir da Fase 1. Kit San
 2. Provedor WhatsApp: Meta Cloud API direta vs Twilio (custo × esforço de setup).
 3. Recepção do Canal 1: e-mail dedicado vs bucket/SFTP (ou ambos; e-mail é o mais simples para o distribuidor).
 4. Onde o plano de ação vive na UI: item de sidebar em Gestão vs bloco do Início.
+5. Radar de Oportunidades: cadência da rodada do agente (semanal vs pós-ingestão) e modelo/custo por rodada — definir na spec detalhada do Pacote I, junto com os thresholds iniciais de cada detector.
