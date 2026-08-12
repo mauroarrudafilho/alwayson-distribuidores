@@ -30,10 +30,15 @@ no exemplo reportado porque o cliente citado (Bonanza) tem compra recente.
    dois lugares. CNPJ compara dígito a dígito, ignorando pontuação — o
    usuário pode digitar formatado ou não.
 2. **Filtro de Classificação, pelos mesmos badges já renderizados na linha.**
-   Opções: Todos / Novo / Top / Em risco / Sem compra 60d+ / Estratégico.
-   Reaproveita exatamente o que `buildClienteSinalizadores` já calcula para
-   desenhar os badges — o filtro é "a linha tem esse badge no conjunto?", não
-   uma lógica nova.
+   Opções: Todos / Novo / Top / Em risco / Sem compra 60d+. Reaproveita
+   exatamente o que `buildClienteSinalizadores` já calcula para desenhar os
+   badges — o filtro é "a linha tem esse badge no conjunto?", não uma lógica
+   nova.
+   ⚠️ **"Estratégico" fica de fora, corrigido nesta revisão do spec.**
+   `ClienteSinalizadores` em `ClienteTab.tsx` nunca recebe a prop
+   `clienteEstrategico` — o badge não existe nesta aba hoje. Incluir a opção
+   no filtro exigiria também wire-ar `useClientesEstrategicos` só para isso,
+   fora do que qualquer um dos dois specs pediu. Fica para um pedido à parte.
 3. **Filtro de Cidade/UF, dropdown, não texto livre.** Populado com as
    cidades distintas resolvidas em `cidadesMap` para os clientes atualmente
    carregados — não é uma lista master de cidades do Brasil, é "o que existe
