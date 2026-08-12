@@ -3,6 +3,7 @@ import { Package, Search } from 'lucide-react'
 import { StatusBadge } from '@/components/distribuidor/StatusBadge'
 import { FilterBar, FilterField } from '@/components/distribuidor/FilterBar'
 import { useProdutos } from '@/hooks/useProdutos'
+import { AdminProdutosCuradoria } from './AdminProdutosCuradoria'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -54,7 +55,9 @@ export function AdminProdutos() {
   })
 
   return (
-    <div>
+    <div className="space-y-6">
+      <AdminProdutosCuradoria />
+
       <FilterBar>
         <FilterField label="Buscar">
           <div className="relative">
