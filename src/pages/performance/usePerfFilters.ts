@@ -7,9 +7,9 @@ import {
   type JanelaMeses,
 } from '@/lib/janela-periodo'
 
-export type PerfTab = 'distribuidor' | 'gerencia' | 'supervisao' | 'vendas' | 'cliente'
+export type PerfTab = 'distribuidor' | 'gerencia' | 'supervisao' | 'vendas' | 'cliente' | 'produtos'
 
-export const TAB_ORDER: PerfTab[] = ['distribuidor', 'gerencia', 'supervisao', 'vendas', 'cliente']
+export const TAB_ORDER: PerfTab[] = ['distribuidor', 'gerencia', 'supervisao', 'vendas', 'cliente', 'produtos']
 
 /** Próximo nível hierárquico disponível após `current`. */
 export function nextTabInOrder(current: PerfTab, available: PerfTab[]): PerfTab {
@@ -38,6 +38,7 @@ export const TAB_LABELS: Record<PerfTab, string> = {
   supervisao: 'Supervisão',
   vendas: 'Vendas',
   cliente: 'Cliente',
+  produtos: 'Produtos',
 }
 
 export interface PerfFilters {

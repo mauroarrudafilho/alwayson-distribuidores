@@ -33,7 +33,7 @@ export function usePerformanceContext() {
 
 export function PerformanceProvider({ children }: { children: ReactNode }) {
   const { filters, setFilter, drillDown } = usePerfFilters()
-  const [availableTabs, setAvailableTabs] = useState<PerfTab[]>(['distribuidor', 'vendas', 'cliente'])
+  const [availableTabs, setAvailableTabs] = useState<PerfTab[]>(['distribuidor', 'vendas', 'cliente', 'produtos'])
   const [names, setNames] = useState<Record<string, string>>({})
 
   const registerNames = useCallback((map: Record<string, string>) => {

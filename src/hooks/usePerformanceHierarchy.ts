@@ -24,7 +24,7 @@ export function useVendedorHierarchy(distribuidorId: string | undefined) {
       const availableLevels: PerfTab[] = ['distribuidor']
       if (gerentes.length > 0) availableLevels.push('gerencia')
       if (supervisores.length > 0) availableLevels.push('supervisao')
-      availableLevels.push('vendas', 'cliente')
+      availableLevels.push('vendas', 'cliente', 'produtos')
 
       function getSubordinateIds(parentId: string): string[] {
         const directs = vendedores.filter((v) => v.supervisor_id === parentId)

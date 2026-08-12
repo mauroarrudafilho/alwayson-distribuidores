@@ -25,6 +25,7 @@ import { GerenciaTab } from './performance/GerenciaTab'
 import { SupervisaoTab } from './performance/SupervisaoTab'
 import { VendasTab } from './performance/VendasTab'
 import { ClienteTab } from './performance/ClienteTab'
+import { ProdutoTab } from './performance/ProdutoTab'
 
 const TAB_COMPONENTS: Record<PerfTab, React.ComponentType> = {
   distribuidor: DistribuidorTab,
@@ -32,6 +33,7 @@ const TAB_COMPONENTS: Record<PerfTab, React.ComponentType> = {
   supervisao: SupervisaoTab,
   vendas: VendasTab,
   cliente: ClienteTab,
+  produtos: ProdutoTab,
 }
 
 const JANELA_LABELS: Record<number, string> = {
@@ -63,7 +65,7 @@ function PerformanceContent() {
 
   useEffect(() => {
     if (!filters.distribuidorId) {
-      setAvailableTabs(['distribuidor', 'vendas', 'cliente'])
+      setAvailableTabs(['distribuidor', 'vendas', 'cliente', 'produtos'])
       return
     }
     if (hierarchy) {
