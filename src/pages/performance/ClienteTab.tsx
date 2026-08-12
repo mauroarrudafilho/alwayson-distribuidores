@@ -35,9 +35,43 @@ import { hierarchyPersonLabel } from './hierarchyLabels'
 import { ColunaEvolucao, calcularVariacaoLinha } from './ColunaEvolucao'
 import { useSerieCliente } from '@/hooks/useSerieEntidade'
 import { calcularJanela, calcularComparacao } from '@/lib/janela-periodo'
+import type { ClienteDistribuidor } from '@/types/distribuidor'
+import {
+  CLASSIFICACAO_FILTRO_LABELS,
+  clienteTemClassificacao,
+  type ClassificacaoFiltro,
+} from '@/lib/cliente-sinalizadores'
+
+function normalizarBusca(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function normalizarCnpj(s: string): string {
+  return s.replace(/\D/g, '')
+}
+
+function clienteBateBusca(cliente: ClienteDistribuidor, query: string): boolean {
+  const q = normalizarBusca(query)
+  if (!q) return true
+  const nomeMatch = normalizarBusca(
+    `${cliente.razao_social} ${cliente.nome_fantasia ?? ''}`
+  ).includes(q)
+  const cnpjQuery = normalizarCnpj(query)
+  const cnpjMatch = cnpjQuery.length > 0 && normalizarCnpj(cliente.cnpj).includes(cnpjQuery)
+  return nomeMatch || cnpjMatch
+}
 
 export function ClienteTab() {
   const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
+  const [classificacaoFiltro, setClassificacaoFiltro] = useState<
+    ClassificacaoFiltro | 'todos'
+  >('todos')
+  const [cidadeFiltro, setCidadeFiltro] = useState<string | undefined>(undefined)
   const { filters, setFilter } = usePerformanceContext()
   const {
     distribuidorId,
@@ -112,6 +146,49 @@ export function ClienteTab() {
     periodoFim
   )
 
+  const cidadeOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const row of rows) {
+      const resolved = resolveClienteCidadeUf(row, cidadesMap.get(insightsCnpjKey(row.cnpj)))
+      if (resolved.cidade === '—') continue
+      const label = formatCidadeUf(resolved.cidade, resolved.estado)
+      if (label) set.add(label)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [rows, cidadesMap])
+
+  const rowsFiltrados = useMemo(() => {
+    return rows.filter((row) => {
+      if (!clienteBateBusca(row, busca)) return false
+
+      if (classificacaoFiltro !== 'todos') {
+        const resumo = resumoMap.get(row.id)
+        if (
+          !clienteTemClassificacao(
+            classificacaoFiltro,
+            row,
+            resumo,
+            topIds.has(row.id)
+          )
+        ) {
+          return false
+        }
+      }
+
+      if (cidadeFiltro) {
+        const resolved = resolveClienteCidadeUf(
+          row,
+          cidadesMap.get(insightsCnpjKey(row.cnpj))
+        )
+        if (formatCidadeUf(resolved.cidade, resolved.estado) !== cidadeFiltro) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [rows, busca, classificacaoFiltro, cidadeFiltro, resumoMap, topIds, cidadesMap])
+
   const janela = calcularJanela(filters.janela)
   const comparacao = calcularComparacao(janela, filters.comparar)
   const { data: series } = useSerieCliente(distribuidorId, janela)
@@ -138,7 +215,7 @@ export function ClienteTab() {
     'faturamento_mes' | 'variacao'
   >('faturamento_mes')
   const sortedRows = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return [...rowsFiltrados].sort((a, b) => {
       if (sortField === 'variacao') {
         const va = variacaoMap.get(a.id) ?? null
         const vb = variacaoMap.get(b.id) ?? null
@@ -155,7 +232,7 @@ export function ClienteTab() {
       const cmp = ta - tb
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, resumoMap, variacaoMap, sortField, sortDir])
+  }, [rowsFiltrados, resumoMap, variacaoMap, sortField, sortDir])
 
   if (!distribuidorId) {
     return (
@@ -171,10 +248,9 @@ export function ClienteTab() {
   const showSupervisorFilter = supervisoresForFilter.length > 0
   const showVendedorFilter = vendedoresForFilter.length > 0
   const filterCount =
-    [showGerenteFilter, showSupervisorFilter, showVendedorFilter].filter(
-      Boolean
-    ).length
-  const filterColumns = Math.max(filterCount, 2) as 2 | 3 | 4
+    [showGerenteFilter, showSupervisorFilter, showVendedorFilter].filter(Boolean)
+      .length + 2 // Classificação e Cidade sempre aparecem
+  const filterColumns = Math.min(Math.max(filterCount, 2), 4) as 2 | 3 | 4
 
   return (
     <div className="space-y-6 mt-4">
@@ -189,8 +265,20 @@ export function ClienteTab() {
         distribuidorId={distribuidorId}
       />
 
-      {filterCount > 0 && (
-        <FilterBar columns={filterColumns}>
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-1 block">
+          Buscar
+        </label>
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Nome, razão social ou CNPJ"
+          className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30"
+        />
+      </div>
+
+      <FilterBar columns={filterColumns}>
           {showGerenteFilter && (
             <FilterField label="Gerente">
               <Select
@@ -278,8 +366,55 @@ export function ClienteTab() {
               </Select>
             </FilterField>
           )}
+          <FilterField label="Classificação">
+            <Select
+              value={classificacaoFiltro}
+              onValueChange={(v) =>
+                setClassificacaoFiltro(v as ClassificacaoFiltro | 'todos')
+              }
+            >
+              <SelectTrigger className="h-8 w-full text-sm">
+                <SelectValue placeholder="Todos">
+                  {classificacaoFiltro === 'todos'
+                    ? 'Todos'
+                    : CLASSIFICACAO_FILTRO_LABELS[classificacaoFiltro]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {(Object.keys(CLASSIFICACAO_FILTRO_LABELS) as ClassificacaoFiltro[]).map(
+                  (key) => (
+                    <SelectItem key={key} value={key}>
+                      {CLASSIFICACAO_FILTRO_LABELS[key]}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+          </FilterField>
+          <FilterField label="Cidade / UF">
+            <Select
+              value={cidadeFiltro ?? 'todos'}
+              onValueChange={(v) =>
+                setCidadeFiltro(v === 'todos' ? undefined : (v as string))
+              }
+            >
+              <SelectTrigger className="h-8 w-full text-sm">
+                <SelectValue placeholder="Todos">
+                  {cidadeFiltro ?? 'Todos'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {cidadeOptions.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
         </FilterBar>
-      )}
 
       <Card>
         <Table>
@@ -318,7 +453,7 @@ export function ClienteTab() {
                   ))}
                 </TableRow>
               ))
-            ) : rows.length === 0 ? (
+            ) : rowsFiltrados.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-8 text-center">
                   <UserSearch className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />

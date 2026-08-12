@@ -34,6 +34,41 @@ export function isClienteNovo(resumo?: ClienteFatResumo): boolean {
   return resumo?.nfsTotal === 1
 }
 
+export type ClassificacaoFiltro = 'novo' | 'top' | 'em_risco' | 'sem_compra'
+
+export const CLASSIFICACAO_FILTRO_LABELS: Record<ClassificacaoFiltro, string> = {
+  novo: 'Novo',
+  top: 'Top comprador',
+  em_risco: 'Em risco',
+  sem_compra: `Sem compra ${SEM_COMPRA_DIAS_LIMIAR}d+`,
+}
+
+/**
+ * Mesma condição que decide se o badge aparece na linha — o filtro de
+ * Classificação usa esta função, não uma cópia. Se um dia a regra do badge
+ * mudar, o filtro muda junto, de graça.
+ */
+export function clienteTemClassificacao(
+  filtro: ClassificacaoFiltro,
+  cliente: ClienteDistribuidor,
+  resumo: ClienteFatResumo | undefined,
+  isTopComprador: boolean
+): boolean {
+  switch (filtro) {
+    case 'novo':
+      return isClienteNovo(resumo)
+    case 'top':
+      return isTopComprador
+    case 'em_risco':
+      return cliente.status === 'em_risco'
+    case 'sem_compra':
+      return (
+        (resumo?.diasSemCompra ?? 0) > SEM_COMPRA_DIAS_LIMIAR &&
+        cliente.status !== 'inativo'
+      )
+  }
+}
+
 export function buildClienteSinalizadores(
   input: ClienteSinalizadorInput,
   opts?: { maxTags?: number; compact?: boolean }
