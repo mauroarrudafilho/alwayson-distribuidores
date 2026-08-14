@@ -114,11 +114,11 @@ export function Login() {
               tone="onDark"
               size="md"
               stacked={false}
-              caption="DevTech Labs · 2026"
+               caption="M.I.R.A. · 2026"
             />
 
             <div className="rounded-full border border-white/15 bg-white/4 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75 backdrop-blur-sm">
-              Sell-out · Insights · Estratégia
+               Gestão · Dados · Ação
             </div>
           </div>
 
@@ -177,7 +177,7 @@ export function Login() {
 
           {/* bottom: brand line (no mock metrics) */}
           <div className="border-t border-white/10 pt-6 text-[11px] uppercase tracking-[0.18em] text-white/45">
-            DevTech Labs · Commercial Intelligence
+             M.I.R.A. · Sales Platform
           </div>
         </div>
       </section>
@@ -350,8 +350,8 @@ export function Login() {
 
         {/* footer signature */}
         <div className="absolute inset-x-0 bottom-0 hidden items-center justify-between px-14 py-6 text-[10px] uppercase tracking-[0.2em] text-muted-foreground lg:flex">
-          <span>© {new Date().getFullYear()} DevTech Labs</span>
-          <span>AlwaysOn · Commercial Intelligence</span>
+          <span>{new Date().getFullYear()} · M.I.R.A. Sales Platform</span>
+          <span>M.I.R.A. · Sales Platform</span>
         </div>
       </section>
     </div>

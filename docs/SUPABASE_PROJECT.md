@@ -1,4 +1,4 @@
-# Projeto Supabase (AlwaysOn Distribuidores)
+# Projeto Supabase (M.I.R.A. Sales Platform)
 
 **Não usar** o ref legado **`kgzybpelluftexrewyke`** como destino de migrations ou variáveis deste app — as tabelas operacionais `alwayson_*` foram removidas lá; o código e a ingestão devem usar apenas o ref abaixo.
 

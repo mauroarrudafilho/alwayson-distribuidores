@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restructure the AlwaysOn Distribuidores platform from fragmented pages into a cohesive flow: hierarchical Performance hub, client detail page, excellence scorecard, supply-chain Estoque, and an Admin cockpit — reducing clicks and increasing context per screen.
+**Goal:** Restructure the M.I.R.A. Sales Platform from fragmented pages into a cohesive flow: hierarchical Performance hub, client detail page, excellence scorecard, supply-chain Estoque, and an Admin cockpit — reducing clicks and increasing context per screen.
 
 **Architecture:** Performance becomes the central page with 5 hierarchical tabs (Distribuidor → Gerência → Supervisão → Vendas → Cliente) supporting both direct-filter access and click-through drill-down. Metas are embedded inline. A new Clientes page provides transactional detail per client. Admin cockpit centralizes all configuration. State propagated via URL params + React local state.
 

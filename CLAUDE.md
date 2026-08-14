@@ -1,4 +1,4 @@
-# AlwaysOn Distribuidores — contexto para assistentes
+# M.I.R.A. Sales Platform — contexto para assistentes
 
 ## Supabase (único projeto canônico deste repositório)
 

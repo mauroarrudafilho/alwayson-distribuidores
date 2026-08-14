@@ -110,7 +110,7 @@ export function Sidebar({
             'rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
             !collapsed && 'min-w-0 flex-1'
           )}
-          aria-label="AlwaysOn Distribuidores — início"
+          aria-label="M.I.R.A. Sales Platform — início"
         >
           <BrandMark tone="onDark" size="sm" markOnly={collapsed} stacked />
         </Link>
@@ -194,7 +194,7 @@ export function Sidebar({
         <TenantSwitcher collapsed={collapsed} />
         {!collapsed && (
           <p className="px-2 pb-0.5 text-[10px] uppercase tracking-[0.16em] text-sidebar-foreground/35">
-            DevTech Labs · CI
+            M.I.R.A. · Sales Platform
           </p>
         )}
       </div>

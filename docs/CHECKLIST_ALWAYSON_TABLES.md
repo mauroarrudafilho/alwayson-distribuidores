@@ -1,4 +1,4 @@
-# Checklist: tabelas `alwayson_*` (Supabase)
+# Checklist: tabelas `alwayson_*` do M.I.R.A. (Supabase)
 
 Objetivo: validar que o projeto canônico (`osukbalwykbqvoumddxz`, ver `docs/SUPABASE_PROJECT.md`) expõe todas as tabelas que o app e o seed esperam, e que as migrations deste repositório foram aplicadas na ordem correta.
 
@@ -75,4 +75,4 @@ Todas as chamadas `.from('alwayson_…')` no `src/` aparecem nos hooks/listagem 
 
 ## 5. Migração de dados do projeto antigo
 
-Se precisar migrar dados legados de outro ref, use export/insert só contra o projeto canônico **`osukbalwykbqvoumddxz`**. O ref `kgzybpelluftexrewyke` não deve receber novas migrations AlwaysOn; respeite na carga a ordem das FKs (`alwayson_distribuidores` → clientes/vendedores → faturamento → itens, etc.).
+Se precisar migrar dados legados de outro ref, use export/insert só contra o projeto canônico **`osukbalwykbqvoumddxz`**. O ref `kgzybpelluftexrewyke` não deve receber novas migrations M.I.R.A.; respeite na carga a ordem das FKs (`alwayson_distribuidores` → clientes/vendedores → faturamento → itens, etc.).

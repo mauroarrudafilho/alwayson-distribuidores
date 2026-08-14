@@ -1,4 +1,4 @@
-# Roadmap — AlwaysOn Distribuidores
+# Roadmap — M.I.R.A. Sales Platform
 
 > Rascunho de visão de produto, não um plano de execução task-a-task (esses vivem em `docs/superpowers/plans/`). Serve para orientar prioridade — revisar e ajustar com o time antes de tratar qualquer fase como compromisso.
 

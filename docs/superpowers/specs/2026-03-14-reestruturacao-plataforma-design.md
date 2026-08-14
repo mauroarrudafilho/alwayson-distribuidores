@@ -1,4 +1,4 @@
-# Reestruturação da Plataforma AlwaysOn Distribuidores
+# Reestruturação da Plataforma M.I.R.A. (nome original: AlwaysOn Distribuidores)
 
 **Data:** 2026-03-14
 **Status:** Aprovado pelo usuário
@@ -215,7 +215,7 @@ Centraliza toda configuração e parametrização do sistema. Separado das telas
 | **Usuários** | Gestão de acessos ao sistema. Caso de uso concreto: criar acesso para lideranças dos distribuidores com visão restrita aos dados do seu distribuidor |
 
 ### Modelo de acesso (futuro)
-- **Executivo AlwaysOn** — acesso total, todos os distribuidores
+- **Executivo M.I.R.A.** — acesso total, todos os distribuidores
 - **Liderança do Distribuidor** — acesso restrito aos dados do próprio distribuidor
 
 ## 7. Ingestão (Ajuste Menor)

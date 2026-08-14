@@ -280,14 +280,14 @@ O serviço recusa a subir se faltar qualquer uma das três chaves.
 
 ## 9. Recebimento automático (Canal 1 — e-mail)
 
-Fluxo: **ERP do distribuidor agenda envio → e-mail dedicado (`{distribuidor}.{cnpj_raiz_fornecedor}@alwayson.com.br`) → CloudMailin → Edge Function `ingest-inbound-cloudmailin` → `POST /api/ingest` (modo interno)**.
+Fluxo: **ERP do distribuidor agenda envio → e-mail dedicado (`{distribuidor}.{cnpj_raiz_fornecedor}@domínio-mira`) → CloudMailin → Edge Function `ingest-inbound-cloudmailin` → `POST /api/ingest` (modo interno)**. O domínio de produção ainda será registrado; até lá, a configuração de homologação usa o endereço cadastrado no CloudMailin.
 
 1. `alwayson_distribuidor_recebimento` guarda o endereço por par `(distribuidor, fornecedor)` com tipos esperados e modo validação — a Edge Function resolve o destinatário por ela.
 2. A Edge Function confere o **Basic Auth** do CloudMailin, baixa/decodifica o anexo, guarda o bruto no bucket `ingest-inbox` e chama esta API com `x-ingest-internal-secret`.
 3. O par do corpo precisa ter config de recebimento **ativa** — senão o canal é recusado.
 4. O tipo do relatório é inferido do nome do arquivo/subject (restrito aos `tipos_esperados`); o período, de `YYYY-MM` presente no e-mail (fallback: mês corrente).
 
-Passos operacionais (account CloudMailin + DNS de `alwayson.com.br` + cadastro do endereço + URL-alvo com Basic Auth) estão no `.env.example`.
+Passos operacionais (conta CloudMailin + DNS do domínio M.I.R.A. + cadastro do endereço + URL-alvo com Basic Auth) estão no `.env.example`.
 
 ---
 

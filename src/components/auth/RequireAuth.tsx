@@ -59,7 +59,7 @@ export function RequireAuth() {
             </em>
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Contacte o administrador da plataforma AlwaysOn se precisar de esclarecimentos.
+            Contacte o administrador da plataforma M.I.R.A. se precisar de esclarecimentos.
           </p>
         </div>
       </div>
@@ -91,7 +91,7 @@ export function RequireAuth() {
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
             Sua conta foi criada, mas ainda não há vínculo com nenhuma organização. Solicite a um
-            administrador da plataforma AlwaysOn para atribuir o seu perfil.
+            administrador da plataforma M.I.R.A. para atribuir o seu perfil.
           </p>
           <p className="text-xs text-muted-foreground">
             Suporte:{' '}

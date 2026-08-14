@@ -254,7 +254,7 @@ function InviteEscopoResumo({
   showRole?: boolean
 }) {
   if (roleEhAdminGlobal(role)) {
-    return <span className="text-xs text-muted-foreground">Admin global (DevTech Labs)</span>
+    return <span className="text-xs text-muted-foreground">Admin global (M.I.R.A.)</span>
   }
 
   if (!fornecedorNomes.length && !parceiroNomes.length) {
@@ -1541,7 +1541,7 @@ export function AdminUsuarios() {
             <div>
               <p className="font-medium">Resumo · Fase 2</p>
               <p className="text-xs text-muted-foreground">
-                Convites e esqueci senha saem pelo <strong>Resend</strong> (template Always On) via{' '}
+                 Convites e esqueci senha saem pelo <strong>Resend</strong> (template M.I.R.A.) via{' '}
                 <code className="font-mono">admin-invite-user</code> e{' '}
                 <code className="font-mono">auth-recuperar-senha</code>. Deploy:{' '}
                 <code className="font-mono">npm run auth:deploy-email-fns</code>. Confirme{' '}

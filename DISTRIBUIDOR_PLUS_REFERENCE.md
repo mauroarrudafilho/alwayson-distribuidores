@@ -1,5 +1,7 @@
 # Distribuidor+ — Documento de Referência para Implementação
 
+> **Nota de marca:** este documento registra o nome original do módulo. Em 2026-08-14, a marca comercial foi migrada para **M.I.R.A. — Monitoramento, Inteligência, Resultado e Ação**. Identificadores técnicos e referências históricas não são renomeados automaticamente.
+
 > **Para o Cursor:** Este documento é a fonte única de verdade para implementar o módulo Distribuidor+ no Arruda Hub. Siga rigorosamente os padrões de design system definidos abaixo. **Não invente tokens, classes ou padrões que não estejam aqui.**
 
 ---

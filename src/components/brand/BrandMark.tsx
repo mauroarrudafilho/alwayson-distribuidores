@@ -10,7 +10,7 @@ interface BrandMarkProps {
   markOnly?: boolean
   /** Wordmark em duas linhas (nome + produto). */
   stacked?: boolean
-  /** Linha terciária sob o wordmark (ex.: DevTech Labs · 2026). */
+  /** Linha terciária sob o wordmark (ex.: M.I.R.A. · 2026). */
   caption?: string
   className?: string
 }
@@ -21,7 +21,7 @@ const markSize: Record<BrandMarkSize, string> = {
 }
 
 /**
- * Monograma AlwaysOn — mesma linguagem do login (A + pulso teal).
+ * Monograma M.I.R.A. — mesma linguagem do login (M + pulso teal).
  */
 export function BrandMark({
   tone = 'onDark',
@@ -52,7 +52,7 @@ export function BrandMark({
             fontVariationSettings: '"opsz" 12',
           }}
         >
-          A
+           M
         </span>
         <span
           className={cn(
@@ -74,7 +74,7 @@ export function BrandMark({
                   onDark ? 'text-white' : 'text-foreground'
                 )}
               >
-                AlwaysOn
+                M.I.R.A.
               </span>
               <span
                 className={cn(
@@ -82,7 +82,7 @@ export function BrandMark({
                   onDark ? 'text-white/50' : 'text-muted-foreground'
                 )}
               >
-                Distribuidores
+                Sales Platform
               </span>
             </>
           ) : (
@@ -92,7 +92,7 @@ export function BrandMark({
                 onDark ? 'text-white' : 'text-foreground'
               )}
             >
-              AlwaysOn Distribuidores
+              M.I.R.A. Sales Platform
             </span>
           )}
           {caption && (
