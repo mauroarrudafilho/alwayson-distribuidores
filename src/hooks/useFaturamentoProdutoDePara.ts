@@ -22,10 +22,11 @@ export function useFaturamentoProdutoDePara() {
 }
 
 /** SKUs faturados sem produto_id resolvido e sem alias — fila de curadoria em /admin/produtos. */
-export function useFaturamentoProdutosNaoMapeados() {
+export function useFaturamentoProdutosNaoMapeados(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['faturamento-produtos-nao-mapeados'],
     staleTime: 30_000,
+    enabled: options?.enabled ?? true,
     queryFn: async (): Promise<FaturamentoProdutoNaoMapeado[]> => {
       const { data, error } = await supabase
         .from('alwayson_faturamento_v_produtos_nao_mapeados')

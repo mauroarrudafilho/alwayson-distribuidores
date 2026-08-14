@@ -31,26 +31,27 @@ interface SidebarProps {
   className?: string
 }
 
-type MenuGroup = 'analise' | 'operacao' | 'parceiros' | 'sistema'
+type MenuGroup = 'gestao' | 'mercado' | 'operacao' | 'sistema' | null
 
-const GROUP_LABELS: Record<MenuGroup, string> = {
-  analise: 'Análise',
+const GROUP_LABELS: Record<NonNullable<MenuGroup>, string> = {
+  gestao: 'Gestão',
+  mercado: 'Mercado',
   operacao: 'Operação',
-  parceiros: 'Parceiros',
   sistema: 'Sistema',
 }
 
 const menuItems: { path: string; label: string; icon: typeof LayoutDashboard; group: MenuGroup }[] = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'analise' },
-  { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'analise' },
-  { path: '/metas', label: 'Metas', icon: Target, group: 'analise' },
-  { path: '/clientes-estrategicos', label: 'Clientes Estratégicos', icon: Star, group: 'analise' },
-  { path: '/insights', label: 'Insights', icon: BarChart3, group: 'analise' },
-  { path: '/explorar', label: 'Explorar', icon: Compass, group: 'analise' },
-  { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'operacao' },
+  // Início é o único item sem grupo: abre a navegação sem rótulo.
+  { path: '/inicio', label: 'Início', icon: LayoutDashboard, group: null },
+  { path: '/performance', label: 'Performance', icon: TrendingUp, group: 'gestao' },
+  { path: '/metas', label: 'Metas', icon: Target, group: 'gestao' },
+  { path: '/clientes-estrategicos', label: 'Clientes Estratégicos', icon: Star, group: 'gestao' },
+  { path: '/clientes', label: 'Clientes', icon: UserSearch, group: 'gestao' },
+  { path: '/insights', label: 'Insights', icon: BarChart3, group: 'mercado' },
+  { path: '/explorar', label: 'Explorar', icon: Compass, group: 'mercado' },
   { path: '/estoque', label: 'Estoque', icon: Package, group: 'operacao' },
-  // Ingestão fica dentro de cada parceiro (/parceiros/:id/ingestao).
-  { path: '/parceiros', label: 'Distribuidores', icon: Handshake, group: 'parceiros' },
+  // Distribuidores: o parceiro é onde a operação vive (ingestão, de-para, hierarquia).
+  { path: '/parceiros', label: 'Distribuidores', icon: Handshake, group: 'operacao' },
   // Sistema: só o que é transversal à plataforma.
   { path: '/admin', label: 'Administração', icon: Settings, group: 'sistema' },
 ]
@@ -149,7 +150,7 @@ export function Sidebar({
                       idx === 0 ? 'mb-1.5' : 'mt-4 mb-1.5'
                     )}
                   >
-                    {GROUP_LABELS[item.group]}
+                    {item.group && GROUP_LABELS[item.group]}
                   </p>
                 ))}
               <Link

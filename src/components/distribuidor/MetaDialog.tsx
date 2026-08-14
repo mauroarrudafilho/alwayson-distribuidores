@@ -209,6 +209,15 @@ export function MetaDialog({ open, onOpenChange, distribuidorId, meta }: Props) 
             </div>
           </div>
 
+          {tipo === 'positivacao' && (
+            <p className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+              Meta de positivação conta clientes com venda no período. Hoje o denominador é a{' '}
+              <span className="font-medium text-foreground">base histórica</span> (quem já comprou);
+              quando o template <code className="font-mono">clientes</code> subir, vira a carteira
+              cadastrada do distribuidor.
+            </p>
+          )}
+
           {precisaVendedor && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium">Responsável</label>

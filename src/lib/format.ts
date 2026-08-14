@@ -7,6 +7,13 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+/** `R$ 15,1M` / `R$ 512k` — compacto para cartões e destaques do Início. */
+export function formatBRLCompact(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return `R$ ${(n / 1_000_000).toFixed(1).replace('.', ',')}M`
+  if (Math.abs(n) >= 1_000) return `R$ ${Math.round(n / 1_000)}k`
+  return formatCurrency(n)
+}
+
 /**
  * Aplica máscara CNPJ XX.XXX.XXX/XXXX-XX. Normaliza para 14 dígitos
  * (preenche zero à esquerda). Retorna '' se input vazio.

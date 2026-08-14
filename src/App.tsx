@@ -18,7 +18,7 @@ import { RecuperarPassword } from '@/pages/RecuperarPassword'
 import { RedefinirPassword } from '@/pages/RedefinirPassword'
 import { AceitarConvite } from '@/pages/AceitarConvite'
 import { Conta } from '@/pages/Conta'
-import { Dashboard } from '@/pages/Dashboard'
+import { Inicio } from '@/pages/Inicio'
 import { Performance } from '@/pages/Performance'
 import { ClientesEstrategicos } from '@/pages/ClientesEstrategicos'
 import { ClientesBusca } from '@/pages/ClientesBusca'
@@ -86,7 +86,8 @@ function App() {
 
               <Route element={<RequireAuth />}>
                 <Route element={<AppLayout />}>
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<Navigate to="/inicio" replace />} />
+                  <Route path="/inicio" element={<Inicio />} />
                   <Route path="/conta" element={<Conta />} />
                   <Route path="/performance" element={<Performance />} />
                   {/* Metas é acompanhamento, não configuração — mora na Análise.
