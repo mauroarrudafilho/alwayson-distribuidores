@@ -19,6 +19,7 @@ import cors from 'cors'
 import express from 'express'
 import multer from 'multer'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'node:crypto'
 
 import { loadDotenv } from './lib/dotenv.mjs'
 import { processClientes } from './lib/process-clientes.mjs'
@@ -31,6 +32,8 @@ const PORT = Number(process.env.PORT || 8787)
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
+/** Segredo interno compartilhado com o Edge Function do inbound (Canal 1). */
+const INTERNAL_SECRET = process.env.INGEST_INTERNAL_SECRET
 
 if (!SUPABASE_URL || !SERVICE_KEY || !ANON_KEY) {
   console.error(
@@ -77,31 +80,77 @@ function tokenDoHeader(req) {
   return valor?.trim() || null
 }
 
+/** sha256 hex — mesmo formato que a migration 073 guarda em token_hash. */
+function hashToken(token) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
 /**
+ * Duas formas de autenticar:
+ *  1. Access token da sessão (existente) — decisão de acesso pelas funções de
+ *     escopo do Postgres (o "E" do KAM).
+ *  2. Token de serviço (máquina, migration 073) — escopo fixo de UM par
+ *     (distribuidor, fornecedor). Só o hash vive no banco; aqui o token é
+ *     hasheado e comparado. A decisão NUNCA passa pelo service_role.
+ *
  * Roda antes do multer: quem não se identifica é recusado sem que o arquivo
  * chegue a ser bufferizado.
  */
 async function autenticar(req, res, next) {
+  // 0) Segredo interno (Canal 1 — Edge Function do inbound). É a credencial da
+  //    máquina que recebe e-mail; o par é validado contra a config de recebimento.
+  if (INTERNAL_SECRET) {
+    const interno = String(req.headers['x-ingest-internal-secret'] ?? '')
+    if (interno && interno === INTERNAL_SECRET) {
+      req.tipoAutenticacao = 'internal'
+      return next()
+    }
+  }
+
   const token = tokenDoHeader(req)
   if (!token) {
     return res.status(401).json({
       error: 'nao_autenticado',
-      message: 'Envie o access_token da sessão no header Authorization.',
+      message: 'Envie o access_token da sessão (ou o token de serviço) no header Authorization.',
     })
   }
 
+  // 1) Sessão de utilizador.
   const client = clientDoChamador(token)
   const { data, error } = await client.auth.getUser()
-  if (error || !data?.user) {
-    return res.status(401).json({
-      error: 'sessao_invalida',
-      message: 'Sessão inválida ou expirada. Entre novamente e repita o envio.',
-    })
+  if (!error && data?.user) {
+    req.usuario = data.user
+    req.clientDoChamador = client
+    return next()
   }
 
-  req.usuario = data.user
-  req.clientDoChamador = client
-  return next()
+  // 2) Token de serviço. `sk_…` nunca é um JWT válido, então chegar aqui só
+  // quando a sessão falhou — não há ambiguidade.
+  const hash = hashToken(token)
+  const { data: svc, error: svcErr } = await supabase
+    .from('alwayson_distribuidor_service_tokens')
+    .select('distribuidor_id, fornecedor_tenant_id, ativo, revogado_em')
+    .eq('token_hash', hash)
+    .maybeSingle()
+
+  if (!svcErr && svc && svc.ativo && !svc.revogado_em) {
+    req.tipoAutenticacao = 'service_token'
+    req.tokenEscopo = {
+      distribuidorId: svc.distribuidor_id,
+      fornecedorId: svc.fornecedor_tenant_id,
+    }
+    // Registro de uso em background — não falha a ingestão se der erro.
+    void supabase
+      .from('alwayson_distribuidor_service_tokens')
+      .update({ ultimo_uso_em: new Date().toISOString() })
+      .eq('token_hash', hash)
+    return next()
+  }
+
+  return res.status(401).json({
+    error: 'sessao_invalida',
+    message: 'Sessão ou credencial inválida. Entre novamente e repita o envio.',
+  })
 }
 
 /**
@@ -161,14 +210,33 @@ app.post('/api/ingest', autenticar, upload.single('file'), async (req, res) => {
   }
 
   let autorizado
-  try {
-    autorizado = await podeIngerir(req.clientDoChamador, { distribuidorId, fornecedorId })
-  } catch (err) {
-    console.error('[ingest] escopo', err)
-    return res.status(500).json({
-      error: 'internal_error',
-      message: 'Não foi possível verificar o seu acesso.',
-    })
+  if (req.tipoAutenticacao === 'internal') {
+    // Canal interno (inbound de e-mail): o par precisa ter config de recebimento
+    // ativa — quem não está cadastrado para receber não aceita o canal.
+    const { data: cfg } = await supabase
+      .from('alwayson_distribuidor_recebimento')
+      .select('id')
+      .eq('distribuidor_id', distribuidorId)
+      .eq('fornecedor_tenant_id', fornecedorId)
+      .eq('ativo', true)
+      .maybeSingle()
+    autorizado = Boolean(cfg)
+  } else if (req.tipoAutenticacao === 'service_token') {
+    // Token de máquina é escopado a UM par (distribuidor, fornecedor) — o corpo
+    // da chamada precisa casar com o escopo da chave.
+    autorizado =
+      distribuidorId === req.tokenEscopo.distribuidorId &&
+      fornecedorId === req.tokenEscopo.fornecedorId
+  } else {
+    try {
+      autorizado = await podeIngerir(req.clientDoChamador, { distribuidorId, fornecedorId })
+    } catch (err) {
+      console.error('[ingest] escopo', err)
+      return res.status(500).json({
+        error: 'internal_error',
+        message: 'Não foi possível verificar o seu acesso.',
+      })
+    }
   }
   if (!autorizado) {
     // Mesma resposta para "não alcança" e "não existe": quem não tem acesso ao
