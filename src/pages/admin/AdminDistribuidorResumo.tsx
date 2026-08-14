@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import { AreaAtuacaoCard } from '@/components/distribuidor/AreaAtuacaoCard'
+import { OnePagerExport } from '@/components/distribuidor/OnePagerExport'
 
 export function AdminDistribuidorResumo() {
   const { distribuidorId = '' } = useParams<{ distribuidorId: string }>()
@@ -28,6 +29,7 @@ export function AdminDistribuidorResumo() {
   return (
     <div className="space-y-6">
       <AreaAtuacaoCard distribuidor={dist} />
+      <OnePagerExport distribuidor={dist} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
