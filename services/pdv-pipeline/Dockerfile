@@ -8,6 +8,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY services/pdv-pipeline ./services/pdv-pipeline
+COPY scripts/download-receita-estabelecimentos.mjs ./scripts/download-receita-estabelecimentos.mjs
 
 ENV PORT=8788
 EXPOSE 8788

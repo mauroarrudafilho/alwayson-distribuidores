@@ -31,7 +31,8 @@ const only =
     : new Set(['estabele', 'empresas', 'simples', 'municipios'])
 
 const BASE = `https://dados-abertos-rf-cnpj.casadosdados.com.br/arquivos/${snapshot}`
-const OUT_DIR = path.join(ROOT, 'data', 'receita', snapshot)
+// ponytail: RECEITA_DATA_DIR (Railway volume) escreve direto na raiz, sem subpasta de snapshot — é o formato que receita-universo.mjs espera
+const OUT_DIR = process.env.RECEITA_DATA_DIR || path.join(ROOT, 'data', 'receita', snapshot)
 
 async function download(url, dest) {
   if (fs.existsSync(dest)) {
