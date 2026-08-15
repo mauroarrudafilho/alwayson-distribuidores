@@ -3,8 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "services/pdv-pipeline/Dockerfile"
 
 [deploy]
-startCommand = "node services/pdv-pipeline/server.mjs"
-healthcheckPath = "/health"
-healthcheckTimeout = 120
+# TEMP: carga única da Receita no volume — reverter para server.mjs depois de "Pronto:" nos logs
+startCommand = "node scripts/download-receita-estabelecimentos.mjs --snapshot 2025-07-30"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
