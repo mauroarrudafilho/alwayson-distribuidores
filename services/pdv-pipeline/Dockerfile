@@ -12,5 +12,6 @@ COPY services/pdv-pipeline ./services/pdv-pipeline
 COPY scripts/download-receita-estabelecimentos.mjs ./scripts/download-receita-estabelecimentos.mjs
 
 ENV PORT=8788
+
 EXPOSE 8788
 CMD ["node", "services/pdv-pipeline/server.mjs"]
