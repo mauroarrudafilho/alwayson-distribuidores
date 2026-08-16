@@ -1,8 +1,6 @@
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
-  // TODO: remover depois que o domínio antigo for desativado de vez.
-  'https://alwayson-distribuidores.vercel.app',
   'https://mesh-sales-platform.vercel.app',
 ]
 

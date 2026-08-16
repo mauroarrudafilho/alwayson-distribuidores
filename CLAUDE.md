@@ -7,20 +7,16 @@ visão consolidada) e **Distribuidor e campo** (supervisor, vendedor, promotor �
 celular, rotina em poucos toques). O distribuidor não é fiscalizado, é parceiro
 que também ganha visibilidade — vale para código, copy e telas.
 
-**Rebrand Always On → Mesh (2026-08-15):** código, e-mails, favicon e textos
-visíveis migrados. Projeto Vercel, projeto Supabase e pacote npm renomeados
-para `mesh-sales-platform` (confirmado — nome de projeto e domínio batem).
-Domínio de produção alvo: `https://mesh-sales-platform.vercel.app` — **ainda
-não aparece na API da Vercel** (só os domínios `alwayson-distribuidores*`
-seguem ativos); renomear o projeto não migra o `.vercel.app` sozinho, precisa
-de um novo deploy pra Vercel provisionar (ou adicionar manual em Vercel →
-Settings → Domains). Enquanto isso, `supabase/functions/_shared/app-origin.ts`
-aceita os dois domínios (deploy feito) para não quebrar o site que ainda está
-no ar no domínio antigo — depois que `mesh-sales-platform.vercel.app` estiver
-confirmado no ar, remover a linha do domínio antigo dali e redeployar
-(`npm run auth:deploy-email-fns`). Conferir também se `APP_PUBLIC_URL`/
-`ALLOWED_APP_ORIGINS` (secrets de Edge Function, não estão neste repo) já
-apontam pro domínio novo.
+**Rebrand Always On → Mesh — concluído (2026-08-15).** Código, e-mails,
+favicon, textos visíveis, projeto Vercel, projeto Supabase e pacote npm — tudo
+`mesh-sales-platform`. Domínio de produção confirmado no ar em
+`https://mesh-sales-platform.vercel.app` (o antigo `alwayson-distribuidores.vercel.app`
+já responde 404 — Vercel libera o domínio quando o projeto é renomeado, não
+precisa desativar nada). `supabase/functions/_shared/app-origin.ts` só aceita
+o domínio novo (deploy feito). **Único pendente:** confirmar que
+`APP_PUBLIC_URL`/`ALLOWED_APP_ORIGINS` (secrets de Edge Function, fora deste
+repo) apontam pro domínio novo — se ainda citam o antigo, links de convite e
+recuperação de senha nos e-mails saem quebrados.
 
 ## Supabase (único projeto canônico deste repositório)
 
