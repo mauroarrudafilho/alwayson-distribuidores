@@ -1,4 +1,4 @@
-# M.I.R.A.
+# Mesh
 
 ## Register
 
@@ -6,7 +6,7 @@ product
 
 ## Users
 
-M.I.R.A. atende dois lados do canal indireto:
+Mesh atende dois lados do canal indireto:
 
 - fornecedores e indústrias, especialmente KAMs e gestores de canal que acompanham e desenvolvem uma rede de distribuidores;
 - distribuidores, suas diretorias e equipes comerciais, que precisam transformar dados de vendas em execução.
@@ -15,13 +15,13 @@ O produto é usado em rotinas de gestão comercial, revisão de metas, acompanha
 
 ## Product Purpose
 
-M.I.R.A. é uma plataforma de gestão de vendas para canais indiretos. Centraliza dados heterogêneos dos distribuidores, mede performance, metas, cobertura, mix e estoque, identifica desvios e transforma sinais em ações acompanháveis.
+Mesh é uma plataforma de gestão de vendas para canais indiretos. Centraliza dados heterogêneos dos distribuidores, mede performance, metas, cobertura, mix e estoque, identifica desvios e transforma sinais em ações acompanháveis.
 
-O acrônimo significa **Monitoramento, Inteligência, Resultado e Ação**. O sucesso é o canal receber dados confiáveis, enxergar prioridades e executar melhor sem substituir o ERP do distribuidor.
+O sucesso é o canal receber dados confiáveis, enxergar prioridades e executar melhor sem substituir o ERP do distribuidor.
 
 ## Brand Personality
 
-Tech confiável: precisa, clara e executiva. A tecnologia deve parecer robusta e útil, não experimental. M.I.R.A. explica o que encontrou, mostra a evidência e orienta o próximo passo.
+Tech confiável: precisa, clara e executiva. A tecnologia deve parecer robusta e útil, não experimental. Mesh explica o que encontrou, mostra a evidência e orienta o próximo passo.
 
 ## Anti-references
 
