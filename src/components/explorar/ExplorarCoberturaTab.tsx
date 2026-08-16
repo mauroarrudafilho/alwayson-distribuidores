@@ -39,7 +39,7 @@ type Props = {
 function coberturaTone(pct: number | null): string {
   if (pct == null) return 'text-muted-foreground'
   if (pct >= 50) return 'text-emerald-700'
-  if (pct >= 20) return 'text-amber-700'
+  if (pct >= 20) return 'text-warning'
   return 'text-orange-700'
 }
 

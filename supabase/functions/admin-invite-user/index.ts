@@ -143,7 +143,7 @@ async function entregarConviteEmail(
       ok: false,
       error: 'resend_nao_configurado',
       message:
-        'RESEND_API_KEY não configurada. Convites exigem entrega pelo Resend (mesmo template Always On).',
+        'RESEND_API_KEY não configurada. Convites exigem entrega pelo Resend (mesmo template Mesh).',
     }
   }
 

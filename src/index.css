@@ -2,31 +2,48 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/fraunces";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Brand */
-  --navy: oklch(0.25 0.05 250);
-  --navy-hover: oklch(0.30 0.05 250);
-  --navy-light: oklch(0.35 0.05 250);
-  --teal: oklch(0.70 0.15 175);
-  --teal-hover: oklch(0.65 0.15 175);
+  /* Brand — Mesh (ver GUIA-DE-MARCA-MESH.md)
+     Nomes SEM prefixo --color- de propósito: o bridge pro Tailwind vive em
+     @theme inline mais abaixo. Referenciar var(--ink) etc. direto aqui
+     seria auto-referência (valor inválido) — usar sempre var(--ink) aqui. */
+  --ink: #0f1115;
+  --ink-soft: #1a1e26;
+  --paper: #f7f5f1;
+  --paper-soft: #efece6;
+  --structure: #5b6572;
+  --structure-soft: #8b93a1;
+  --amber: #ff7a1a;
+  --amber-press: #e56a12;
 
-  /* Gray scale (blue-tinted) */
-  --gray-50: oklch(0.98 0.005 250);
-  --gray-100: oklch(0.96 0.005 250);
-  --gray-200: oklch(0.91 0.005 250);
-  --gray-400: oklch(0.70 0.01 250);
-  --gray-600: oklch(0.50 0.02 250);
-  --gray-900: oklch(0.20 0.02 250);
+  /* Cor semântica de dado — NÃO é cor de marca. Âmbar nunca significa alerta. */
+  --data-up: #2e9e6b;
+  --data-down: #c94a3b;
+  --data-flat: #8b93a1;
+
+  /* Aliases legados (mesmo nome, valor Mesh — evita reescrever 40+ componentes) */
+  --navy: var(--ink);
+  --navy-hover: var(--ink-soft);
+  --navy-light: var(--structure);
+  --teal: var(--structure-soft);
+  --teal-hover: var(--structure);
+
+  /* Gray scale (papel, neutro — não mais azulado) */
+  --gray-50: var(--paper);
+  --gray-100: var(--paper-soft);
+  --gray-200: oklch(0.88 0.004 90);
+  --gray-400: oklch(0.66 0.006 90);
+  --gray-600: var(--structure);
+  --gray-900: var(--ink);
 
   /* Status */
-  --status-success: oklch(0.60 0.19 145);
+  --status-success: var(--data-up);
   --status-warning: oklch(0.65 0.18 70);
-  --status-danger: oklch(0.55 0.22 25);
-  --status-info: oklch(0.55 0.20 260);
+  --status-danger: var(--data-down);
+  --status-info: var(--structure);
 
   /* Semantic tokens */
   --background: var(--gray-50);
@@ -35,13 +52,13 @@
   --card-foreground: var(--gray-900);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--gray-900);
-  --primary: var(--navy);
+  --primary: var(--amber);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(1 0 0);
   --secondary-foreground: var(--navy);
   --muted: var(--gray-100);
   --muted-foreground: var(--gray-600);
-  --accent: var(--teal);
+  --accent: var(--structure-soft);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: var(--status-danger);
   --destructive-foreground: var(--status-danger);
@@ -50,65 +67,72 @@
   --info: var(--status-info);
   --border: var(--gray-200);
   --input: var(--gray-200);
-  --ring: var(--navy);
+  --ring: var(--amber);
   --radius: 0.5rem;
 
-  /* Sidebar — navy brand chrome (matches auth hero) */
-  --sidebar-background: oklch(0.20 0.04 252);
-  --sidebar-foreground: oklch(0.96 0.005 250);
-  --sidebar-primary: var(--teal);
-  --sidebar-primary-foreground: oklch(0.18 0.045 252);
+  /* Sidebar — grafite, nó âmbar marca o item ativo */
+  --sidebar-background: var(--ink);
+  --sidebar-foreground: oklch(0.96 0.003 90);
+  --sidebar-primary: var(--amber);
+  --sidebar-primary-foreground: var(--ink);
   --sidebar-accent: oklch(1 0 0 / 8%);
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: var(--teal);
-  --sidebar: oklch(0.20 0.04 252);
+  --sidebar-ring: var(--amber);
+  --sidebar: var(--ink);
 
-  /* Charts */
-  --chart-1: oklch(0.55 0.20 260);
-  --chart-2: oklch(0.70 0.15 175);
-  --chart-3: oklch(0.65 0.18 310);
-  --chart-4: oklch(0.65 0.18 70);
-  --chart-5: oklch(0.60 0.19 145);
+  /* Charts — escala sóbria grafite/estrutura, sem âmbar (evita estourar "uma vez por tela") */
+  --chart-1: var(--structure);
+  --chart-2: var(--structure-soft);
+  --chart-3: oklch(0.55 0.006 90);
+  --chart-4: oklch(0.75 0.006 90);
+  --chart-5: var(--ink-soft);
+
+  /* Malha */
+  --mesh-stroke: 1.25px;
+  --mesh-color: var(--structure-soft);
+  --mesh-opacity-hero: 0.85;
+  --mesh-opacity-content: 0.35;
+  --mesh-opacity-data: 0.06;
 }
 
 .dark {
-  --background: var(--gray-900);
+  --background: var(--ink);
   --foreground: var(--gray-50);
-  --card: oklch(0.22 0.02 250);
+  --card: var(--ink-soft);
   --card-foreground: var(--gray-50);
-  --popover: oklch(0.22 0.02 250);
+  --popover: var(--ink-soft);
   --popover-foreground: var(--gray-50);
-  --primary: oklch(0.92 0.005 250);
-  --primary-foreground: var(--navy);
-  --secondary: oklch(0.27 0.02 250);
+  --primary: var(--amber);
+  --primary-foreground: var(--ink);
+  --secondary: oklch(0.27 0.006 90);
   --secondary-foreground: var(--gray-50);
-  --muted: oklch(0.25 0.02 250);
+  --muted: oklch(0.25 0.006 90);
   --muted-foreground: var(--gray-400);
-  --accent: var(--teal);
+  --accent: var(--structure);
   --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.65 0.20 25);
-  --destructive-foreground: oklch(0.65 0.20 25);
-  --success: oklch(0.65 0.17 145);
+  --destructive: var(--data-down);
+  --destructive-foreground: var(--data-down);
+  --success: var(--data-up);
   --warning: oklch(0.70 0.16 70);
-  --info: oklch(0.60 0.18 260);
+  --info: var(--structure-soft);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.55 0.005 250);
-  --sidebar-background: oklch(0.18 0.03 250);
-  --sidebar-foreground: oklch(0.96 0.005 250);
-  --sidebar-primary: oklch(0.96 0.005 250);
-  --sidebar-primary-foreground: var(--navy);
-  --sidebar-accent: oklch(0.25 0.03 250);
-  --sidebar-accent-foreground: oklch(0.96 0.005 250);
+  --ring: var(--amber);
+  --sidebar-background: oklch(0.14 0.004 90);
+  --sidebar-foreground: oklch(0.96 0.003 90);
+  --sidebar-primary: var(--amber);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: oklch(0.25 0.006 90);
+  --sidebar-accent-foreground: oklch(0.96 0.003 90);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.55 0.005 250);
-  --sidebar: oklch(0.18 0.03 250);
-  --chart-1: oklch(0.60 0.18 260);
-  --chart-2: oklch(0.70 0.15 175);
-  --chart-3: oklch(0.68 0.16 310);
-  --chart-4: oklch(0.68 0.16 70);
-  --chart-5: oklch(0.65 0.17 145);
+  --sidebar-ring: var(--amber);
+  --sidebar: oklch(0.14 0.004 90);
+  --chart-1: var(--structure-soft);
+  --chart-2: oklch(0.55 0.006 90);
+  --chart-3: oklch(0.75 0.006 90);
+  --chart-4: oklch(0.45 0.006 90);
+  --chart-5: oklch(0.85 0.006 90);
 }
 
 @theme inline {
@@ -148,8 +172,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-field: 8px;
+  --radius-card: 12px;
   --font-sans: 'Geist Variable', sans-serif;
-  --font-display: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, serif;
+  --font-display: 'Geist Variable', sans-serif;
   --color-sidebar: var(--sidebar);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
@@ -162,6 +188,18 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-amber: var(--amber);
+  --color-amber-press: var(--amber-press);
+  --color-structure: var(--structure);
+  --color-structure-soft: var(--structure-soft);
+  --color-paper: var(--paper);
+  --color-paper-soft: var(--paper-soft);
+  --color-data-up: var(--data-up);
+  --color-data-down: var(--data-down);
+  --color-data-flat: var(--data-flat);
 
   --shadow-card: 0 1px 3px oklch(0 0 0 / 8%), 0 1px 2px oklch(0 0 0 / 6%);
   --shadow-card-hover: 0 4px 6px oklch(0 0 0 / 8%), 0 2px 4px oklch(0 0 0 / 6%);
@@ -184,6 +222,33 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Foco: assinatura de interação da marca — nó âmbar aceso.
+   Cobre elementos fora do shadcn (que já herda via --ring). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: var(--radius-field);
+}
+
+/* Malha — decorativa, ancorada por canto, nunca esticada.
+   Densidade na proporção INVERSA ao dado na tela (ver MeshTerrain.tsx). */
+.mesh-layer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(100%, 1440px);
+  pointer-events: none;
+  user-select: none;
+  color: var(--mesh-color);
+  opacity: var(--mesh-opacity-hero);
+}
+.mesh-layer[data-density="content"] { opacity: var(--mesh-opacity-content); }
+.mesh-layer[data-density="data"]    { opacity: var(--mesh-opacity-data); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 @keyframes fade-in {

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 
-const DEFAULT_EYEBROW = 'M.I.R.A. · Sales Platform'
+const DEFAULT_EYEBROW = 'Mesh · Canal indireto'
 
 interface PageHeaderProps {
   title: string
   description?: string
   actions?: ReactNode
-  /** Defaults to the M.I.R.A. brand line. Pass `null` to hide. */
+  /** Defaults to the Mesh brand line. Pass `null` to hide. */
   eyebrow?: string | null
   accent?: string
 }

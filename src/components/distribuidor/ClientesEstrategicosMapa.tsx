@@ -78,7 +78,7 @@ export function ClientesEstrategicosMapa({ linhas }: Props) {
             </span>{' '}
             de {linhas.length.toLocaleString('pt-BR')} com coordenada
             {aproximados > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
+              <span className="text-warning ">
                 {' '}
                 · {aproximados} são centroide da cidade, não o PDV
               </span>
@@ -141,7 +141,7 @@ export function ClientesEstrategicosMapa({ linhas }: Props) {
                       {l.na_carteira ? 'Já na carteira' : 'Fora da carteira'}
                     </p>
                     {l.geo_fonte_exibicao === 'cidade_centroide' && (
-                      <p className="text-amber-600">Posição aproximada pela cidade</p>
+                      <p className="text-warning">Posição aproximada pela cidade</p>
                     )}
                   </div>
                 </Popup>

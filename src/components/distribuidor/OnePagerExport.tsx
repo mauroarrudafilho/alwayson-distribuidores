@@ -131,7 +131,7 @@ export function OnePagerExport({ distribuidor }: { distribuidor: Distribuidor })
         { label: 'SKUs no mês', value: String(data.skusDistintos) },
       ],
       sections,
-      footer: 'Fonte: M.I.R.A. — sell-in ingerido. Realizado derivado do faturamento; comparações com o mesmo período de referência.',
+      footer: 'Fonte: Mesh — sell-in ingerido. Realizado derivado do faturamento; comparações com o mesmo período de referência.',
     })
   }
 

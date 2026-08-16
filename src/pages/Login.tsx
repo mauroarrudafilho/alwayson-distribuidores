@@ -4,6 +4,7 @@ import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from 'luci
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BrandMark } from '@/components/brand/BrandMark'
+import { MeshTerrain } from '@/components/brand/MeshTerrain'
 import { useAuth } from '@/contexts/auth'
 import { consumeAuthError, humanizeAuthError } from '@/lib/auth-error-bootstrap'
 import { redefinirPasswordPath, userNeedsPasswordSetup } from '@/lib/auth-callback'
@@ -80,11 +81,11 @@ export function Login() {
         }}
       >
         {/* layered effects */}
-        <div className="absolute inset-0 editorial-grid opacity-[0.55]" aria-hidden />
-        <div className="absolute inset-0 editorial-noise opacity-[0.35] mix-blend-overlay" aria-hidden />
+        <div className="absolute inset-0 editorial-noise opacity-[0.2] mix-blend-overlay" aria-hidden />
+        <MeshTerrain density="hero" className="opacity-[0.6]" />
         <div
-          className="absolute -left-32 top-1/3 h-[520px] w-[520px] rounded-full opacity-30 blur-3xl"
-          style={{ background: 'radial-gradient(circle, var(--teal) 0%, transparent 65%)' }}
+          className="absolute -left-32 top-1/3 h-[520px] w-[520px] rounded-full opacity-20 blur-3xl"
+          style={{ background: 'radial-gradient(circle, var(--color-structure-soft) 0%, transparent 65%)' }}
           aria-hidden
         />
 
@@ -114,7 +115,7 @@ export function Login() {
               tone="onDark"
               size="md"
               stacked={false}
-               caption="M.I.R.A. · 2026"
+               caption="Mesh · 2026"
             />
 
             <div className="rounded-full border border-white/15 bg-white/4 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75 backdrop-blur-sm">
@@ -125,26 +126,25 @@ export function Login() {
           {/* middle: claim */}
           <div className="max-w-xl space-y-7">
             <h2
-              className="text-[68px] leading-[0.96] tracking-[-0.03em] xl:text-[84px]"
+              className="text-[52px] leading-[1.02] tracking-[-0.03em] xl:text-[64px]"
               style={{
                 fontFamily: 'var(--font-display)',
                 fontWeight: 320,
                 fontVariationSettings: '"opsz" 144, "SOFT" 30',
               }}
             >
-              Do sell-out
+              <span className="text-white/85">Enxergue até a</span>
               <br />
-              <span className="text-white/85">à </span>
               <em
-                className="italic text-teal"
+                className="italic text-amber"
                 style={{ fontVariationSettings: '"opsz" 144, "SOFT" 80' }}
               >
-                decisão.
+                ponta.
               </em>
             </h2>
 
             <p className="max-w-[40ch] text-[15px] leading-relaxed text-white/70">
-              Performance, insights e clientes estratégicos — num só cockpit, com governança multi-tenant.
+              Do sell-in ao sell-out, sem ponto cego — performance, insights e clientes estratégicos num só cockpit.
             </p>
 
             <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
@@ -177,7 +177,7 @@ export function Login() {
 
           {/* bottom: brand line (no mock metrics) */}
           <div className="border-t border-white/10 pt-6 text-[11px] uppercase tracking-[0.18em] text-white/45">
-             M.I.R.A. · Sales Platform
+             Mesh · Canal indireto
           </div>
         </div>
       </section>
@@ -220,9 +220,9 @@ export function Login() {
           {authNotice && (
             <div
               role="alert"
-              className="mt-8 flex items-start gap-3 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-sm leading-relaxed"
+              className="mt-8 flex items-start gap-3 border-l-2 border-warning bg-warning/5 px-4 py-3 text-sm leading-relaxed"
             >
-              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" strokeWidth={1.75} />
+              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-warning" strokeWidth={1.75} />
               <div className="flex-1">
                 <p className="font-medium text-foreground">Não foi possível usar o link</p>
                 <p className="mt-1 text-xs text-muted-foreground">{authNotice.message}</p>
@@ -350,8 +350,8 @@ export function Login() {
 
         {/* footer signature */}
         <div className="absolute inset-x-0 bottom-0 hidden items-center justify-between px-14 py-6 text-[10px] uppercase tracking-[0.2em] text-muted-foreground lg:flex">
-          <span>{new Date().getFullYear()} · M.I.R.A. Sales Platform</span>
-          <span>M.I.R.A. · Sales Platform</span>
+          <span>{new Date().getFullYear()} · Mesh, inteligência de canal indireto</span>
+          <span>Mesh · Canal indireto</span>
         </div>
       </section>
     </div>

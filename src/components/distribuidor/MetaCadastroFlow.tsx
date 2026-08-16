@@ -136,7 +136,7 @@ function MetaGridSection({
               {moeda ? formatCurrency(soma) : soma.toLocaleString('pt-BR')}
             </span>
             {diff !== null && diff !== 0 && (
-              <span className={cn('ml-2', diff > 0 ? 'text-amber-600' : 'text-red-600')}>
+              <span className={cn('ml-2', diff > 0 ? 'text-warning' : 'text-red-600')}>
                 ({diff > 0 ? '+' : ''}
                 {moeda ? formatCurrency(diff) : diff} vs pai)
               </span>

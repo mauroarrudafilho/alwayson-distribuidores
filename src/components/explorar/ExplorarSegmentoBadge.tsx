@@ -4,7 +4,7 @@ import type { PdvSegmento } from '@/types/pdv'
 import { cn } from '@/lib/utils'
 
 const variant: Record<PdvSegmento, string> = {
-  subexplorado: 'bg-amber-500/15 text-amber-900 border-amber-500/30',
+  subexplorado: 'bg-warning/15 text-warning border-warning/30',
   maduro: 'bg-emerald-500/15 text-emerald-900 border-emerald-500/30',
   revisar_cadastro: 'bg-sky-500/15 text-sky-900 border-sky-500/30',
   reduzir: 'bg-muted text-muted-foreground border-border',

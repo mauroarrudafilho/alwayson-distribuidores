@@ -31,7 +31,7 @@ const ESTADO_CLASS: Record<InsightsAcaoEstado, string> = {
   pendente:
     'border-border/60 text-muted-foreground bg-transparent',
   em_acao:
-    'border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/30',
+    'border-warning/40 text-warning  bg-warning/70 ',
   resolvido:
     'border-emerald-500/40 text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30',
   snooze:

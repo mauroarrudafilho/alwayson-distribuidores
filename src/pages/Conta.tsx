@@ -317,7 +317,7 @@ function strength(s: string): 0 | 1 | 2 | 3 | 4 {
 
 function StrengthMeter({ score }: { score: 0 | 1 | 2 | 3 | 4 }) {
   const labels = ['', 'Fraca', 'Razoável', 'Boa', 'Forte']
-  const colors = ['bg-foreground/10', 'bg-rose-400', 'bg-amber-400', 'bg-emerald-400', 'bg-emerald-500']
+  const colors = ['bg-foreground/10', 'bg-rose-400', 'bg-warning/70', 'bg-emerald-400', 'bg-emerald-500']
   return (
     <div>
       <div className="flex gap-1">

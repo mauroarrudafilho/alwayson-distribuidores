@@ -1,14 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="7" fill="#1a2744"/>
+  <rect width="32" height="32" rx="7" fill="#0f1115"/>
   <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" stroke="rgba(255,255,255,0.15)"/>
-  <text
-    x="16"
-    y="21.5"
-    text-anchor="middle"
-    fill="white"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="15"
-    font-weight="500"
-  >M</text>
-  <circle cx="25" cy="7" r="2.25" fill="#2dd4bf"/>
+  <g stroke="white" stroke-width="1.8" stroke-linejoin="round">
+    <path d="M 16 5 L 27 16 L 16 27 L 5 16 Z"/>
+    <line x1="16" y1="5" x2="16" y2="27" stroke-width="1.1"/>
+    <line x1="5" y1="16" x2="27" y2="16" stroke-width="1.1"/>
+    <line x1="9" y1="9" x2="23" y2="23" stroke-width="1.1"/>
+  </g>
+  <circle cx="23" cy="23" r="2.6" fill="#ff7a1a"/>
 </svg>

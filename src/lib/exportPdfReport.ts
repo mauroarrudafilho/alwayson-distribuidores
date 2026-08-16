@@ -16,7 +16,7 @@ type PdfReportOptions = {
   meta?: PdfMetaLine[]
   sections?: PdfTableSection[]
   footer?: string
-  /** Marca no cabeçalho — padrão M.I.R.A. */
+  /** Marca no cabeçalho — padrão Mesh */
   brand?: string
 }
 
@@ -69,7 +69,7 @@ function drawFullHeader(doc: jsPDF, opts: PdfReportOptions) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   setRgb(doc, BRAND.teal, 'text')
-  doc.text((opts.brand ?? 'M.I.R.A.').toUpperCase(), MARGIN, 9)
+  doc.text((opts.brand ?? 'Mesh').toUpperCase(), MARGIN, 9)
 
   doc.setFontSize(15)
   setRgb(doc, BRAND.white, 'text')
@@ -231,7 +231,7 @@ function paintFooters(doc: jsPDF, footerText?: string) {
 export function downloadPdfReport(opts: PdfReportOptions) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.getHeight()
-  const brand = opts.brand ?? 'M.I.R.A.'
+  const brand = opts.brand ?? 'Mesh'
   const contentBottom = pageH - FOOTER_RESERVE - 2
 
   drawFullHeader(doc, opts)

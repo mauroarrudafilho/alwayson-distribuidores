@@ -844,7 +844,7 @@ export function InsightsPanel() {
                       <span className="mx-1 opacity-40">·</span>
                       última {ultimaCompra}
                       {c.__gapMeses > 0 && (
-                        <span className="ml-1 text-amber-700 dark:text-amber-500">
+                        <span className="ml-1 text-warning ">
                           · {c.__gapMeses}m sem compra
                         </span>
                       )}

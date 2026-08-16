@@ -308,7 +308,7 @@ export function AdminDeParaProdutos() {
                                       'mt-0.5 truncate text-[10px]',
                                       ok
                                         ? 'text-emerald-700 dark:text-emerald-400'
-                                        : 'text-amber-700'
+                                        : 'text-warning'
                                     )}
                                   >
                                     {ok
@@ -407,7 +407,7 @@ export function AdminDeParaProdutos() {
                 <code>codigo_cliente</code>
               </p>
               {skusDesconhecidos.length > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-500">
+                <p className="text-xs text-warning ">
                   SKUs ainda não cadastrados em Produtos (amostra):{' '}
                   {skusDesconhecidos.join(', ')}
                   {(preview.some((r) => !skuValidos.has(r.sku_fornecedor)) &&

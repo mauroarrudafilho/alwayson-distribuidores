@@ -15,7 +15,7 @@ const categoryClass: Record<ClientTagCategory, string> = {
   segmento: 'text-muted-foreground border-border bg-muted',
   flag: 'text-warning border-warning/30 bg-warning/8',
   risk: 'text-destructive border-destructive/30 bg-destructive/8',
-  destaque: 'text-amber-700 border-amber-500/35 bg-amber-500/10 dark:text-amber-400',
+  destaque: 'text-warning border-warning/35 bg-warning/10 ',
 }
 
 const dotClass: Record<ClientTagCategory, string> = {
@@ -24,7 +24,7 @@ const dotClass: Record<ClientTagCategory, string> = {
   segmento: 'bg-muted-foreground/60',
   flag: 'bg-warning',
   risk: 'bg-destructive',
-  destaque: 'bg-amber-500',
+  destaque: 'bg-warning',
 }
 
 export function ClientTag({ category, label, className, title }: ClientTagProps) {

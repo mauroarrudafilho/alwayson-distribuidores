@@ -17,7 +17,7 @@ export function ClienteSemGeoBadge({
     <Badge
       variant="outline"
       className={cn(
-        'shrink-0 border-amber-500/35 bg-amber-500/8 px-1.5 py-0 text-[9px] font-normal text-amber-800 dark:text-amber-400',
+        'shrink-0 border-warning/35 bg-warning/8 px-1.5 py-0 text-[9px] font-normal text-warning ',
         className
       )}
       title="UF e cidade não localizados (Insights e BrasilAPI)"

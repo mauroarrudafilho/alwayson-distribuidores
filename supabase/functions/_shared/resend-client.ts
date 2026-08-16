@@ -5,7 +5,7 @@ export function resendConfigurado(): boolean {
 }
 
 export function resendFromAddress(): string {
-  return Deno.env.get('RESEND_FROM') ?? 'Always On <onboarding@resend.dev>'
+  return Deno.env.get('RESEND_FROM') ?? 'Mesh <onboarding@resend.dev>'
 }
 
 export async function enviarEmailResend(args: {

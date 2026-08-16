@@ -446,7 +446,7 @@ export function AdminInsightsDeParaProdutos() {
                                       'mt-0.5 block w-full truncate text-left text-[10px]',
                                       ok
                                         ? 'text-emerald-700 dark:text-emerald-400'
-                                        : 'text-amber-700'
+                                        : 'text-warning'
                                     )}
                                   >
                                     {ok
@@ -491,7 +491,7 @@ export function AdminInsightsDeParaProdutos() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  className="gap-2 text-amber-800 focus:text-amber-800 dark:text-amber-400"
+                                  className="gap-2 text-warning focus:text-warning "
                                   disabled={rowBusy}
                                   onClick={() =>
                                     void handleDesconsiderar(r.codigo_origem, descExibicao)
@@ -661,7 +661,7 @@ export function AdminInsightsDeParaProdutos() {
                   <strong>{contagem.total}</strong> linhas ·{' '}
                   <span className="text-emerald-700 dark:text-emerald-600">{contagem.ok}</span> com SKU
                   no catálogo ·{' '}
-                  <span className="text-amber-700 dark:text-amber-500">{contagem.bad}</span> SKU alvo
+                  <span className="text-warning ">{contagem.bad}</span> SKU alvo
                   ausente
                 </span>
               </div>
@@ -706,7 +706,7 @@ export function AdminInsightsDeParaProdutos() {
                           {!r.okCatalogo ? (
                             <Badge
                               variant="outline"
-                              className="text-[10px] border-amber-600/50 text-amber-800 dark:text-amber-400"
+                              className="text-[10px] border-warning/50 text-warning "
                             >
                               SKU não cadastrado
                             </Badge>

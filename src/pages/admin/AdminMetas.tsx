@@ -61,7 +61,7 @@ function AtingimentoCell({ percentual }: { percentual: number | null }) {
     percentual >= 100
       ? 'text-emerald-600'
       : percentual >= 80
-        ? 'text-amber-600'
+        ? 'text-warning'
         : 'text-red-600'
   return <span className={color}>{percentual.toFixed(1)}%</span>
 }

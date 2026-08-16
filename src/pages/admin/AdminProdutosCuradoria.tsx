@@ -164,7 +164,7 @@ export function AdminProdutosCuradoria() {
                                       'mt-0.5 block w-full truncate text-left text-[10px]',
                                       ok
                                         ? 'text-emerald-700 dark:text-emerald-400'
-                                        : 'text-amber-700'
+                                        : 'text-warning'
                                     )}
                                   >
                                     {ok

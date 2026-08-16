@@ -62,7 +62,7 @@ export function AppLayout() {
           <Link
             to="/"
             className="min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="M.I.R.A. Sales Platform — início"
+            aria-label="Mesh — início"
           >
             <BrandMark tone="onLight" size="sm" stacked={false} />
           </Link>

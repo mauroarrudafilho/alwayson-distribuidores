@@ -396,7 +396,7 @@ export function InsightsProdutoDetalheCharts({
                       {c.oportunidade ? (
                         <Badge
                           variant="outline"
-                          className="gap-1 border-amber-500/30 bg-amber-500/10 text-[10px] text-amber-700 dark:text-amber-400"
+                          className="gap-1 border-warning/30 bg-warning/10 text-[10px] text-warning "
                           title="Muitos clientes com fat./cliente abaixo da mediana — potencial de upsell"
                         >
                           <Target className="h-2.5 w-2.5" />

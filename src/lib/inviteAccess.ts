@@ -80,7 +80,7 @@ export function resumoVinculosConvite(
   fornecedorNomes: string[],
   distribuidorNomes: string[],
 ): string {
-  if (roleEhAdminGlobal(role)) return 'Admin global (M.I.R.A.)'
+  if (roleEhAdminGlobal(role)) return 'Admin global (Mesh)'
   const partes: string[] = []
   if (fornecedorNomes.length) partes.push(`Fornecedor: ${fornecedorNomes.join(', ')}`)
   if (distribuidorNomes.length) partes.push(`Parceiro: ${distribuidorNomes.join(', ')}`)

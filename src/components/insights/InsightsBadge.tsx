@@ -41,7 +41,7 @@ export function InsightsBadge({
           setOpen(true)
         }}
         title="Sell-out Insights disponível"
-        className="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-amber-500/10 hover:text-amber-600"
+        className="inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning"
       >
         <Lightbulb className="size-3.5" />
       </button>

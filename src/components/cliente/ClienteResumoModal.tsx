@@ -354,7 +354,7 @@ export function ClienteResumoModal({
           }
         }).filter(Boolean) as { title: string; head: string[]; body: string[][] }[],
       ],
-      footer: 'Relatório gerado a partir do sell-in ingerido pelo distribuidor (M.I.R.A.).',
+      footer: 'Relatório gerado a partir do sell-in ingerido pelo distribuidor (Mesh).',
     })
   }
 

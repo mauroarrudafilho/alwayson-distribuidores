@@ -6,23 +6,45 @@ type BrandMarkSize = 'sm' | 'md'
 interface BrandMarkProps {
   tone?: BrandMarkTone
   size?: BrandMarkSize
-  /** Só o monograma; sem wordmark. */
+  /** Só o símbolo; sem wordmark. */
   markOnly?: boolean
-  /** Wordmark em duas linhas (nome + produto). */
+  /** Wordmark em duas linhas (nome + descritor). */
   stacked?: boolean
-  /** Linha terciária sob o wordmark (ex.: M.I.R.A. · 2026). */
+  /** Linha terciária sob o wordmark (ex.: Mesh · 2026). */
   caption?: string
   className?: string
 }
 
 const markSize: Record<BrandMarkSize, string> = {
-  sm: 'h-7 w-7 text-[11px]',
-  md: 'h-9 w-9 text-sm',
+  sm: 'h-7 w-7',
+  md: 'h-9 w-9',
 }
 
 /**
- * Monograma M.I.R.A. — mesma linguagem do login (M + pulso teal).
+ * Símbolo Mesh — losango de malha com um nó âmbar aceso.
+ * Ver GUIA-DE-MARCA-MESH.md §6/§8. Este é o traçado simplificado
+ * (mesh-mark-simple.svg): o completo (mesh-mark.svg, ~113 traços) só lê bem
+ * a partir de uns 80px — nenhum uso de BrandMark no app chega lá (sm/md
+ * ficam em 25–36px), então o traço fino dele sumiria/embaçaria na tela.
+ * Reservar mesh-mark.svg pra peça futura de formato grande (marketing, print).
  */
+function MeshSymbol({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" role="img" aria-label="Mesh" className={className}>
+      <path
+        d="M 32.0 3.84 L 60.16 32.0 L 32.0 60.16 L 3.84 32.0 Z"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinejoin="round"
+      />
+      <line x1="32.0" y1="3.84" x2="32.0" y2="60.16" stroke="currentColor" strokeWidth="2.5" />
+      <line x1="3.84" y1="32.0" x2="60.16" y2="32.0" stroke="currentColor" strokeWidth="2.5" />
+      <line x1="17.92" y1="17.92" x2="46.08" y2="46.08" stroke="currentColor" strokeWidth="2.5" />
+      <circle cx="46.08" cy="46.08" r="5.5" fill="var(--color-amber)" />
+    </svg>
+  )
+}
+
 export function BrandMark({
   tone = 'onDark',
   size = 'sm',
@@ -41,27 +63,10 @@ export function BrandMark({
           markSize[size],
           onDark
             ? 'border-white/15 bg-white/5 text-white'
-            : 'border-navy/15 bg-navy/4 text-navy'
+            : 'border-ink/15 bg-ink/4 text-ink'
         )}
       >
-        <span
-          className="leading-none"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 500,
-            fontVariationSettings: '"opsz" 12',
-          }}
-        >
-           M
-        </span>
-        <span
-          className={cn(
-            'absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-teal',
-            size === 'md' && 'h-2 w-2',
-            onDark && 'shadow-[0_0_10px_var(--teal)]'
-          )}
-          aria-hidden
-        />
+        <MeshSymbol className="h-[62%] w-[62%]" />
       </div>
 
       {!markOnly && (
@@ -74,7 +79,7 @@ export function BrandMark({
                   onDark ? 'text-white' : 'text-foreground'
                 )}
               >
-                M.I.R.A.
+                Mesh
               </span>
               <span
                 className={cn(
@@ -82,7 +87,7 @@ export function BrandMark({
                   onDark ? 'text-white/50' : 'text-muted-foreground'
                 )}
               >
-                Sales Platform
+                Canal indireto
               </span>
             </>
           ) : (
@@ -92,7 +97,7 @@ export function BrandMark({
                 onDark ? 'text-white' : 'text-foreground'
               )}
             >
-              M.I.R.A. Sales Platform
+              Mesh, inteligência de canal indireto
             </span>
           )}
           {caption && (

@@ -362,7 +362,7 @@ export function ExplorarPrioridadeTab({ rows, isLoading, isError }: Props) {
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(r.compra_media_mensal ?? 0)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium text-amber-800">
+                  <TableCell className="text-right tabular-nums font-medium text-warning">
                     {r.gap_reais != null ? formatCurrency(r.gap_reais) : '—'}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">

@@ -283,7 +283,7 @@ export function ExplorarCoberturaBairroDrawer({
                                   {!r.geo_mapa && (
                                     <>
                                       <span className="mx-1 opacity-40">·</span>
-                                      <span className="text-amber-700">sem mapa</span>
+                                      <span className="text-warning">sem mapa</span>
                                     </>
                                   )}
                                 </p>

@@ -1,4 +1,26 @@
-# M.I.R.A. Sales Platform — contexto para assistentes
+# Mesh — contexto para assistentes
+
+Ler `GUIA-DE-MARCA-MESH.md` antes de qualquer tarefa de interface. Plataforma de
+inteligência e gestão do canal indireto, vendida a indústrias. Dois públicos
+no mesmo produto: **Indústria** (diretor comercial, gerente de trade — desktop,
+visão consolidada) e **Distribuidor e campo** (supervisor, vendedor, promotor —
+celular, rotina em poucos toques). O distribuidor não é fiscalizado, é parceiro
+que também ganha visibilidade — vale para código, copy e telas.
+
+**Rebrand Always On → Mesh (2026-08-15):** código, e-mails, favicon e textos
+visíveis migrados. Projeto Vercel, projeto Supabase e pacote npm renomeados
+para `mesh-sales-platform` (confirmado — nome de projeto e domínio batem).
+Domínio de produção alvo: `https://mesh-sales-platform.vercel.app` — **ainda
+não aparece na API da Vercel** (só os domínios `alwayson-distribuidores*`
+seguem ativos); renomear o projeto não migra o `.vercel.app` sozinho, precisa
+de um novo deploy pra Vercel provisionar (ou adicionar manual em Vercel →
+Settings → Domains). Enquanto isso, `supabase/functions/_shared/app-origin.ts`
+aceita os dois domínios (deploy feito) para não quebrar o site que ainda está
+no ar no domínio antigo — depois que `mesh-sales-platform.vercel.app` estiver
+confirmado no ar, remover a linha do domínio antigo dali e redeployar
+(`npm run auth:deploy-email-fns`). Conferir também se `APP_PUBLIC_URL`/
+`ALLOWED_APP_ORIGINS` (secrets de Edge Function, não estão neste repo) já
+apontam pro domínio novo.
 
 ## Supabase (único projeto canônico deste repositório)
 
@@ -50,6 +72,65 @@ IDs internos (`distribuidor_id`, `fornecedor_tenant_id`, `cliente_id`, etc.) sã
 - **Selects de tenant/entidade:** resolver rótulo com `labelFromOptions()` (`src/lib/entity-labels.ts`) ou `currentTenant.nome`; passar o texto explicitamente em `<SelectValue>{label}</SelectValue>`. Se o tenant está fixo (utilizador distribuidor/fornecedor), usar campo **somente leitura** — não um select com UUID.
 - **Nunca** deixar o Radix `SelectValue` cair no fallback do `value` bruto quando a lista ainda não carregou ou o item não está nas opções — mostrar placeholder ou skeleton, não o UUID.
 - **Referência:** filtros do Explorar em `src/components/explorar/ExplorarFiltros.tsx` (`FilterEntitySelect`, `FilterReadonly`).
+
+## Regras de interface (marca Mesh)
+
+Tudo vem de `src/index.css` (`@theme`/`:root`). Não escrever hex solto no
+componente, não inventar tamanho de fonte fora da escala, não criar variante
+de raio ou espaçamento nova sem justificar.
+
+**Cor.** Âmbar `#FF7A1A` (`text-amber`/`bg-amber`/`--color-amber`) é acento de
+marca e aparece **uma vez por tela**, no elemento de ação principal ou no
+ponto ativo. Âmbar **nunca** significa alerta — para aviso/pendência usar
+`text-warning`/`bg-warning` (`--warning`), nunca a paleta `amber-*` padrão do
+Tailwind (visualmente idêntica ao âmbar de marca; já foi removida do código
+uma vez, não reintroduzir). Alerta forte é vermelho (`--destructive`/
+`--color-data-down`), positivo é verde (`--color-data-up`).
+
+**Malha.** Sempre via `MeshTerrain` (`src/components/brand/MeshTerrain.tsx`),
+nunca redesenhada. Densidade pela regra inversa: tela sem dado usa `hero`,
+tela de conteúdo usa `content`, tela com dado real usa `data`. Decorativa,
+`aria-hidden`, sem captura de ponteiro. O SVG de origem (`mesh-terrain.svg`,
+`mesh-mark.svg`) trava `style="color:#..."` na tag raiz — o componente
+remove isso via regex antes de injetar, para herdar `currentColor`; não
+importar esses SVGs direto sem passar por esse tratamento.
+
+**O mark.** `BrandMark` usa só o traçado simplificado (5 traços) — o completo
+(`mesh-mark.svg`, ~113 traços) fica ilegível abaixo de ~80px e nenhum uso do
+componente no app chega lá. Reservar o completo para peça futura de formato
+grande (marketing, print), nunca para os tamanhos `sm`/`md` do componente.
+
+**Números.** `tabular-nums` (utilitário nativo do Tailwind) em toda célula
+numérica, KPI e eixo de gráfico.
+
+**Campos e botões.** Altura mínima 48px, inclusive no desktop.
+
+**Foco.** Contorno âmbar de 2px com offset de 2px — já cai sozinho via
+`--ring`/`--sidebar-ring` nos componentes shadcn, e via a regra global
+`:focus-visible` em `src/index.css` para o resto. Não substituir pelo outline
+padrão do navegador nem remover.
+
+**Tema.** Produto e telas de análise em escuro. App de campo (se um dia
+existir separado deste) em claro, sempre.
+
+## Copy dentro do produto
+
+Voz ativa e sentence case. O botão diz o que acontece e mantém o mesmo nome
+no fluxo inteiro.
+
+Vocabulário permitido: malha, nó, canal, ponta, cobertura, positivação, giro,
+ruptura, visibilidade, leitura, parceria.
+
+Vocabulário proibido: monitorar, fiscalizar, controlar, auditar, vigiar,
+cobrar — vale principalmente em qualquer tela que o distribuidor vê.
+
+## O que não fazer
+
+- Não colocar a malha como `background-image` repetido.
+- Não criar nome fantasia para módulo — é Mesh Canal, Mesh PDV, Mesh Estoque,
+  Mesh Metas.
+- Não escrever MESH em caixa alta em texto corrido.
+- Não reintroduzir a paleta `amber-*` padrão do Tailwind para aviso/pendência.
 
 ## Explorar (PDV Intelligence)
 

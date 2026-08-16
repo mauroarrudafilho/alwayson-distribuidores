@@ -482,7 +482,7 @@ export function AdminDistribuidores() {
                   </div>
                 )}
                 {ufForaCobertura && (
-                  <p className="text-xs text-amber-700 dark:text-amber-500">
+                  <p className="text-xs text-warning ">
                     UF {lookup.uf} fora da cobertura Nordeste (PE, PB, RN, AL, SE). Não é possível
                     cadastrar.
                   </p>

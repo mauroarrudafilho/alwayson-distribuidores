@@ -324,7 +324,7 @@ function rotuloMes(ym: string): string {
 function corAtingimento(p: number | null): string {
   if (p === null) return 'text-muted-foreground'
   if (p >= 100) return 'text-emerald-600'
-  if (p >= 80) return 'text-amber-600'
+  if (p >= 80) return 'text-warning'
   return 'text-red-600'
 }
 

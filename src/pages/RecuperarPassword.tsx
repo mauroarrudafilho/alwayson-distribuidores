@@ -44,7 +44,7 @@ export function RecuperarPassword() {
     <AuthShell eyebrow="Recuperar acesso" title="Esqueceu a senha?" italic="Sem problema.">
       <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
         Informe o e-mail vinculado à sua conta. Enviaremos um link com a mesma identidade visual
-            M.I.R.A. para você definir uma nova senha.
+            Mesh para você definir uma nova senha.
       </p>
 
       {enviado ? (

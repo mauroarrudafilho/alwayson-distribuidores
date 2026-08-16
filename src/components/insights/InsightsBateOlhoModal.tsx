@@ -401,7 +401,7 @@ export function InsightsBateOlhoModal({
         <div className="overflow-y-auto px-4 pt-4 pb-2">
           <DialogHeader className="gap-2 pr-8 text-left">
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Lightbulb className="size-4 text-amber-500" />
+              <Lightbulb className="size-4 text-warning" />
               Sell-out Insights · bate olho
             </DialogTitle>
             <DialogDescription className="text-left">
@@ -489,10 +489,10 @@ export function InsightsBateOlhoModal({
             </div>
 
             {isPerformance && (mesAnalise || mesAnaliseRef) && (
-              <div className="rounded-md border border-amber-500/35 bg-amber-500/8 px-3 py-3">
+              <div className="rounded-md border border-warning/35 bg-warning/8 px-3 py-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-warning ">
                       Mês de análise
                       {mesAnaliseRef ? ` · ${formatAnoMesLabel(mesAnaliseRef)}` : ''}
                     </p>
@@ -644,7 +644,7 @@ export function InsightsBateOlhoModal({
                       <Check className="size-3 text-emerald-600" /> continuidade
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <Eye className="size-3 text-amber-500" /> só histórico
+                      <Eye className="size-3 text-warning" /> só histórico
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <span className="size-1.5 rounded-full bg-info" /> novo
@@ -711,7 +711,7 @@ function MixStatusIcon({ status }: { status: MixItemStatus }) {
   if (status === 'historico') {
     return (
       <span title={mixStatusTitle.historico} className="inline-flex justify-center">
-        <Eye className="size-4 text-amber-500" aria-label={mixStatusTitle.historico} />
+        <Eye className="size-4 text-warning" aria-label={mixStatusTitle.historico} />
       </span>
     )
   }

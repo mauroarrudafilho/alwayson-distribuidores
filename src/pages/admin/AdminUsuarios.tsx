@@ -160,7 +160,7 @@ const tipoBadge: Record<TenantTipo, { label: string; className: string }> = {
   fornecedor: {
     label: 'Fornecedor',
     className:
-      'border-amber-300/60 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100',
+      'border-warning/60 bg-warning/10 text-warning   ',
   },
   distribuidor: {
     label: 'Distribuidor',
@@ -254,7 +254,7 @@ function InviteEscopoResumo({
   showRole?: boolean
 }) {
   if (roleEhAdminGlobal(role)) {
-    return <span className="text-xs text-muted-foreground">Admin global (M.I.R.A.)</span>
+    return <span className="text-xs text-muted-foreground">Admin global (Mesh)</span>
   }
 
   if (!fornecedorNomes.length && !parceiroNomes.length) {
@@ -772,7 +772,7 @@ export function AdminUsuarios() {
         />
         <Card>
           <CardContent className="flex items-start gap-3 p-4 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="text-muted-foreground">
               Apenas administradores globais podem ver esta área.
             </p>
@@ -1541,7 +1541,7 @@ export function AdminUsuarios() {
             <div>
               <p className="font-medium">Resumo · Fase 2</p>
               <p className="text-xs text-muted-foreground">
-                 Convites e esqueci senha saem pelo <strong>Resend</strong> (template M.I.R.A.) via{' '}
+                 Convites e esqueci senha saem pelo <strong>Resend</strong> (template Mesh) via{' '}
                 <code className="font-mono">admin-invite-user</code> e{' '}
                 <code className="font-mono">auth-recuperar-senha</code>. Deploy:{' '}
                 <code className="font-mono">npm run auth:deploy-email-fns</code>. Confirme{' '}
